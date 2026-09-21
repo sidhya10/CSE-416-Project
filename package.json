@@ -1,0 +1,15 @@
+{
+  "name": "cse-416-project",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "echo \"Set up client/server dev scripts\"",
+    "build": "echo \"Set up client/server build scripts\"",
+    "test": "echo \"Set up project tests\""
+  }
+}
