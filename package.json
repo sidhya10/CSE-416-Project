@@ -1,15 +1,29 @@
 {
   "name": "cse-416-project",
-  "private": true,
   "version": "0.1.0",
-  "workspaces": [
-    "client",
-    "server",
-    "shared"
-  ],
+  "private": true,
+  "workspaces": ["client", "server", "shared"],
   "scripts": {
-    "dev": "echo \"Set up client/server dev scripts\"",
-    "build": "echo \"Set up client/server build scripts\"",
-    "test": "echo \"Set up project tests\""
+    "dev": "concurrently -n client,server -c cyan,magenta \"npm run dev --workspace client\" \"npm run dev --workspace server\"",
+    "build": "npm run build --workspace shared && npm run build --workspace client && npm run build --workspace server",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspace shared && npm run typecheck --workspace client && npm run typecheck --workspace server",
+    "test": "npm run test --workspace client && npm run test --workspace server",
+    "test:coverage": "npm run test:coverage --workspace client && npm run test:coverage --workspace server",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "@types/node": "^24.3.1",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.35.0",
+    "globals": "^16.3.0",
+    "prisma": "^6.16.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.42.0"
   }
 }
