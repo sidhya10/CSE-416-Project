@@ -81,7 +81,6 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     if (editing && activeId !== null) setGroups(previous => previous.map(group => group.id === activeId ? { ...group, ...patch } : group));
     else setDraft(previous => ({ ...previous, ...patch }));
   };
-  const current = editing && active ? active : draft;
   const enterGroup = (id: number) => { setActiveId(id); setEditing(false); go('detail'); };
   const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const startCreate = () => { setDraft(initialDraft()); setSelected(['nicole', 'eva', 'sidhya']); setEditing(false); go('select'); };
