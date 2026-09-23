@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import receiptLogo from './assets/receipt-split-logo.png';
+import ProfileSettings from './pages/settings/ProfileSettings';
 
 type Tab = 'Home' | 'Budget' | 'Groups' | 'Profile';
 type AuthView = 'login' | 'signup';
@@ -15,20 +16,25 @@ export default function App() {
   const [preview, setPreview] = useState(false);
   const [tab, setTab] = useState<Tab>('Home');
   const [notice, setNotice] = useState('');
+  const [profileAtRoot, setProfileAtRoot] = useState(true);
 
   const changeView = (next: AuthView) => { setNotice(''); setView(next); };
   const unavailable = (service: string) => setNotice(`${service} is not connected yet. Explore the app preview below.`);
 
   return <div className="device">
-    <div className="status-bar" aria-hidden="true"><span>9:41</span><span>● ◒ ▰</span></div>
     {preview ? <>
-      <main className="placeholder-page"><h1>{tab}</h1></main>
-      <nav className="bottom-nav" aria-label="Main navigation">
+      {tab !== 'Profile' && <main className="placeholder-page"><h1>{tab}</h1></main>}
+      <div hidden={tab !== 'Profile'} className="profile-content">
+        <ProfileSettings onRootChange={setProfileAtRoot} onLogout={() => {
+          setPreview(false); setTab('Home'); setProfileAtRoot(true); setNotice('');
+        }} />
+      </div>
+      {(tab !== 'Profile' || profileAtRoot) && <nav className="bottom-nav" aria-label="Main navigation">
         {tabs.map(({ label, glyph }) => <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'}
           aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}>
           <span className="tab-glyph" aria-hidden="true">{glyph}</span><span>{label}</span>
         </button>)}
-      </nav>
+      </nav>}
     </> : view === 'login' ? <main className="login-screen">
       <div className="login-intro">
         <div className="logo-tile"><img src={receiptLogo} width="52" height="52" alt="" /></div>

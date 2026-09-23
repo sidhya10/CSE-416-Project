@@ -14,4 +14,25 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     expect(screen.getByRole('heading', { name: 'Groups' })).toBeInTheDocument();
   });
+
+  it('edits a preview profile, discards canceled changes, and opens account settings', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Profile' }));
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^edit profile\s*›$/i }));
+    const name = screen.getByRole('textbox', { name: 'NAME' });
+    fireEvent.change(name, { target: { value: 'Test Person' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByText('Vivian Zheng')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^edit profile\s*›$/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'NAME' }), { target: { value: 'Test Person' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('Test Person')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /account settings/i }));
+    expect(screen.getByRole('heading', { name: 'Account settings' })).toBeInTheDocument();
+    expect(screen.getAllByText('Available after account login')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Settings' }));
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+  });
 });

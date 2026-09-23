@@ -28,7 +28,7 @@ The app records settlements but does not move real money. Version 1 is USD-only 
 
 The mobile app opens on the Log in screen. Users may move to Create your account, which collects name, username, email, and a password of at least eight characters including a number. Both designs show a Google sign-in option; password reset and Google OAuth require backend integration. After authentication, a persistent bottom navigation bar has four destinations: **Home**, **Budget**, **Groups**, and **Profile**. Home summarizes monthly spending against budget, category spending, month-to-month spending and income, and the difference between imported charges and reconciled personal shares. Budget holds category limits, projections, and what-if planning. Groups lists the user's shared groups. Profile holds account details and settings; the editable fields are profile photo, username, name, and birthday, while email is read-only.
 
-The initial frontend scaffold provides the account screens and four empty destinations in a clearly labeled preview. Actual registration, sessions, and account persistence require backend implementation.
+The initial frontend scaffold provides the account screens, three empty destinations, and a Profile tab with Settings, Edit profile, and Account settings screens. Profile edits and preference selections are preview-only local state; they are not saved to the server or retained after a reload. Account connection and security controls explain when backend support is required. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own. Actual registration, sessions, and account persistence require backend implementation.
 
 ### Group types and flows
 
