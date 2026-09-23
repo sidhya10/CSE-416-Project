@@ -20,12 +20,12 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Profile' }));
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /edit profile/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^edit profile\s*›$/i }));
     const name = screen.getByRole('textbox', { name: 'NAME' });
     fireEvent.change(name, { target: { value: 'Test Person' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.getByText('Vivian Zheng')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /edit profile/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^edit profile\s*›$/i }));
     fireEvent.change(screen.getByRole('textbox', { name: 'NAME' }), { target: { value: 'Test Person' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByText('Test Person')).toBeInTheDocument();
