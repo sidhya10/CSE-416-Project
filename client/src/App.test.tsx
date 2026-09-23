@@ -64,11 +64,46 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /Apartment bills/i }));
     fireEvent.click(screen.getByRole('button', { name: /Rent Monthly/i }));
     expect(screen.getByRole('heading', { name: 'Rent' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Who pays this cycle?' }), { target: { value: 'nicole' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'You' }), { target: { value: '1000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save this cycle' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Shares must add up to $1,800');
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Nicole Chen' }), { target: { value: '500' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Eva Lin' }), { target: { value: '300' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save this cycle' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Payment plan saved for this cycle');
+    fireEvent.click(screen.getByRole('button', { name: 'Next cycle' }));
+    expect(screen.getByRole('combobox', { name: 'Who pays this cycle?' })).toHaveValue('you');
+    fireEvent.click(screen.getByRole('button', { name: 'Previous cycle' }));
+    expect(screen.getByRole('combobox', { name: 'Who pays this cycle?' })).toHaveValue('nicole');
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     fireEvent.click(screen.getByRole('button', { name: 'Group settings' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'DESCRIPTION · VISIBLE TO MEMBERS' }),
       { target: { value: 'Rent and internet for our apartment' } });
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByText('Rent and internet for our apartment')).toBeInTheDocument();
+  });
+
+  it('adds a custom recurrence from a date and exposes split entry points', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
+    fireEvent.click(screen.getByRole('button', { name: /Apartment 4B/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Split current expenses' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Split expense pages are coming soon');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
+    fireEvent.click(screen.getByRole('button', { name: /Apartment bills/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add recurring/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Cleaning' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount per cycle' }), { target: { value: '90' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Repeat' }), { target: { value: 'Custom' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Every' }), { target: { value: '2' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Unit' }), { target: { value: 'weeks' } });
+    fireEvent.change(screen.getByLabelText('Recurring from'), { target: { value: '2026-10-03' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save recurring cost' }));
+    expect(screen.getByRole('heading', { name: 'Cleaning' })).toBeInTheDocument();
+    expect(screen.getByText(/Every 2 weeks · starts Oct 3, 2026/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Next cycle' }));
+    expect(screen.getByText('Cycle of Oct 17, 2026')).toBeInTheDocument();
   });
 });

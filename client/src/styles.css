@@ -27,7 +27,7 @@ form input::placeholder{color:#6b7870;opacity:1}
 .placeholder-page{flex:1;padding:7px 23px}.placeholder-page h1{font-size:24px}
 .bottom-nav{height:64px;flex:none;display:grid;grid-template-columns:repeat(4,1fr);margin:0 23px 24px;border:1px solid #dedbcc;border-radius:22px;background:#fff;overflow:hidden}
 .tab{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#6b7870;font-size:9px}.tab.active{color:#1f6e52;font-weight:600}.tab-glyph{height:28px;font-size:20px;line-height:25px}
-.profile-content{display:flex;flex:1;min-height:0}.profile-content[hidden]{display:none}
+.profile-content{display:flex;flex:1;min-width:0;width:100%;min-height:0}.profile-content[hidden]{display:none}
 .settings-screen{width:100%;min-height:0;overflow-y:auto;padding:56px 23px 20px;scrollbar-width:thin}
 .settings-heading h1{font-size:24px;line-height:29px}.settings-heading p{margin-top:3px;color:#6b7870;font-size:12px}
 .profile-summary{display:flex;gap:18px;min-height:132px;padding:22px 16px;margin-top:18px;background:#fff;border-radius:20px}
