@@ -4,7 +4,11 @@ import './groups.css';
 type GroupType = 'General' | 'Trip' | 'Recurring';
 type Friend = { id: string; name: string; handle: string; color: string };
 type PlannedExpense = { id: number; title: string; amount: number };
-type RecurringBill = { id: number; title: string; amount: number; dueDay: number; payer: string; nextPayer: string };
+type Frequency = 'Weekly' | 'Monthly' | 'Quarterly' | 'Semi-yearly' | 'Yearly' | 'Custom';
+type IntervalUnit = 'days' | 'weeks' | 'months' | 'years';
+type Allocation = { payerId: string; shares: Record<string, number> };
+type RecurringBill = { id: number; title: string; amount: number; startDate: string; frequency: Frequency;
+  customEvery: number; customUnit: IntervalUnit; cycles: Record<string, Allocation> };
 type Group = {
   id: number; name: string; description: string; type: GroupType; members: string[];
   color: string; photo: string | null; startDate: string; endDate: string;
@@ -35,13 +39,43 @@ const initialGroups: Group[] = [
   { id: 4, name: 'Apartment bills', description: 'Shared rent, internet, and utilities.', type: 'Recurring',
     members: ['nicole', 'eva'], color: 'gold', photo: null, startDate: '', endDate: '',
     privateBudget: null, plans: [],
-    bills: [{ id: 1, title: 'Rent', amount: 1800, dueDay: 1, payer: 'Vivian', nextPayer: 'Nicole' },
-      { id: 2, title: 'Internet', amount: 75, dueDay: 15, payer: 'Vivian', nextPayer: 'Nicole' }] },
+    bills: [{ id: 1, title: 'Rent', amount: 1800, startDate: '2026-10-01', frequency: 'Monthly', customEvery: 1, customUnit: 'months', cycles: {} },
+      { id: 2, title: 'Internet', amount: 75, startDate: '2026-10-15', frequency: 'Monthly', customEvery: 1, customUnit: 'months', cycles: {} }] },
 ];
 
 const money = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: amount % 1 ? 2 : 0 }).format(amount);
 const dateLabel = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 const monthLabel = (value: Date) => value.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+const isoDate = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+const parseDate = (value: string) => new Date(`${value}T12:00:00`);
+const occurrence = (bill: RecurringBill, index: number) => {
+  const start = parseDate(bill.startDate);
+  const every = bill.frequency === 'Custom' ? bill.customEvery : bill.frequency === 'Quarterly' ? 3 : bill.frequency === 'Semi-yearly' ? 6 : 1;
+  const unit = bill.frequency === 'Custom' ? bill.customUnit : bill.frequency === 'Weekly' ? 'weeks' : bill.frequency === 'Yearly' ? 'years' : 'months';
+  if (unit === 'days' || unit === 'weeks') { start.setDate(start.getDate() + index * every * (unit === 'weeks' ? 7 : 1)); return start; }
+  const months = index * every * (unit === 'years' ? 12 : 1);
+  const first = new Date(start.getFullYear(), start.getMonth() + months, 1, 12);
+  return new Date(first.getFullYear(), first.getMonth(), Math.min(start.getDate(), new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()), 12);
+};
+const occurrencesInMonth = (bill: RecurringBill, month: Date) => {
+  const end = new Date(month.getFullYear(), month.getMonth() + 1, 1, 12);
+  const dates: string[] = [];
+  for (let i = 0; i < 1500; i++) {
+    const date = occurrence(bill, i);
+    if (date >= end) break;
+    if (date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth()) dates.push(isoDate(date));
+  }
+  return dates;
+};
+const findCycleIndex = (bill: RecurringBill, date: string) => {
+  for (let i = 0; i < 1500; i++) if (isoDate(occurrence(bill, i)) === date) return i;
+  return 0;
+};
+const defaultAllocation = (bill: RecurringBill, members: Friend[]): Allocation => {
+  const cents = Math.round(bill.amount * 100);
+  const each = Math.floor(cents / members.length);
+  return { payerId: 'you', shares: Object.fromEntries(members.map((member, index) => [member.id, each + (index < cents % members.length ? 1 : 0)])) };
+};
 const initialDraft = (): Group => ({ id: 0, name: '', description: '', type: 'General', members: [], color: 'gold',
   photo: null, startDate: '', endDate: '', privateBudget: null, plans: [], bills: [] });
 
@@ -70,12 +104,18 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const [calendarMonth, setCalendarMonth] = useState(new Date(2026, 9, 1));
   const [plannedTitle, setPlannedTitle] = useState('');
   const [plannedAmount, setPlannedAmount] = useState('');
-  const [newBill, setNewBill] = useState({ title: '', amount: '', dueDay: '1', payer: 'Vivian', nextPayer: 'Nicole' });
+  const [newBill, setNewBill] = useState({ title: '', amount: '', startDate: '', frequency: 'Monthly' as Frequency, customEvery: '1', customUnit: 'months' as IntervalUnit });
   const [addingBill, setAddingBill] = useState(false);
+  const [cycleIndex, setCycleIndex] = useState(0);
+  const [allocationDraft, setAllocationDraft] = useState<Allocation | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
+  const groupMembers = (group: Group) => [{ id: 'you', name: 'You', handle: '@you', color: 'green' }, ...group.members.map(id => friends.find(friend => friend.id === id)).filter((friend): friend is Friend => Boolean(friend))];
   const active = groups.find(group => group.id === activeId);
   const bill = active?.bills.find(item => item.id === billId);
-  const firstBill = active?.bills[0];
+  const cycleDate = bill ? isoDate(occurrence(bill, cycleIndex)) : '';
+  const members = active ? groupMembers(active) : [];
+  const allocation = bill ? bill.cycles[cycleDate] ?? defaultAllocation(bill, members) : null;
+  const cycleEntries = active?.bills.flatMap(item => occurrencesInMonth(item, calendarMonth).map(date => ({ item, date }))) ?? [];
 
   const go = (next: Screen) => { setScreen(next); setQuery(''); setMessage(''); onRootChange(next === 'list'); };
   const updateGroup = (patch: Partial<Group>) => {
@@ -83,6 +123,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     else setDraft(previous => ({ ...previous, ...patch }));
   };
   const enterGroup = (id: number) => { setActiveId(id); setEditing(false); go('detail'); };
+  const openBill = (id: number, index = 0) => { setBillId(id); setCycleIndex(index); setAllocationDraft(null); go('bill'); };
   const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const startCreate = () => { setDraft(initialDraft()); setSelected(['nicole', 'eva', 'sidhya']); setEditing(false); go('select'); };
   const createGroup = (event: FormEvent) => {
@@ -101,7 +142,6 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     reader.onload = () => updateGroup({ photo: typeof reader.result === 'string' ? reader.result : null });
     reader.readAsDataURL(file);
   };
-  const groupMembers = (group: Group) => [{ id: 'you', name: 'You', handle: '@you', color: 'green' }, ...group.members.map(id => friends.find(friend => friend.id === id)).filter((friend): friend is Friend => Boolean(friend))];
   const listFriends = friends.filter(friend => knownFriends.includes(friend.id) && `${friend.name} ${friend.handle}`.toLowerCase().includes(query.toLowerCase()));
   const addPlan = (event: FormEvent) => {
     event.preventDefault();
@@ -113,11 +153,23 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   };
   const addBill = (event: FormEvent) => {
     event.preventDefault();
-    if (!active || Number(newBill.amount) <= 0) return;
+    if (!active || !newBill.startDate || Number(newBill.amount) <= 0 || Number(newBill.customEvery) < 1) return;
     const item: RecurringBill = { id: Date.now(), title: newBill.title.trim(), amount: Number(newBill.amount),
-      dueDay: Number(newBill.dueDay), payer: newBill.payer, nextPayer: newBill.nextPayer };
+      startDate: newBill.startDate, frequency: newBill.frequency, customEvery: Number(newBill.customEvery), customUnit: newBill.customUnit, cycles: {} };
     setGroups(previous => previous.map(group => group.id === active.id ? { ...group, bills: [...group.bills, item] } : group));
-    setAddingBill(false); setNewBill({ title: '', amount: '', dueDay: '1', payer: 'Vivian', nextPayer: 'Nicole' });
+    setAddingBill(false); setNewBill({ title: '', amount: '', startDate: '', frequency: 'Monthly', customEvery: '1', customUnit: 'months' });
+    openBill(item.id);
+  };
+  const saveAllocation = (event: FormEvent) => {
+    event.preventDefault();
+    if (!active || !bill || !allocationDraft) return;
+    if (Object.values(allocationDraft.shares).some(value => !Number.isInteger(value) || value < 0) ||
+      members.reduce((sum, member) => sum + (allocationDraft.shares[member.id] || 0), 0) !== Math.round(bill.amount * 100)) {
+      setMessage(`Shares must add up to ${money(bill.amount)}.`); return;
+    }
+    setGroups(previous => previous.map(group => group.id !== active.id ? group : { ...group,
+      bills: group.bills.map(item => item.id !== bill.id ? item : { ...item, cycles: { ...item.cycles, [cycleDate]: allocationDraft } }) }));
+    setAllocationDraft(null); setMessage('Payment plan saved for this cycle.');
   };
 
   return <main className="groups-workspace">
@@ -168,7 +220,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
           <button type="button" className={draft.type === type ? 'selected' : ''} key={type} onClick={() => updateGroup({ type })}>{type}</button>)}</div>
           <small className="group-type-help">{draft.type === 'General' ? 'General groups support any shared expense and flexible splitting.' :
             draft.type === 'Trip' ? 'Trip groups have dates, a private budget, and future cost planning.' :
-              'Add recurring costs with schedules and payer rotation.'}</small></div>
+              'Add recurring costs with flexible schedules and payment plans for each cycle.'}</small></div>
         {draft.type === 'Trip' && <div className="trip-dates"><span className="group-field-label">TRIP DATES</span>
           <div><label>Start<input type="date" required value={draft.startDate} onChange={event => updateGroup({ startDate: event.target.value })} /></label>
             <label>End<input type="date" required min={draft.startDate} value={draft.endDate} onChange={event => updateGroup({ endDate: event.target.value })} /></label></div></div>}
@@ -188,24 +240,32 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
         <section className="recurring-calendar"><div><h2>{monthLabel(calendarMonth)}</h2><span>
           <button type="button" aria-label="Previous month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>‹</button>
           <button type="button" aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>›</button></span></div>
-          <div className="calendar-days">{active.bills.slice(0, 5).map(item => <button type="button" key={item.id}
-            onClick={() => { setBillId(item.id); go('bill'); }}>{item.dueDay}</button>)}</div>
-          <small>{active.bills.length} scheduled this month</small></section>
+          <div className="calendar-days">{cycleEntries.slice(0, 5).map(({ item, date }) => <button type="button" key={`${item.id}-${date}`}
+            aria-label={`${item.title} on ${dateLabel(date)}`} onClick={() => openBill(item.id, findCycleIndex(item, date))}>{Number(date.slice(-2))}</button>)}</div>
+          <small>{cycleEntries.length} scheduled this month</small></section>
         <div className="group-section-line"><h2 className="group-overline">RECURRING EXPENSES</h2><button type="button" onClick={() => setAddingBill(!addingBill)}>+ Add recurring</button></div>
         {addingBill && <form className="group-form add-bill-form" onSubmit={addBill}>
           <label>Name<input required value={newBill.title} onChange={event => setNewBill({ ...newBill, title: event.target.value })} placeholder="Rent" /></label>
-          <label>Monthly amount<input required type="number" min="0.01" step="0.01" value={newBill.amount} onChange={event => setNewBill({ ...newBill, amount: event.target.value })} /></label>
-          <label>Due day<input required type="number" min="1" max="28" value={newBill.dueDay} onChange={event => setNewBill({ ...newBill, dueDay: event.target.value })} /></label>
-          <label>Current payer<select value={newBill.payer} onChange={event => setNewBill({ ...newBill, payer: event.target.value })}>{['Vivian', ...active.members.map(id => friends.find(friend => friend.id === id)?.name.split(' ')[0] || '')].map(name => <option key={name}>{name}</option>)}</select></label>
-          <label>Next payer<select value={newBill.nextPayer} onChange={event => setNewBill({ ...newBill, nextPayer: event.target.value })}>{['Vivian', ...active.members.map(id => friends.find(friend => friend.id === id)?.name.split(' ')[0] || '')].map(name => <option key={name}>{name}</option>)}</select></label>
+          <label>Amount per cycle<input required type="number" min="0.01" step="0.01" value={newBill.amount} onChange={event => setNewBill({ ...newBill, amount: event.target.value })} /></label>
+          <label>Repeat<select value={newBill.frequency} onChange={event => setNewBill({ ...newBill, frequency: event.target.value as Frequency })}>
+            {(['Weekly', 'Monthly', 'Quarterly', 'Semi-yearly', 'Yearly', 'Custom'] as Frequency[]).map(value => <option key={value}>{value}</option>)}</select></label>
+          {newBill.frequency === 'Custom' && <div className="custom-interval"><label>Every<input required type="number" min="1" step="1" value={newBill.customEvery} onChange={event => setNewBill({ ...newBill, customEvery: event.target.value })} /></label>
+            <label>Unit<select value={newBill.customUnit} onChange={event => setNewBill({ ...newBill, customUnit: event.target.value as IntervalUnit })}>
+              {(['days', 'weeks', 'months', 'years'] as IntervalUnit[]).map(unit => <option key={unit}>{unit}</option>)}</select></label></div>}
+          <label>Recurring from<input required type="date" value={newBill.startDate} onChange={event => setNewBill({ ...newBill, startDate: event.target.value })} /></label>
           <button className="group-primary" type="submit">Save recurring cost</button></form>}
-        {active.bills.map(item => <button className="recurring-card" type="button" key={item.id} onClick={() => { setBillId(item.id); go('bill'); }}>
-          <span><strong>{item.title}</strong><small>Monthly · due day {item.dueDay}</small><small>{item.payer} pays · Next: {item.nextPayer}</small></span><b>{money(item.amount)}</b></button>)}
-        {firstBill && <p className="group-info">Next payer rotation: {firstBill.nextPayer} pays {firstBill.title} next month.</p>}
+        {active.bills.map(item => <button className="recurring-card" type="button" key={item.id} onClick={() => openBill(item.id)}>
+          <span><strong>{item.title}</strong><small>{item.frequency === 'Custom' ? `Every ${item.customEvery} ${item.customUnit}` : item.frequency} · from {dateLabel(item.startDate)}</small><small>Set payer and shares for each cycle</small></span><b>{money(item.amount)}</b></button>)}
+        <div className="group-split-actions"><button type="button" onClick={() => setMessage('Split expense pages are coming soon.')}>View balances &amp; confirmations</button>
+          <button type="button" onClick={() => setMessage('Split expense pages are coming soon.')}>Split settled expenses</button></div>
+        {message && <p className="group-notice" role="status">{message}</p>}
       </> : <>
         <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE · SAMPLE'}</small>
           <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? '$1,450' : '$38.20'}</strong></span>
             <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? '$400' : '$64.80'}</strong></span></div></section>
+        <div className="group-split-actions"><button type="button" onClick={() => setMessage('Expense entry pages are coming soon.')}>+ Add expense</button>
+          <button type="button" onClick={() => setMessage('Split expense pages are coming soon.')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
+        {message && <p className="group-notice" role="status">{message}</p>}
         <section className="group-info"><strong>{active.type === 'Trip' ? active.description || 'Trip with friends' : 'Any member can add expenses and split when ready.'}</strong>
           <small>{active.type === 'Trip' ? `Trip dates · ${dateLabel(active.startDate)} – ${dateLabel(active.endDate)}` : `About · ${active.description || 'No description yet'}`}</small></section>
         {active.type === 'Trip' && <>
@@ -270,11 +330,19 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     </>}
     {screen === 'bill' && active && bill && <>
       <Header title={bill.title} subtitle={active.name} back={() => go('detail')} />
-      <section className="group-hero"><small>NEXT PAYMENT</small><strong>{money(bill.amount)}</strong><p>Due day {bill.dueDay} · Monthly</p></section>
-      <p className="group-info"><small>Payer rotation</small><strong>{bill.payer} pays this month</strong><small>Next: {bill.nextPayer} · following month</small></p>
-      <h2 className="group-overline">MEMBER SHARES · PLANNED</h2>
-      {groupMembers(active).map(member => <div className="member-row" key={member.id}><Avatar name={member.name} color={member.color} />
-        <span><strong>{member.name}</strong><small>Estimated share</small></span><b>{money(bill.amount / (active.members.length + 1))}</b></div>)}
+      <section className="group-hero"><small>AMOUNT PER CYCLE</small><strong>{money(bill.amount)}</strong><p>{bill.frequency === 'Custom' ? `Every ${bill.customEvery} ${bill.customUnit}` : bill.frequency} · starts {dateLabel(bill.startDate)}</p></section>
+      <div className="cycle-navigation"><button type="button" disabled={cycleIndex === 0} onClick={() => { setCycleIndex(cycleIndex - 1); setAllocationDraft(null); setMessage(''); }} aria-label="Previous cycle">‹</button>
+        <span>Cycle of {dateLabel(cycleDate)}</span><button type="button" onClick={() => { setCycleIndex(cycleIndex + 1); setAllocationDraft(null); setMessage(''); }} aria-label="Next cycle">›</button></div>
+      <h2 className="group-overline">PAYMENT PLAN FOR THIS CYCLE</h2>
+      <form className="group-form cycle-form" onSubmit={saveAllocation}>
+        <label>Who pays this cycle?<select value={(allocationDraft ?? allocation)?.payerId} onChange={event => setAllocationDraft({ ...(allocationDraft ?? allocation!), payerId: event.target.value })}>
+          {members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
+        <span className="group-field-label">HOW MUCH EACH MEMBER PAYS</span>
+        {members.map(member => <label key={member.id}>{member.name}<input type="number" min="0" step="0.01" required
+          value={((allocationDraft ?? allocation)?.shares[member.id] ?? 0) / 100}
+          onChange={event => setAllocationDraft({ ...(allocationDraft ?? allocation!), shares: { ...(allocationDraft ?? allocation)!.shares, [member.id]: Math.round(Number(event.target.value) * 100) } })} /></label>)}
+        <button className="group-primary" type="submit">Save this cycle</button></form>
+      {message && <p className="group-notice" role="status">{message}</p>}
       <p className="group-info"><small>Payment and reimbursement confirmations will be part of the expense and settlement implementation.</small></p>
     </>}
   </main>;
