@@ -28,7 +28,7 @@ The app records settlements but does not move real money. Version 1 is USD-only 
 
 The mobile app opens on the Log in screen. Users may move to Create your account, which collects name, username, email, and a password of at least eight characters including a number. Both designs show a Google sign-in option; password reset and Google OAuth require backend integration. After authentication, a persistent bottom navigation bar has four destinations: **Home**, **Budget**, **Groups**, and **Profile**. Home summarizes monthly spending against budget, category spending, month-to-month spending and income, and the difference between imported charges and reconciled personal shares. Budget holds category limits, projections, and what-if planning. Groups lists the user's shared groups. Profile holds account details and settings; the editable fields are profile photo, username, name, and birthday, while email is read-only.
 
-The initial frontend scaffold provides the account screens, three empty destinations, and a Profile tab with Settings, Edit profile, and Account settings screens. Profile edits and preference selections are preview-only local state; they are not saved to the server or retained after a reload. Account connection and security controls explain when backend support is required. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own. Actual registration, sessions, and account persistence require backend implementation.
+The frontend preview provides the account screens, empty Home and Budget destinations, a Groups workspace, and a Profile tab with Settings, Edit profile, and Account settings screens. Profile edits and group changes are in-session React state; they are not saved to the server or retained after a reload. Account connection and security controls explain when backend support is required. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own. Actual registration, sessions, and account persistence require backend implementation.
 
 ### Group types and flows
 
@@ -41,6 +41,8 @@ There are exactly three group types: **General**, **Trip**, and **Recurring**. E
 | Recurring | Creation captures recurring context. The detail view includes a calendar and recurring expenses. Each recurring expense has its own detail and schedule; the payer may rotate across billing periods. |
 
 All group types can surface balances and settlement status. Group insights can show shared monthly spending, trip cost per person, common categories, outstanding balances, and increases in recurring expenses when supporting data exists. Before committing a split, show the user's estimated share and how much of the relevant category budget would remain without exposing private budget numbers to other members.
+
+The current Groups preview connects the group list, friend selection, three creation types, detail pages, settings, member addition, recurring schedule and detail pages, and private trip budget planning. Existing transactions and balances are labeled sample data. Planned costs are estimates only and do not change real spending or balances. Expense entry, splitting, settlement confirmation, invitations, server persistence, and access control are subsequent backend work. A private trip budget must eventually be stored per user and group, with server authorization preventing other members from reading it.
 
 ## 3. Technology Stack
 
