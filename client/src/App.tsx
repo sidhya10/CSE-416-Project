@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import receiptLogo from './assets/receipt-split-logo.png';
 import ProfileSettings from './pages/settings/ProfileSettings';
+import GroupsWorkspace from './pages/groups/GroupsWorkspace';
 
 type Tab = 'Home' | 'Budget' | 'Groups' | 'Profile';
 type AuthView = 'login' | 'signup';
@@ -17,19 +18,23 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('Home');
   const [notice, setNotice] = useState('');
   const [profileAtRoot, setProfileAtRoot] = useState(true);
+  const [groupsAtRoot, setGroupsAtRoot] = useState(true);
 
   const changeView = (next: AuthView) => { setNotice(''); setView(next); };
   const unavailable = (service: string) => setNotice(`${service} is not connected yet. Explore the app preview below.`);
 
   return <div className="device">
     {preview ? <>
-      {tab !== 'Profile' && <main className="placeholder-page"><h1>{tab}</h1></main>}
+      {tab !== 'Profile' && tab !== 'Groups' && <main className="placeholder-page"><h1>{tab}</h1></main>}
       <div hidden={tab !== 'Profile'} className="profile-content">
         <ProfileSettings onRootChange={setProfileAtRoot} onLogout={() => {
           setPreview(false); setTab('Home'); setProfileAtRoot(true); setNotice('');
         }} />
       </div>
-      {(tab !== 'Profile' || profileAtRoot) && <nav className="bottom-nav" aria-label="Main navigation">
+      <div hidden={tab !== 'Groups'} className="profile-content">
+        <GroupsWorkspace onRootChange={setGroupsAtRoot} />
+      </div>
+      {(tab === 'Home' || tab === 'Budget' || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
         {tabs.map(({ label, glyph }) => <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'}
           aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}>
           <span className="tab-glyph" aria-hidden="true">{glyph}</span><span>{label}</span>
