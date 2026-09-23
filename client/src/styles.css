@@ -1,48 +1,32 @@
-:root {
-  color: #1f2933;
-  background: #f5f7f2;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-}
-
-* { box-sizing: border-box; }
-
-body {
-  min-width: 320px;
-  min-height: 100vh;
-  margin: 0;
-}
-
-button, input, textarea, select { font: inherit; }
-
-.app-shell {
-  display: grid;
-  min-height: 100vh;
-  padding: 2rem;
-  place-items: center;
-}
-
-.status-card {
-  width: min(100%, 38rem);
-  padding: 2rem;
-  border: 1px solid #d8dfd2;
-  border-radius: 1.5rem;
-  background: #ffffff;
-  box-shadow: 0 1rem 3rem rgb(31 41 51 / 8%);
-}
-
-.status-card h1 {
-  margin: 0.5rem 0;
-  font-size: clamp(2rem, 7vw, 3.5rem);
-  line-height: 1;
-}
-
-.eyebrow {
-  margin: 0;
-  color: #52705a;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1a2421;background:#e8e8e8;font-synthesis:none;text-rendering:optimizeLegibility}
+*{box-sizing:border-box}body{margin:0;min-width:320px}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid #4073cc;outline-offset:2px}
+.device{position:relative;display:flex;flex-direction:column;width:min(100%,390px);min-height:844px;margin:0 auto;background:#f6f4ed;border:1px solid #dedbcc;border-radius:28px;overflow:hidden}
+.status-bar{height:48px;flex:none;padding:14px 22px 0;display:flex;justify-content:space-between;padding-right:74px;font-size:12px;font-weight:600}
+.status-bar span:last-child{font-size:10px;letter-spacing:2px}
+.login-screen,.signup-screen{padding:0 23px;display:flex;flex-direction:column;flex:1}
+.login-intro{text-align:center}.logo-tile{width:88px;height:88px;border-radius:26px;background:#1f6e52;margin:25px auto 22px;display:grid;place-items:center}.logo-tile img{width:52px;height:52px}
+h1,p{margin:0}.login-intro h1{font-size:26px;line-height:32px;font-weight:700}.login-intro p{margin-top:6px;color:#6b7870;font-size:12px}
+form label{display:flex;flex-direction:column;gap:8px;color:#6b7870;font-size:10px;font-weight:600}
+form input{height:52px;width:100%;padding:0 13px;border:1px solid #dedbcc;border-radius:14px;background:#fff;color:#1a2421;font-size:14px;font-weight:400;outline:none}
+form input::placeholder{color:#6b7870;opacity:1}
+.login-form{display:flex;flex-direction:column;gap:18px;margin-top:33px}
+.forgot-link{align-self:flex-end;margin-top:-13px;padding:0 12px 0 0;border:0;background:transparent;color:#1f6e52;font-size:11px;font-weight:600}
+.primary-button{height:52px;width:100%;border:0;border-radius:16px;background:#1f6e52;color:white;font-size:14px;font-weight:600}.primary-button:hover{background:#18563f}
+.login-form .primary-button{margin-top:10px}
+.divider{display:flex;align-items:center;gap:21px;margin:20px 0;color:#6b7870;font-size:11px}.divider:before,.divider:after{content:"";height:1px;background:#dedbcc;flex:1}
+.google-button{height:52px;width:100%;border:1px solid #dedbcc;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;gap:14px;color:#1a2421;font-size:13px;font-weight:600}
+.google-badge{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#edf0f5;color:#4073cc;font-size:13px;font-weight:700}
+.switch-auth{text-align:center;margin-top:38px;color:#6b7870;font-size:12px}.switch-auth button{padding:0 0 0 5px;border:0;background:transparent;color:#1f6e52;font-size:12px;font-weight:600}
+.terms{text-align:center;margin-top:40px;color:#6b7870;font-size:9px}
+.preview-link{align-self:center;margin-top:auto;margin-bottom:20px;border:0;background:transparent;color:#1f6e52;font-size:11px;font-weight:600}
+.form-notice{margin-top:14px;padding:10px 12px;border-radius:12px;background:#e8f0e3;color:#1f6e52;font-size:11px;line-height:1.45}
+.signup-intro{position:relative;text-align:center;height:79px;flex:none}.signup-intro h1{margin-top:8px;font-size:24px;line-height:29px;font-weight:700}.signup-intro p{margin-top:5px;color:#6b7870;font-size:12px}
+.back-button{position:absolute;top:1px;left:0;border:0;background:none;font-size:28px;line-height:32px;color:#1a2421}
+.signup-screen>.google-button{height:50px;border-radius:15px}.manual-divider{text-align:center;color:#6b7870;font-size:11px;margin:19px 0 16px}
+.signup-form{display:flex;flex-direction:column;gap:10px}.signup-form label{gap:8px}.signup-form label+label{margin-top:0}
+.password-hint{display:flex;align-items:center;height:54px;padding:0 14px;border-radius:14px;background:#e8f0e3;color:#1f6e52;font-size:10px;margin-top:2px}
+.signup-form .primary-button{margin-top:14px}.signup-screen .switch-auth{margin-top:27px}.signup-screen .preview-link{margin-bottom:10px}
+.placeholder-page{flex:1;padding:7px 23px}.placeholder-page h1{font-size:24px}
+.bottom-nav{height:64px;flex:none;display:grid;grid-template-columns:repeat(4,1fr);margin:0 23px 24px;border:1px solid #dedbcc;border-radius:22px;background:#fff;overflow:hidden}
+.tab{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#6b7870;font-size:9px}.tab.active{color:#1f6e52;font-weight:600}.tab-glyph{height:28px;font-size:20px;line-height:25px}
+@media(max-width:390px){.device{border-radius:0;min-height:100dvh}.bottom-nav{margin-bottom:max(24px,env(safe-area-inset-bottom))}}
