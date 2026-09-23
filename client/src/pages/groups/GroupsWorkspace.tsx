@@ -75,6 +75,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const photoInput = useRef<HTMLInputElement>(null);
   const active = groups.find(group => group.id === activeId);
   const bill = active?.bills.find(item => item.id === billId);
+  const firstBill = active?.bills[0];
 
   const go = (next: Screen) => { setScreen(next); setQuery(''); setMessage(''); onRootChange(next === 'list'); };
   const updateGroup = (patch: Partial<Group>) => {
@@ -200,7 +201,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
           <button className="group-primary" type="submit">Save recurring cost</button></form>}
         {active.bills.map(item => <button className="recurring-card" type="button" key={item.id} onClick={() => { setBillId(item.id); go('bill'); }}>
           <span><strong>{item.title}</strong><small>Monthly · due day {item.dueDay}</small><small>{item.payer} pays · Next: {item.nextPayer}</small></span><b>{money(item.amount)}</b></button>)}
-        {active.bills.length > 0 && <p className="group-info">Next payer rotation: {active.bills[0].nextPayer} pays {active.bills[0].title} next month.</p>}
+        {firstBill && <p className="group-info">Next payer rotation: {firstBill.nextPayer} pays {firstBill.title} next month.</p>}
       </> : <>
         <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE · SAMPLE'}</small>
           <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? '$1,450' : '$38.20'}</strong></span>
