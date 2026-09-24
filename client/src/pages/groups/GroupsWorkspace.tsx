@@ -213,19 +213,19 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       <h2 className="group-section-title">Your groups</h2>
       {message && <p className="group-notice" role="status">{message}</p>}
       <div className="group-list">{groups.filter(group => !group.archived && group.name.toLowerCase().includes(query.toLowerCase())).map(group =>
-        <div className={`group-list-row${openActionsId === group.id ? ' is-open' : ''}`} key={group.id}
+        <div className={`group-list-row${openActionsId === group.id ? ' is-open' : ''}`} key={group.id} role="group" aria-label={group.name}
           onPointerDown={event => { if (event.target instanceof Element && event.target.closest('.group-list-card')) swipeStart.current = { id: group.id, x: event.clientX, y: event.clientY }; }}
           onPointerMove={event => { const start = swipeStart.current; if (start?.id === group.id && Math.abs(event.clientX - start.x) > 12 && Math.abs(event.clientX - start.x) > Math.abs(event.clientY - start.y)) event.currentTarget.setPointerCapture(event.pointerId); }}
           onPointerUp={event => finishSwipe(group.id, event.clientX, event.clientY)} onPointerCancel={() => { swipeStart.current = null; }}>
-          <div className="group-card-actions"><button type="button" aria-label={`Archive ${group.name}`} onClick={() => archiveGroup(group)}>Archive</button>
-            <button type="button" aria-label={`Delete ${group.name}`} onClick={() => { setPendingDelete(group); setOpenActionsId(null); }}>Delete</button></div>
+          <div className="group-card-actions"><button type="button" onClick={() => archiveGroup(group)}>Archive</button>
+            <button type="button" onClick={() => { setPendingDelete(group); setOpenActionsId(null); }}>Delete</button></div>
           <div className="group-card-foreground"><button className="group-list-card" type="button" onClick={() => {
             if (suppressCardClick.current === group.id) { suppressCardClick.current = null; return; }
             if (openActionsId === group.id) { setOpenActionsId(null); return; }
             enterGroup(group.id);
           }}><Avatar name={group.name} color={group.color} photo={group.photo} />
               <span><strong>{group.name}</strong><small>{group.members.length + 1} members · {group.type}</small><em>{group.description}</em></span></button>
-            <button className="group-card-menu" type="button" aria-label={`Actions for ${group.name}`} aria-expanded={openActionsId === group.id}
+            <button className="group-card-menu" type="button" aria-label="Group actions" aria-expanded={openActionsId === group.id}
               onClick={() => setOpenActionsId(openActionsId === group.id ? null : group.id)}>›</button></div>
         </div>)}</div>
       {groups.some(group => group.archived) && <section className="archived-groups"><h2 className="group-section-title">Archived groups</h2>

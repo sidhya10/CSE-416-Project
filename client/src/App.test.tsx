@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import App from './App';
@@ -111,8 +111,9 @@ describe('App', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Boston weekend' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Archive Boston weekend' }));
+    const group = within(screen.getByRole('group', { name: 'Boston weekend' }));
+    fireEvent.click(group.getByRole('button', { name: 'Group actions' }));
+    fireEvent.click(group.getByRole('button', { name: 'Archive' }));
     expect(screen.getByRole('heading', { name: 'Archived groups' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Boston weekend 4 members/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Restore Boston weekend' }));
@@ -133,10 +134,11 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     const card = screen.getByRole('button', { name: /Apartment 4B 3 members/i });
-    fireEvent.pointerDown(card, { clientX: 260, clientY: 150 });
-    fireEvent.pointerUp(card, { clientX: 140, clientY: 150 });
-    expect(screen.getByRole('button', { name: 'Actions for Apartment 4B' })).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Apartment 4B' }));
+    fireEvent(card, new MouseEvent('pointerdown', { bubbles: true, clientX: 260, clientY: 150 }));
+    fireEvent(card, new MouseEvent('pointerup', { bubbles: true, clientX: 140, clientY: 150 }));
+    const group = within(screen.getByRole('group', { name: 'Apartment 4B' }));
+    expect(group.getByRole('button', { name: 'Group actions' })).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(group.getByRole('button', { name: 'Delete' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
     expect(screen.queryByRole('button', { name: /Apartment 4B 3 members/i })).not.toBeInTheDocument();
   });
