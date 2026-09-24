@@ -61,7 +61,7 @@ describe('App', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
-    fireEvent.click(screen.getByRole('button', { name: /Apartment bills/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Apartment bills 3 members/i }));
     fireEvent.click(screen.getByRole('button', { name: /Rent Monthly/i }));
     expect(screen.getByRole('heading', { name: 'Rent' })).toBeInTheDocument();
     fireEvent.change(screen.getByRole('combobox', { name: 'Who pays this cycle?' }), { target: { value: 'nicole' } });
@@ -88,11 +88,11 @@ describe('App', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
-    fireEvent.click(screen.getByRole('button', { name: /Apartment 4B/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Apartment 4B 3 members/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Split current expenses' }));
     expect(screen.getByRole('status')).toHaveTextContent('Split expense pages are coming soon');
     fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
-    fireEvent.click(screen.getByRole('button', { name: /Apartment bills/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Apartment bills 3 members/i }));
     fireEvent.click(screen.getByRole('button', { name: /add recurring/i }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Cleaning' } });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount per cycle' }), { target: { value: '90' } });
