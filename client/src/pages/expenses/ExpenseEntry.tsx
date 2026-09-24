@@ -66,7 +66,8 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm }: 
   if (splitting) return <SplitExpense name={name.trim()} items={items.map(item => ({ id: item.id, name: item.name.trim(), cents: cents(item.amount)! }))}
     feeCents={Object.values(fees).reduce((sum, value) => sum + (cents(value) ?? 0), 0)} members={members} payerId={payer} date={date}
     mode={splitMode} assignments={assignments} onModeChange={setSplitMode} onAssignmentsChange={setAssignments}
-    onBack={() => setSplitting(false)} onConfirm={onConfirm} />;
+    onBack={() => setSplitting(false)} onConfirm={split => onConfirm({ ...split,
+      feeBreakdown: { tax: cents(fees.Tax)!, tip: cents(fees.Tip)!, other: cents(fees.Other)! }, receiptName: receipt?.name })} />;
 
   return <main className="expense-screen">
     <header className="expense-header"><button type="button" aria-label={choosing ? 'Back to expense' : 'Back to group'} onClick={() => choosing ? setChoosing(false) : onBack()}><img src={arrowLeft} alt="" /></button><h1>{choosing ? 'Who paid?' : 'Add expense'}</h1></header>

@@ -1,3 +1,4 @@
+import ExpenseDetails from '../expenses/ExpenseDetails';
 import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import './groups.css';
 import Avatar from '../../components/common/Avatar';
@@ -18,7 +19,7 @@ type Group = {
   color: string; photo: string | null; startDate: string; endDate: string;
   privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
 };
-type Screen = 'saved' | 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
+type Screen = 'expense-details' | 'saved' | 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
 const friends: Friend[] = [
   { id: 'nicole', name: 'Nicole Chen', handle: '@nicolec', color: 'mint' },
@@ -92,6 +93,7 @@ function Header({ title, subtitle, back, trailing }: { title: string; subtitle?:
 }
 
 export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoot: boolean) => void }) {
+  const [viewedExpense, setViewedExpense] = useState<{ title: string; subtitle: string; amount: string; split?: PreviewSplit } | null>(null);
   const [savedSplit, setSavedSplit] = useState<PreviewSplit | null>(null);
   const [previewSplits, setPreviewSplits] = useState<Record<number, PreviewSplit[]>>({});
   const [screen, setScreen] = useState<Screen>('list');
@@ -217,6 +219,8 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     go('detail'); setMessage('Split confirmed in this preview session only. Balances and budgets have not changed; reloading clears the preview.');
   }} />;
 
+  if (screen === 'expense-details' && active && viewedExpense) return <ExpenseDetails expense={viewedExpense} groupName={active.name} members={members} onBack={() => go('detail')} />;
+
   return <main className="groups-workspace">
     {screen === 'list' && <>
       <Header title="Groups" subtitle="Split, plan, and settle with people you trust" />
@@ -296,10 +300,6 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       <div className="group-detail-header"><button type="button" className="group-back" onClick={() => go('list')} aria-label="Back to Groups">‹</button>
         <Avatar name={active.name} color={active.color} photo={active.photo} /><span><h1>{active.name}</h1><small>{active.type}{active.type === 'Trip' && active.startDate ? ` · ${dateLabel(active.startDate)}–${dateLabel(active.endDate)}` : ''} · {active.members.length + 1} members</small></span>
         <button type="button" className="group-more" onClick={() => { setEditing(true); go('settings'); }} aria-label="Group settings">•••</button></div>
-      {(previewSplits[active.id] ?? []).map((split, index) => <section className="preview-split" key={index} aria-label={`Confirmed preview split: ${split.name}`}>
-        <h3>{split.name} · {formatCents(split.totalCents)}</h3><p>Confirmed preview · {split.mode === 'equal' ? 'Equal split' : 'Split by item'}</p>
-        <ul>{split.shares.map(share => <li key={share.memberId}>{members.find(member => member.id === share.memberId)?.name}: {formatCents(share.totalCents)} share{share.memberId === split.payerId ? ' · Payer (no reimbursement to self)' : ` · Reimburse ${formatCents(share.reimbursementCents)}`}</li>)}</ul>
-      </section>)}
       {active.type === 'Recurring' ? <>
         <p className="detail-description">{active.description || 'Add a description in group settings.'}</p>
         <section className="recurring-calendar"><div><h2>{monthLabel(calendarMonth)}</h2><span>
@@ -342,11 +342,21 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
           {active.plans.length === 0 ? <p className="group-caption">Estimate future costs before adding actual expenses.</p>
             : active.plans.map(item => <div className="group-transaction" key={item.id}><span><strong>{item.title}</strong><small>Estimated · Your share {money(item.amount / (active.members.length + 1))}</small></span><b>{money(item.amount)}</b></div>)}
         </>}
+        <section aria-label={active.type === 'Trip' ? 'Current trip expenses' : 'Transactions · Current period'}>
         <h2 className="group-section-title">{active.type === 'Trip' ? 'Current trip expenses' : 'Transactions · Current period'}</h2>
+        {[...(previewSplits[active.id] ?? [])].reverse().map((split, index) => {
+          const title = split.name;
+          const subtitle = `${members.find(member => member.id === split.payerId)?.name ?? 'Member'} paid · ${split.mode === 'equal' ? 'Equal split' : 'Split by item'} · Preview`;
+          const amount = formatCents(split.totalCents);
+          return <button type="button" className="group-transaction expense-list-row" key={index} onClick={() => { setViewedExpense({ title, subtitle, amount, split }); go('expense-details'); }}>
+            <span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b>
+          </button>;
+        })}
         {(active.type === 'Trip' ? [['Airbnb', 'Nicole paid · Lodging', '+$247.50'], ['Dinner at Myers + Chang', 'You paid · Dining', '−$93.60'], ['Parking', 'Eva paid · Transit', '+$48.00']] :
           [['Electric bill', 'Vivian paid · Utilities', '+$247.50'], ['Weekly groceries', 'Nicole paid · Groceries', '−$93.60'], ['Parking', 'Eva paid · Transit', '+$48.00']]).map(([title, subtitle, amount]) =>
-          <div className="group-transaction" key={title}><span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}</b></div>)}
-        <p className="group-caption">Sample transactions · Confirmed preview splits appear above. Live balances and persistence are not connected yet.</p>
+          <button type="button" className="group-transaction expense-list-row" key={title} onClick={() => { setViewedExpense({ title: title!, subtitle: subtitle!, amount: amount! }); go('expense-details'); }}><span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b></button>)}
+        <p className="group-caption">New expenses are session-only previews. Other rows are sample transactions; live balances and persistence are not connected yet.</p>
+        </section>
       </>}
     </>}
     {screen === 'plan' && active && <>

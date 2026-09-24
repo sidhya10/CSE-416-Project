@@ -1,0 +1,18 @@
+.expense-details-screen .expense-header{padding-left:16px;padding-right:24px}
+.details-body{padding:12px 24px;gap:12px}
+.details-tabs{display:flex;flex:none;gap:4px;padding:4px;border:1px solid #dedbcc;border-radius:18px;background:#fff}
+.details-tabs button{flex:1;min-height:36px;border:0;border-radius:14px;background:transparent;color:#6b7870;font-size:14px;font-weight:600}
+.details-tabs button[aria-pressed=true]{background:#1f6e52;color:#fff}
+.details-card{display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:17px;background:#fff}
+.details-body .details-card h2{font-size:14px;line-height:18px;font-weight:600}
+.details-body .details-report h2{font-size:16px;line-height:20px}
+.details-body .details-card p,.details-body .details-preview{margin:0;color:#6b7870;font-size:11px;line-height:18px;overflow-wrap:anywhere}
+.details-payment{flex-direction:row;align-items:center;gap:12px}
+.details-payment>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:8px}
+.details-payment h2{color:#1f6e52}
+.details-payment .expense-outline{width:64px;min-height:38px;border-radius:12px;flex:none}
+.details-row{display:flex;justify-content:space-between;align-items:baseline;gap:16px;font-size:13px;line-height:18px}
+.details-row>span:first-child{overflow-wrap:anywhere;min-width:0}
+.details-row>span:last-child,.details-row>strong:last-child{flex:none;font-variant-numeric:tabular-nums}
+.details-total{font-size:14px}
+.details-total strong{font-weight:600}

@@ -10,6 +10,8 @@ export type PreviewSplit = {
   mode: SplitMode;
   items: SplitItem[];
   feeCents: number;
+  feeBreakdown?: { tax: number; tip: number; other: number };
+  receiptName?: string;
   totalCents: number;
   assignments: SplitAssignments;
   shares: SplitShare[];
