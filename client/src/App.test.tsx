@@ -106,4 +106,38 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next cycle' }));
     expect(screen.getByText('Cycle of Oct 17, 2026')).toBeInTheDocument();
   });
+
+  it('archives and restores a group through card actions, and confirms deletion from settings', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Boston weekend' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Archive Boston weekend' }));
+    expect(screen.getByRole('heading', { name: 'Archived groups' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Boston weekend 4 members/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Boston weekend' }));
+    fireEvent.click(screen.getByRole('button', { name: /Boston weekend 4 members/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Group settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete group' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Delete Boston weekend?');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('heading', { name: 'Group settings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete group' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
+    expect(screen.getByRole('heading', { name: 'Groups' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Boston weekend 4 members/i })).not.toBeInTheDocument();
+  });
+
+  it('reveals swipe actions and confirms deletion from the group list', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
+    const card = screen.getByRole('button', { name: /Apartment 4B 3 members/i });
+    fireEvent.pointerDown(card, { clientX: 260, clientY: 150 });
+    fireEvent.pointerUp(card, { clientX: 140, clientY: 150 });
+    expect(screen.getByRole('button', { name: 'Actions for Apartment 4B' })).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Apartment 4B' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
+    expect(screen.queryByRole('button', { name: /Apartment 4B 3 members/i })).not.toBeInTheDocument();
+  });
 });
