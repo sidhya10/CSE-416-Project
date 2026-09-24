@@ -96,11 +96,11 @@ describe('Split screens', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
     expect(screen.getByRole('heading', { name: 'Boston weekend' })).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('preview session only');
-    const saved = screen.getByRole('region', { name: 'Confirmed preview split: Lunch' });
-    expect(saved).toHaveTextContent('Nicole Chen: $12.00 share · Reimburse $12.00');
+    const saved = within(screen.getByRole('region', { name: 'Current trip expenses' })).getByRole('button', { name: /Lunch/ });
+    expect(saved).toHaveTextContent('$12.00');
     fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
     fireEvent.click(screen.getByRole('button', { name: /Boston weekend/ }));
-    expect(screen.getAllByRole('region', { name: 'Confirmed preview split: Lunch' })).toHaveLength(1);
+    expect(within(screen.getByRole('region', { name: 'Current trip expenses' })).getAllByRole('button', { name: /Lunch/ })).toHaveLength(1);
   });
 });
 
@@ -132,4 +132,53 @@ it('assigns items by selected name and keeps both assignment methods synchronize
   fireEvent.click(screen.getByRole('button', { name: 'Select Eva to assign items' }));
   expect(screen.queryByRole('button', { name: 'Assign Noodles to Eva' })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Eva for Noodles' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+it('lists newest created expenses first and opens details for saved and sample expenses', () => {
+  openExpense();
+  const saveExpense = (name: string, amount: string) => {
+    fill('EXPENSE NAME', name); fill('Item 1 name', 'Tickets'); fill('Item 1 amount', amount);
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+    fireEvent.click(screen.getByRole('button', { name: `Confirm and split $${amount}` }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
+  };
+  saveExpense('First outing', '20.00');
+  fireEvent.click(screen.getByRole('button', { name: '+ Add expense' }));
+  saveExpense('Second outing', '40.00');
+  const list = within(screen.getByRole('region', { name: 'Current trip expenses' }));
+  const rows = list.getAllByRole('button');
+  expect(rows[0]).toHaveTextContent('Second outing');
+  expect(rows[1]).toHaveTextContent('First outing');
+  expect(rows[2]).toHaveTextContent('Airbnb');
+  fireEvent.click(rows[0]!);
+  expect(screen.getByRole('heading', { name: 'Expense details' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Items and fees' })).toHaveTextContent('Tickets');
+  expect(screen.getByRole('region', { name: 'Split shares' })).toHaveTextContent('$10.00');
+  fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
+  fireEvent.click(screen.getByRole('button', { name: /Airbnb/ }));
+  expect(screen.getByRole('heading', { name: 'Airbnb' })).toBeInTheDocument();
+  expect(screen.getByText(/Sample transaction · This is the amount/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
+  expect(within(screen.getByRole('region', { name: 'Current trip expenses' })).getAllByRole('button')[0]).toHaveTextContent('Second outing');
+});
+
+it('preserves individual fees and receipt metadata in expense details without inventing payment status', () => {
+  openExpense();
+  fill('EXPENSE NAME', 'Receipt dinner'); fill('Item 1 name', 'Meal'); fill('Item 1 amount', '20.00');
+  fill('Tax', '2.00'); fill('Tip', '4.00'); fill('Other', '1.00');
+  const input = document.querySelector('input[accept="image/*,application/pdf"]') as HTMLInputElement;
+  fireEvent.change(input, { target: { files: [new File(['receipt'], 'meal.png', { type: 'image/png' })] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $27.00' }));
+  fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
+  fireEvent.click(screen.getByRole('button', { name: /Receipt dinner/ }));
+  const items = within(screen.getByRole('region', { name: 'Items and fees' }));
+  for (const amount of ['$20.00', '$2.00', '$4.00', '$1.00', '$27.00']) expect(items.getByText(amount)).toBeInTheDocument();
+  expect(items.getByText(/meal.png/)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Your payment' })).toHaveTextContent('You don’t owe a payment to yourself');
+  expect(screen.queryByText(/Awaiting receipt/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Payments' }));
+  expect(screen.getByRole('status')).toHaveTextContent('No payment has been recorded');
+  fireEvent.click(screen.getByRole('button', { name: 'Edit expense' }));
+  expect(screen.getByRole('status')).toHaveTextContent('Editing saved expenses is not connected');
 });
