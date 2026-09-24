@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import './groups.css';
 import Avatar from '../../components/common/Avatar';
+import { formatCents, type PreviewSplit } from '../expenses/split';
 import ExpenseEntry from '../expenses/ExpenseEntry';
 
 type GroupType = 'General' | 'Trip' | 'Recurring';
@@ -90,6 +91,7 @@ function Header({ title, subtitle, back, trailing }: { title: string; subtitle?:
 }
 
 export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoot: boolean) => void }) {
+  const [previewSplits, setPreviewSplits] = useState<Record<number, PreviewSplit[]>>({});
   const [screen, setScreen] = useState<Screen>('list');
   const [groups, setGroups] = useState<Group[]>(initialGroups);
   const [activeId, setActiveId] = useState<number | null>(null);
@@ -171,7 +173,10 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     setAllocationDraft(null); setMessage('Payment plan saved for this cycle.');
   };
 
-  if (screen === 'expense' && active) return <ExpenseEntry groupName={active.name} members={members} onBack={() => go('detail')} />;
+  if (screen === 'expense' && active) return <ExpenseEntry groupName={active.name} members={members} onBack={() => go('detail')} onConfirm={split => {
+    setPreviewSplits(previous => ({ ...previous, [active.id]: [...(previous[active.id] ?? []), split] }));
+    go('detail'); setMessage('Split confirmed in this preview session only. Balances and budgets have not changed; reloading clears the preview.');
+  }} />;
 
   return <main className="groups-workspace">
     {screen === 'list' && <>
@@ -236,6 +241,10 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       <div className="group-detail-header"><button type="button" className="group-back" onClick={() => go('list')} aria-label="Back to Groups">‹</button>
         <Avatar name={active.name} color={active.color} photo={active.photo} /><span><h1>{active.name}</h1><small>{active.type}{active.type === 'Trip' && active.startDate ? ` · ${dateLabel(active.startDate)}–${dateLabel(active.endDate)}` : ''} · {active.members.length + 1} members</small></span>
         <button type="button" className="group-more" onClick={() => { setEditing(true); go('settings'); }} aria-label="Group settings">•••</button></div>
+      {(previewSplits[active.id] ?? []).map((split, index) => <section className="preview-split" key={index} aria-label={`Confirmed preview split: ${split.name}`}>
+        <h3>{split.name} · {formatCents(split.totalCents)}</h3><p>Confirmed preview · {split.mode === 'equal' ? 'Equal split' : 'Split by item'}</p>
+        <ul>{split.shares.map(share => <li key={share.memberId}>{members.find(member => member.id === share.memberId)?.name}: {formatCents(share.totalCents)} share{share.memberId === split.payerId ? ' · Payer (no reimbursement to self)' : ` · Reimburse ${formatCents(share.reimbursementCents)}`}</li>)}</ul>
+      </section>)}
       {active.type === 'Recurring' ? <>
         <p className="detail-description">{active.description || 'Add a description in group settings.'}</p>
         <section className="recurring-calendar"><div><h2>{monthLabel(calendarMonth)}</h2><span>
@@ -282,7 +291,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
         {(active.type === 'Trip' ? [['Airbnb', 'Nicole paid · Lodging', '+$247.50'], ['Dinner at Myers + Chang', 'You paid · Dining', '−$93.60'], ['Parking', 'Eva paid · Transit', '+$48.00']] :
           [['Electric bill', 'Vivian paid · Utilities', '+$247.50'], ['Weekly groceries', 'Nicole paid · Groceries', '−$93.60'], ['Parking', 'Eva paid · Transit', '+$48.00']]).map(([title, subtitle, amount]) =>
           <div className="group-transaction" key={title}><span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}</b></div>)}
-        <p className="group-caption">Sample transactions · Expense entry and splitting will be implemented separately.</p>
+        <p className="group-caption">Sample transactions · Confirmed preview splits appear above. Live balances and persistence are not connected yet.</p>
       </>}
     </>}
     {screen === 'plan' && active && <>

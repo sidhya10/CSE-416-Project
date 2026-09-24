@@ -34,7 +34,8 @@ describe('Expense entry flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to expense' }));
     expect(screen.getByRole('button', { name: 'Paid by Nicole · Change' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
-    expect(screen.getByRole('status')).toHaveTextContent('has not saved an expense or changed balances');
+    expect(screen.getByRole('heading', { name: 'Split expense' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to expense' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
     expect(screen.getByRole('heading', { name: 'Boston weekend' })).toBeInTheDocument();
   });
@@ -68,4 +69,65 @@ describe('Expense entry flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove receipt' }));
     expect(screen.queryByText('dinner.png')).not.toBeInTheDocument();
   });
+});
+
+describe('Split screens', () => {
+  it('retains assignments across modes and entry edits, blocks unassigned items, and confirms locally', () => {
+    openExpense();
+    fill('EXPENSE NAME', 'Lunch'); fill('Item 1 name', 'Noodles'); fill('Item 1 amount', '10.01');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+    expect(screen.getByRole('button', { name: 'Equal split' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Split by item' }));
+    for (const name of ['Vivian', 'Nicole', 'Eva', 'Sidhya']) fireEvent.click(screen.getByRole('button', { name: `${name} for Noodles` }));
+    expect(screen.getByRole('button', { name: 'Confirm and split $10.01' })).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('Assign every item');
+    fireEvent.click(screen.getByRole('button', { name: 'Nicole for Noodles' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Equal split' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Split by item' }));
+    expect(screen.getByRole('button', { name: 'Nicole for Noodles' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Vivian for Noodles' })).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to expense' }));
+    expect(screen.getByRole('textbox', { name: 'EXPENSE NAME' })).toHaveValue('Lunch');
+    fill('Item 1 amount', '12.00');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+    expect(screen.getByRole('button', { name: 'Nicole for Noodles' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $12.00' }));
+    expect(screen.getByRole('heading', { name: 'Boston weekend' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('preview session only');
+    const saved = screen.getByRole('region', { name: 'Confirmed preview split: Lunch' });
+    expect(saved).toHaveTextContent('Nicole Chen: $12.00 share · Reimburse $12.00');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
+    fireEvent.click(screen.getByRole('button', { name: /Boston weekend/ }));
+    expect(screen.getAllByRole('region', { name: 'Confirmed preview split: Lunch' })).toHaveLength(1);
+  });
+});
+
+it('assigns items by selected name and keeps both assignment methods synchronized', () => {
+  openExpense();
+  fill('EXPENSE NAME', 'Lunch'); fill('Item 1 name', 'Noodles'); fill('Item 1 amount', '12.00');
+  fireEvent.click(screen.getByRole('button', { name: '+ Add item' }));
+  fill('Item 2 name', 'Tea'); fill('Item 2 amount', '4.00');
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Split by item' }));
+  const nicole = screen.getByRole('button', { name: 'Select Nicole to assign items' });
+  fireEvent.click(nicole);
+  expect(nicole).toHaveAttribute('aria-pressed', 'true');
+  const noodles = screen.getByRole('button', { name: 'Assign Noodles to Nicole' });
+  fireEvent.click(noodles);
+  expect(noodles).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByRole('button', { name: 'Nicole for Noodles' })).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByRole('button', { name: 'Nicole for Tea' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Nicole for Noodles' }));
+  expect(noodles).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Eva for Noodles' }));
+  expect(noodles).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Eva for Noodles' })).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(screen.getByRole('button', { name: 'Select Eva to assign items' }));
+  expect(nicole).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByRole('button', { name: 'Assign Noodles to Eva' })).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(screen.getByRole('button', { name: 'Assign Noodles to Eva' }));
+  expect(screen.getByRole('button', { name: 'Eva for Noodles' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Select Eva to assign items' }));
+  expect(screen.queryByRole('button', { name: 'Assign Noodles to Eva' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Eva for Noodles' })).toHaveAttribute('aria-pressed', 'true');
 });

@@ -1,0 +1,46 @@
+.split-body{gap:10px}
+.split-context{padding:10px;background:#fff;border-radius:17px}
+.split-body .split-context h2{font-size:15px;font-weight:700;line-height:18px;overflow-wrap:anywhere}
+.split-context>div{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px;flex-wrap:wrap}
+.split-body .split-context p{font-size:12px}
+.split-context strong{font-size:16px;color:#1f6e52}
+.split-modes{display:flex;gap:4px;padding:4px;border:1px solid #dedbcc;border-radius:18px;background:#fff;flex:none}
+.split-modes button{flex:1;min-width:0;height:36px;border:0;border-radius:14px;background:none;color:#6b7870;font-size:13px;font-weight:600}
+.split-modes button[aria-pressed=true]{background:#1f6e52;color:#fff}
+.split-items{display:flex;flex-direction:column;gap:6px}
+.split-body .split-items h2{font-size:14px;font-weight:700;line-height:17px}
+.split-item{padding:10px;border:1px solid #dedbcc;border-radius:16px;background:#fff}
+.split-item-title{display:flex;justify-content:space-between;gap:8px;font-size:13px;line-height:14px}
+.split-item-title strong{font-weight:600;overflow-wrap:anywhere;min-width:0}.split-item-title b{flex:none}
+.split-fees{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 14px}
+.split-body .split-fees p{font-size:12px;line-height:16px}.split-fees b{font-size:13px;flex:none}
+.split-body .split-final-heading{font-size:16px;line-height:19px;flex:none}
+.split-summary{display:flex;flex-direction:column;gap:6px;background:#e8f0e3;border-radius:20px;padding:10px}
+.split-body .split-summary h2{color:#1f6e52;font-size:14px;font-weight:700;line-height:17px;margin-bottom:2px}
+.split-share{display:flex;align-items:center;gap:8px;font-size:13px;min-height:20px}
+.split-share>span:not(.split-avatar){flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}.split-share>strong{flex:none}
+.split-avatar{display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:50%;overflow:hidden}
+.split-avatar.tone-0{background:#c7e5d1}.split-avatar.tone-1{background:#f5d6c7}.split-avatar.tone-2{background:#d6e3f2}.split-avatar.tone-3{background:#f0e0b8}
+.split-avatar .group-avatar{width:100%;height:100%;font-size:10px;font-weight:700;background:transparent}
+.split-legend{display:flex;flex-direction:column;gap:6px}
+.split-body .split-legend>p{font-size:11px;line-height:14px;font-weight:600;text-transform:uppercase}
+.split-legend>div{display:flex;gap:8px;flex-wrap:wrap}
+.split-legend>div>button{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid #dedbcc;border-radius:14px;background:#fff;font-size:11px;font-weight:600}
+.split-assignment{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;flex-wrap:wrap}
+.split-body .split-assignment p{font-size:11px;line-height:14px;flex:1}
+.split-assignment>div{display:flex;gap:4px;flex-wrap:wrap}
+.split-assignment button{display:grid;place-items:center;width:24px;height:24px;padding:0;border:1.5px solid #1f6e52;border-radius:50%;background:none}
+.split-assignment button[aria-pressed=false]{border:1px solid #dedbcc;opacity:.4}
+.split-assignment button[aria-pressed=false] .split-avatar{background:#fff}
+.split-assignment .split-avatar{width:21px;height:21px}
+.split-footer{gap:6px}.split-footer .primary-button{height:48px}.split-footer .primary-button:disabled{opacity:.5;cursor:not-allowed}
+.preview-split{padding:12px;margin-top:12px;background:#fff;border:1px solid #dedbcc;border-radius:16px}
+.preview-split h3{margin:0 0 6px;font-size:14px}.preview-split p,.preview-split li{font-size:12px;line-height:18px}.preview-split ul{padding-left:18px;margin:8px 0 0}
+
+.split-legend>div>button{color:#1a2421;font-family:inherit}
+.split-legend>div>button[aria-pressed=true]{border-color:#1f6e52;background:#e8f0e3;box-shadow:0 0 0 1px #1f6e52}
+.split-body .split-legend .split-selection-hint{font-size:11px;line-height:16px;font-weight:400;text-transform:none}
+.split-item{position:relative}
+.split-item.selected-member-item{border-color:#1f6e52;background:#f0f5ec}
+.split-item-target{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;border-radius:16px;background:transparent;z-index:1}
+.split-assignment button{position:relative;z-index:2}

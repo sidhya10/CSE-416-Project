@@ -1,6 +1,8 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import arrowLeft from '../../assets/expense-arrow-left.svg';
 import './expenses.css';
+import SplitExpense from './SplitExpense';
+import type { PreviewSplit, SplitAssignments, SplitMode } from './split';
 import Avatar from '../../components/common/Avatar';
 
 type Member = { id: string; name: string };
@@ -17,7 +19,11 @@ function AmountInput({ label, value, onChange }: { label: string; value: string;
   return <span className="expense-money"><span aria-hidden="true">$</span><input aria-label={label} inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} /></span>;
 }
 
-export default function ExpenseEntry({ groupName, members, onBack }: { groupName: string; members: Member[]; onBack: () => void }) {
+export default function ExpenseEntry({ groupName, members, onBack, onConfirm }: { groupName: string; members: Member[]; onBack: () => void; onConfirm: (split: PreviewSplit) => void }) {
+  const [splitting, setSplitting] = useState(false);
+  const [splitMode, setSplitMode] = useState<SplitMode>('equal');
+  const [assignments, setAssignments] = useState<SplitAssignments>({});
+  const [date] = useState(() => new Date().toISOString());
   const [name, setName] = useState('');
   const [items, setItems] = useState<Item[]>([{ id: 0, name: '', amount: '' }]);
   const nextId = useRef(1);
@@ -51,8 +57,16 @@ export default function ExpenseEntry({ groupName, members, onBack }: { groupName
     if (Object.values(fees).some(value => cents(value) === null)) {
       setMessage('Enter non-negative tax, tip, and fees with up to two decimal places.'); return;
     }
-    setMessage('Your entry is ready. Split expense pages are coming soon; this preview has not saved an expense or changed balances.');
+    if (!Number.isSafeInteger(total)) { setMessage('The expense total is too large.'); return; }
+    setAssignments(previous => Object.fromEntries(items.map(item => [item.id, previous[item.id] ?? members.map(member => member.id)])));
+    setMessage('');
+    setSplitting(true);
   };
+
+  if (splitting) return <SplitExpense name={name.trim()} items={items.map(item => ({ id: item.id, name: item.name.trim(), cents: cents(item.amount)! }))}
+    feeCents={Object.values(fees).reduce((sum, value) => sum + (cents(value) ?? 0), 0)} members={members} payerId={payer} date={date}
+    mode={splitMode} assignments={assignments} onModeChange={setSplitMode} onAssignmentsChange={setAssignments}
+    onBack={() => setSplitting(false)} onConfirm={onConfirm} />;
 
   return <main className="expense-screen">
     <header className="expense-header"><button type="button" aria-label={choosing ? 'Back to expense' : 'Back to group'} onClick={() => choosing ? setChoosing(false) : onBack()}><img src={arrowLeft} alt="" /></button><h1>{choosing ? 'Who paid?' : 'Add expense'}</h1></header>
