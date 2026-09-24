@@ -2,6 +2,7 @@ import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } fr
 import './groups.css';
 import Avatar from '../../components/common/Avatar';
 import { formatCents, type PreviewSplit } from '../expenses/split';
+import SplitSaved from '../expenses/SplitSaved';
 import ExpenseEntry from '../expenses/ExpenseEntry';
 
 type GroupType = 'General' | 'Trip' | 'Recurring';
@@ -17,7 +18,7 @@ type Group = {
   color: string; photo: string | null; startDate: string; endDate: string;
   privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
 };
-type Screen = 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
+type Screen = 'saved' | 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
 const friends: Friend[] = [
   { id: 'nicole', name: 'Nicole Chen', handle: '@nicolec', color: 'mint' },
@@ -91,6 +92,7 @@ function Header({ title, subtitle, back, trailing }: { title: string; subtitle?:
 }
 
 export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoot: boolean) => void }) {
+  const [savedSplit, setSavedSplit] = useState<PreviewSplit | null>(null);
   const [previewSplits, setPreviewSplits] = useState<Record<number, PreviewSplit[]>>({});
   const [screen, setScreen] = useState<Screen>('list');
   const [groups, setGroups] = useState<Group[]>(initialGroups);
@@ -208,6 +210,10 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
 
   if (screen === 'expense' && active) return <ExpenseEntry groupName={active.name} members={members} onBack={() => go('detail')} onConfirm={split => {
     setPreviewSplits(previous => ({ ...previous, [active.id]: [...(previous[active.id] ?? []), split] }));
+    setSavedSplit(split); go('saved');
+  }} />;
+
+  if (screen === 'saved' && savedSplit && active) return <SplitSaved split={savedSplit} members={members} onBack={() => {
     go('detail'); setMessage('Split confirmed in this preview session only. Balances and budgets have not changed; reloading clears the preview.');
   }} />;
 
