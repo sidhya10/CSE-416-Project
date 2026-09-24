@@ -92,6 +92,8 @@ describe('Split screens', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
     expect(screen.getByRole('button', { name: 'Nicole for Noodles' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $12.00' }));
+    expect(screen.getByRole('heading', { name: 'Split saved' })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
     expect(screen.getByRole('heading', { name: 'Boston weekend' })).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('preview session only');
     const saved = screen.getByRole('region', { name: 'Confirmed preview split: Lunch' });
