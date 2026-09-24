@@ -15,7 +15,7 @@ type RecurringBill = { id: number; title: string; amount: number; startDate: str
 type Group = {
   id: number; name: string; description: string; type: GroupType; members: string[];
   color: string; photo: string | null; startDate: string; endDate: string;
-  privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[];
+  privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
 };
 type Screen = 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
@@ -109,6 +109,10 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const [addingBill, setAddingBill] = useState(false);
   const [cycleIndex, setCycleIndex] = useState(0);
   const [allocationDraft, setAllocationDraft] = useState<Allocation | null>(null);
+  const [openActionsId, setOpenActionsId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Group | null>(null);
+  const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null);
+  const suppressCardClick = useRef<number | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   const groupMembers = (group: Group) => [{ id: 'you', name: 'You', handle: '@you', color: 'green' }, ...group.members.map(id => friends.find(friend => friend.id === id)).filter((friend): friend is Friend => Boolean(friend))];
   const active = groups.find(group => group.id === activeId);
@@ -124,6 +128,35 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     else setDraft(previous => ({ ...previous, ...patch }));
   };
   const enterGroup = (id: number) => { setActiveId(id); setEditing(false); go('detail'); };
+  const archiveGroup = (group: Group) => {
+    setGroups(previous => previous.map(item => item.id === group.id ? { ...item, archived: true } : item));
+    setOpenActionsId(null);
+    setMessage(`${group.name} archived. You can restore it below.`);
+  };
+  const restoreGroup = (group: Group) => {
+    setGroups(previous => previous.map(item => item.id === group.id ? { ...item, archived: false } : item));
+    setMessage(`${group.name} restored.`);
+  };
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    const deleted = pendingDelete;
+    setGroups(previous => previous.filter(group => group.id !== deleted.id));
+    setPreviewSplits(previous => { const next = { ...previous }; delete next[deleted.id]; return next; });
+    setPendingDelete(null);
+    setOpenActionsId(null);
+    if (activeId === deleted.id) { setActiveId(null); go('list'); }
+    setMessage(`${deleted.name} deleted from this preview.`);
+  };
+  const finishSwipe = (id: number, x: number, y: number) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || start.id !== id) return;
+    const dx = x - start.x;
+    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(y - start.y)) return;
+    suppressCardClick.current = id;
+    window.setTimeout(() => { if (suppressCardClick.current === id) suppressCardClick.current = null; }, 0);
+    setOpenActionsId(dx < 0 ? id : null);
+  };
   const openBill = (id: number, index = 0) => { setBillId(id); setCycleIndex(index); setAllocationDraft(null); go('bill'); };
   const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const startCreate = () => { setDraft(initialDraft()); setSelected(['nicole', 'eva', 'sidhya']); setEditing(false); go('select'); };
@@ -185,11 +218,27 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       <div className="group-actions"><button type="button" onClick={() => go('friends')}>+&nbsp; Find friends</button><button type="button" onClick={startCreate}>+&nbsp; New group</button></div>
       <section className="group-balance"><small>Across all groups · Sample data</small><div><strong>$64.80 owed to you</strong><strong>$38.20 you owe</strong></div></section>
       <h2 className="group-section-title">Your groups</h2>
-      <div className="group-list">{groups.filter(group => group.name.toLowerCase().includes(query.toLowerCase())).map(group =>
-        <button className="group-list-card" type="button" key={group.id} onClick={() => enterGroup(group.id)}>
-          <Avatar name={group.name} color={group.color} photo={group.photo} />
-          <span><strong>{group.name}</strong><small>{group.members.length + 1} members · {group.type}</small><em>{group.description}</em></span><b aria-hidden="true">›</b>
-        </button>)}</div>
+      {message && <p className="group-notice" role="status">{message}</p>}
+      <div className="group-list">{groups.filter(group => !group.archived && group.name.toLowerCase().includes(query.toLowerCase())).map(group =>
+        <div className={`group-list-row${openActionsId === group.id ? ' is-open' : ''}`} key={group.id} role="group" aria-label={group.name}
+          onPointerDown={event => { if (event.target instanceof Element && event.target.closest('.group-list-card')) swipeStart.current = { id: group.id, x: event.clientX, y: event.clientY }; }}
+          onPointerMove={event => { const start = swipeStart.current; if (start?.id === group.id && Math.abs(event.clientX - start.x) > 12 && Math.abs(event.clientX - start.x) > Math.abs(event.clientY - start.y)) event.currentTarget.setPointerCapture(event.pointerId); }}
+          onPointerUp={event => finishSwipe(group.id, event.clientX, event.clientY)} onPointerCancel={() => { swipeStart.current = null; }}>
+          <div className="group-card-actions"><button type="button" onClick={() => archiveGroup(group)}>Archive</button>
+            <button type="button" onClick={() => { setPendingDelete(group); setOpenActionsId(null); }}>Delete</button></div>
+          <div className="group-card-foreground"><button className="group-list-card" type="button" onClick={() => {
+            if (suppressCardClick.current === group.id) { suppressCardClick.current = null; return; }
+            if (openActionsId === group.id) { setOpenActionsId(null); return; }
+            enterGroup(group.id);
+          }}><Avatar name={group.name} color={group.color} photo={group.photo} />
+              <span><strong>{group.name}</strong><small>{group.members.length + 1} members · {group.type}</small><em>{group.description}</em></span></button>
+            <button className="group-card-menu" type="button" aria-label="Group actions" aria-expanded={openActionsId === group.id}
+              onClick={() => setOpenActionsId(openActionsId === group.id ? null : group.id)}>›</button></div>
+        </div>)}</div>
+      {groups.some(group => group.archived) && <section className="archived-groups"><h2 className="group-section-title">Archived groups</h2>
+        {groups.filter(group => group.archived && group.name.toLowerCase().includes(query.toLowerCase())).map(group =>
+          <div className="archived-group-row" key={group.id}><span>{group.name}</span><button type="button" onClick={() => restoreGroup(group)}>Restore {group.name}</button></div>)}
+      </section>}
     </>}
     {screen === 'friends' && <>
       <Header title="Find friends" subtitle="Search by username, email, or phone number" back={() => go('list')} />
@@ -322,6 +371,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       <div className="group-section-line"><h2 className="group-overline">MEMBERS · {active.members.length + 1}</h2><button type="button" onClick={() => { setSelected([]); go('add-members'); }}>+ Add people</button></div>
       {groupMembers(active).map(member => <div className="member-row" key={member.id}><Avatar name={member.name} color={member.color} /><span><strong>{member.id === 'you' ? 'You' : member.name}</strong><small>{member.id === 'you' ? 'Owner · You' : 'Member'}</small></span></div>)}
       <p className="group-info"><strong>New members start from $0</strong><small>Previous expenses and balances are not assigned to them.</small></p>
+      <button className="group-delete-button" type="button" onClick={() => setPendingDelete(active)}>Delete group</button>
       {message && <p className="group-notice" role="status">{message}</p>}
     </>}
     {screen === 'add-members' && active && <>
@@ -355,5 +405,11 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       {message && <p className="group-notice" role="status">{message}</p>}
       <p className="group-info"><small>Payment and reimbursement confirmations will be part of the expense and settlement implementation.</small></p>
     </>}
+    {pendingDelete && <div className="group-dialog-backdrop"><div className="group-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-group-title" aria-describedby="delete-group-description" onKeyDown={event => { if (event.key === 'Escape') setPendingDelete(null); }}>
+      <h2 id="delete-group-title">Delete {pendingDelete.name}?</h2>
+      <p id="delete-group-description">This removes the group and its preview data for this session.</p>
+      <div><button type="button" autoFocus onClick={() => setPendingDelete(null)}>Cancel</button>
+        <button type="button" onClick={confirmDelete}>Confirm delete</button></div>
+    </div></div>}
   </main>;
 }
