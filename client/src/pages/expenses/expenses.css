@@ -1,0 +1,45 @@
+.expense-screen{display:flex;flex-direction:column;width:100%;min-width:0;min-height:0;color:#1a2421}
+.expense-header{display:flex;align-items:center;gap:8px;padding:56px 23px 12px;flex:none}
+.expense-header h1{font-size:22px;line-height:27px;margin:0}
+.expense-header button{display:flex;align-items:center;padding:8px;border:0;background:none}
+.expense-header img{display:block;width:12px;height:20px}
+.expense-body{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;padding:0 23px;overflow-y:auto}
+.expense-body>section{flex:none}
+.expense-body h2{font-size:16px;font-weight:600;line-height:20px;margin:0}
+.expense-body p{font-size:13px;line-height:18px;color:#6b7870}
+.expense-body input:not([type=radio]):not([type=file]){width:100%;min-width:0;height:44px;padding:0 16px;border:1px solid #dedbcc;border-radius:16px;background:#fff;color:#1a2421;font-size:14px}
+.expense-details{display:flex;flex-direction:column;gap:4px}
+.expense-details>label{font-size:10px;font-weight:600;line-height:14px;color:#6b7870}
+.expense-outline{display:flex;justify-content:center;align-items:center;min-height:52px;width:100%;padding:8px;border:1px solid #1f6e52;border-radius:16px;background:#fff;color:#1f6e52;font-size:14px;font-weight:600}
+.expense-receipt{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:17px;background:#e8f0e3}
+.expense-receipt h2{color:#1f6e52;font-size:14px;line-height:18px}
+.expense-receipt>div{display:flex;gap:8px}
+.expense-receipt .expense-outline{min-height:40px;border-radius:12px;flex:1}
+.expense-receipt-name{overflow-wrap:anywhere}
+.expense-receipt-name button{display:block;border:0;background:none;color:#1f6e52;padding:4px 0;font-size:12px}
+.expense-items,.expense-fees{display:flex;flex-direction:column;gap:8px}
+.expense-section-title,.expense-item,.expense-fees>div,.expense-total{display:flex;gap:8px}
+.expense-section-title{align-items:center;justify-content:space-between}
+.expense-item>input{flex:1}
+.expense-money{display:flex;align-items:center;min-width:0;gap:0;height:44px;padding:0 16px;border:1px solid #dedbcc;border-radius:16px;background:#fff;font-size:14px}
+.expense-item>.expense-money{width:100px;flex:none}
+.expense-body .expense-money input:not([type=radio]):not([type=file]){border:0;border-radius:0;padding:0;height:40px;background:transparent}
+.expense-money:focus-within{outline:2px solid #4073cc;outline-offset:2px}
+.expense-money input:focus-visible{outline:none}
+.expense-add{height:40px;border:0;border-radius:12px;background:#e8f0e3;color:#1f6e52;font-size:14px;font-weight:600}
+.expense-fees label{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px;font-size:13px;line-height:18px;color:#6b7870}
+.expense-fees .expense-money{color:#1a2421}
+.expense-footer{display:flex;flex:none;flex-direction:column;gap:8px;padding:12px 23px 24px}
+.expense-total{justify-content:space-between;font-size:16px;line-height:20px}
+.expense-total strong{font-weight:600}.expense-total strong:last-child{color:#1f6e52}
+.expense-footer>small{font-size:11px;line-height:18px;color:#6b7870;text-align:center}
+.payer-body{padding-top:12px;gap:16px}
+.payer-options{display:flex;flex-direction:column;gap:16px}
+.payer-option{display:flex;align-items:flex-start;gap:8px;background:#fff;border:1px solid transparent;border-radius:17px;padding:16px;cursor:pointer}
+.payer-option.selected{border-color:#dedbcc}
+.payer-avatar{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:50%;font-size:12px;font-weight:600}
+.payer-avatar.tone-0{background:#c7e5d1}.payer-avatar.tone-1{background:#f5d6c7}.payer-avatar.tone-2{background:#d6e3f2}.payer-avatar.tone-3{background:#f2ba45}
+.payer-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:8px;line-height:18px}
+.payer-copy strong{font-size:14px;font-weight:600}.payer-copy small,.payer-body>small{font-size:11px;line-height:18px;color:#6b7870}
+.payer-option input{accent-color:#1f6e52;margin:4px 4px 0 0;width:14px;height:14px;flex:none}
+.payer-avatar .group-avatar{width:42px;height:42px;background:transparent;font-size:12px;font-weight:600}

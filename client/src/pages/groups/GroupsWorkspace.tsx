@@ -1,5 +1,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import './groups.css';
+import Avatar from '../../components/common/Avatar';
+import ExpenseEntry from '../expenses/ExpenseEntry';
 
 type GroupType = 'General' | 'Trip' | 'Recurring';
 type Friend = { id: string; name: string; handle: string; color: string };
@@ -14,7 +16,7 @@ type Group = {
   color: string; photo: string | null; startDate: string; endDate: string;
   privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[];
 };
-type Screen = 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
+type Screen = 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
 const friends: Friend[] = [
   { id: 'nicole', name: 'Nicole Chen', handle: '@nicolec', color: 'mint' },
@@ -79,9 +81,6 @@ const defaultAllocation = (bill: RecurringBill, members: Friend[]): Allocation =
 const initialDraft = (): Group => ({ id: 0, name: '', description: '', type: 'General', members: [], color: 'gold',
   photo: null, startDate: '', endDate: '', privateBudget: null, plans: [], bills: [] });
 
-function Avatar({ name, color = 'mint', photo, size = 'normal' }: { name: string; color?: string; photo?: string | null; size?: 'normal' | 'large' }) {
-  return <span className={`group-avatar ${color} ${size}`}>{photo ? <img src={photo} alt="" /> : name.trim().charAt(0).toUpperCase() || '?'}</span>;
-}
 
 function Header({ title, subtitle, back, trailing }: { title: string; subtitle?: string; back?: () => void; trailing?: ReactNode }) {
   return <header className="group-header">
@@ -171,6 +170,8 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       bills: group.bills.map(item => item.id !== bill.id ? item : { ...item, cycles: { ...item.cycles, [cycleDate]: allocationDraft } }) }));
     setAllocationDraft(null); setMessage('Payment plan saved for this cycle.');
   };
+
+  if (screen === 'expense' && active) return <ExpenseEntry groupName={active.name} members={members} onBack={() => go('detail')} />;
 
   return <main className="groups-workspace">
     {screen === 'list' && <>
@@ -263,7 +264,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
         <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE · SAMPLE'}</small>
           <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? '$1,450' : '$38.20'}</strong></span>
             <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? '$400' : '$64.80'}</strong></span></div></section>
-        <div className="group-split-actions"><button type="button" onClick={() => setMessage('Expense entry pages are coming soon.')}>+ Add expense</button>
+        <div className="group-split-actions"><button type="button" onClick={() => go('expense')}>+ Add expense</button>
           <button type="button" onClick={() => setMessage('Split expense pages are coming soon.')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
         <section className="group-info"><strong>{active.type === 'Trip' ? active.description || 'Trip with friends' : 'Any member can add expenses and split when ready.'}</strong>
