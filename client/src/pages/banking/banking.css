@@ -1,0 +1,69 @@
+.banking-workspace{box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:0;overflow-y:auto;overflow-x:clip;padding:56px 23px 20px;scrollbar-width:thin;color:#1a2421}
+.banking-workspace *,.banking-workspace *::before,.banking-workspace *::after{box-sizing:border-box}
+.banking-workspace button,.banking-workspace input{font:inherit}
+
+.bank-header{display:flex;align-items:flex-start;gap:14px;min-height:44px;margin-bottom:16px}
+.bank-header button{border:0;background:transparent;color:#1a2421;font-size:26px;line-height:28px;padding:0 6px 0 0}
+.bank-header>div{flex:1;min-width:0}.bank-header h1{margin:0;font-size:22px;line-height:27px;font-weight:700}.bank-header p{margin-top:4px;color:#6b7870;font-size:12px}
+
+.bank-banner{padding:14px;margin-bottom:16px;border-radius:16px;background:#e8f0e3}
+.bank-banner strong{display:block;color:#1f6e52;font-size:13px;font-weight:700}
+.bank-banner small{display:block;margin-top:4px;color:#4c7863;font-size:11px;line-height:1.4}
+
+.bank-account-card{padding:14px;margin-bottom:12px;border-radius:18px;background:#fff;border:1px solid transparent}
+.bank-account-card.attention{border-color:#e86e57}
+.bank-account-row{display:flex;align-items:center;gap:12px}
+.bank-avatar{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:50%;font-size:15px;font-weight:700}
+.bank-avatar.tone-synced{background:#dce9f8;color:#2f5f8f}.bank-avatar.tone-attention{background:#f9d7cf;color:#b74d3b}
+.bank-account-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}
+.bank-account-copy strong{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bank-account-copy small{color:#6b7870;font-size:11px}
+.bank-account-trailing{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none}
+.bank-balance{font-size:14px;font-weight:700}.bank-balance.negative{color:#b74d3b}
+.bank-menu-toggle{border:0;background:transparent;color:#6b7870;font-size:18px;letter-spacing:1px;padding:2px 4px}
+
+.bank-status-badge{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:5px 10px;border-radius:10px;background:#f9d7cf;color:#b74d3b;font-size:11px;font-weight:600}
+.bank-status-badge::before{content:"";width:6px;height:6px;border-radius:50%;background:#b74d3b}
+.bank-hidden-badge{display:inline-block;margin-top:10px;padding:5px 10px;border-radius:10px;background:#f0efe6;color:#6b7870;font-size:11px;font-weight:600}
+.bank-status-line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.bank-status-line small{color:#6b7870;font-size:11px}
+.bank-fix-button{flex:none;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:12px;padding:8px 13px;background:#e8f0e3;color:#1f6e52;font-size:11px;font-weight:600}
+
+.bank-menu{margin-top:12px;padding-top:8px;border-top:1px solid #f0efe6;display:flex;flex-direction:column;gap:2px}
+.bank-menu-item{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;border:0;background:transparent;border-radius:12px;padding:6px 4px;text-align:left;color:#1a2421}
+.bank-menu-item:hover{background:#f6f4ed}
+.bank-menu-icon{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;font-size:13px}
+.bank-menu-icon.positive{background:#e8f0e3;color:#1f6e52}.bank-menu-icon.neutral{background:#f0efe6;color:#6b7870}.bank-menu-icon.danger{background:#fbe6e1;color:#b74d3b}
+.bank-menu-item span:last-child{font-size:13px;font-weight:600}
+.bank-menu-item.danger span:last-child{color:#b74d3b}
+
+.bank-sync-card{padding:14px;margin:4px 0 16px;border-radius:18px;background:#fff}
+.bank-sync-card h2{margin:0;font-size:14px;font-weight:700}
+.bank-sync-card>p{margin:4px 0 14px;color:#6b7870;font-size:11px}
+.bank-sync-row{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.bank-sync-button{flex:none;display:inline-flex;align-items:center;gap:7px;min-height:40px;border:0;border-radius:14px;padding:0 16px;background:#1f6e52;color:#fff;font-size:12px;font-weight:600}
+.bank-sync-button:disabled{opacity:.5}
+.bank-auto-sync{display:flex;align-items:center;gap:10px}
+.bank-auto-sync span{display:flex;flex-direction:column;gap:2px;font-size:11px;color:#1a2421;font-weight:600}
+.bank-auto-sync small{color:#6b7870;font-size:10px;font-weight:400}
+
+.bank-switch{position:relative;display:inline-block;width:40px;height:24px;flex:none}
+.bank-switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.bank-switch-track{position:absolute;inset:0;border-radius:12px;background:#dedbcc;transition:background .15s ease}
+.bank-switch-track::before{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #14251d40;transition:transform .15s ease}
+.bank-switch input:checked+.bank-switch-track{background:#1f6e52}
+.bank-switch input:checked+.bank-switch-track::before{transform:translateX(16px)}
+
+.bank-connect-button{display:block;width:100%;min-height:52px;margin-bottom:14px;border:1px solid #1f6e52;border-radius:16px;background:#fff;color:#1f6e52;font-size:14px;font-weight:600}
+.bank-caption{margin:4px 0;color:#6b7870;font-size:10px;line-height:1.6}
+
+.bank-dialog-backdrop{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:20px;background:#14251db3}
+.bank-dialog{width:min(100%,342px);padding:20px;border-radius:18px;background:#fff;box-shadow:0 18px 48px #14251d40}
+.bank-dialog h2{margin:0 0 8px;font-size:18px}.bank-dialog p{margin:0 0 14px;color:#6b7870;font-size:12px;line-height:1.5}
+.bank-dialog label{display:flex;flex-direction:column;gap:8px;color:#6b7870;font-size:10px;font-weight:600}
+.bank-dialog input{height:50px;padding:0 13px;border:1px solid #dedbcc;border-radius:14px;background:#fff;color:#1a2421;font-size:13px}
+.bank-dialog>div{display:flex;gap:10px;margin-top:20px}
+.bank-dialog>div button{flex:1;min-height:42px;border:1px solid #dedbcc;border-radius:12px;background:#fff;color:#1a2421;font-size:12px;font-weight:600}
+.bank-dialog>div button:last-child{border-color:#1f6e52;background:#1f6e52;color:#fff}
+.bank-dialog>div button:last-child:disabled{opacity:.5}
+.bank-dialog.danger>div button:last-child{border-color:#b74d3b;background:#b74d3b}
