@@ -2,21 +2,21 @@ import { useState } from 'react';
 import Avatar from '../../components/common/Avatar';
 import { formatCents } from '../expenses/split';
 import { CATEGORY_BUDGETS, DAYS_LEFT, LAST_SYNCED_LABEL, categoryPct, totalPlannedCents, totalSpentCents } from './categoryPlan';
-import { GROUP_BUDGETS, groupBudgetPct } from './groupBudgetPlan';
+import { DEFAULT_GROUP_BUDGET, GROUP_BUDGETS, groupBudgetPct } from './groupBudgetPlan';
 import './categoryBudgets.css';
 
 type BudgetScope = 'personal' | 'group';
 
 export default function CategoryBudgets() {
   const [scope, setScope] = useState<BudgetScope>('personal');
-  const [activeGroupId, setActiveGroupId] = useState(GROUP_BUDGETS[0].id);
+  const [activeGroupId, setActiveGroupId] = useState(DEFAULT_GROUP_BUDGET.id);
   const [notice, setNotice] = useState('');
 
   const spent = totalSpentCents(CATEGORY_BUDGETS);
   const planned = totalPlannedCents(CATEGORY_BUDGETS);
   const pct = planned ? Math.min(100, Math.max(0, (spent / planned) * 100)) : 0;
 
-  const activeGroup = GROUP_BUDGETS.find(group => group.id === activeGroupId) ?? GROUP_BUDGETS[0];
+  const activeGroup = GROUP_BUDGETS.find(group => group.id === activeGroupId) ?? DEFAULT_GROUP_BUDGET;
   const groupPct = groupBudgetPct(activeGroup);
 
   return <main className="cb-screen">

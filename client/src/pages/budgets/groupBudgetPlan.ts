@@ -106,5 +106,10 @@ export const GROUP_BUDGETS: GroupBudget[] = [
   },
 ];
 
+// GROUP_BUDGETS is a non-empty literal, so this index access is always
+// defined; asserted once here (with noUncheckedIndexedAccess on) instead of
+// at every call site that needs a guaranteed fallback.
+export const DEFAULT_GROUP_BUDGET = GROUP_BUDGETS[0] as GroupBudget;
+
 export const groupBudgetPct = (budget: GroupBudget) =>
   budget.plannedCents ? Math.min(100, Math.max(0, (budget.spentCents / budget.plannedCents) * 100)) : 0;
