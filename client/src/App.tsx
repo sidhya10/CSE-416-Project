@@ -2,6 +2,7 @@ import { useState } from 'react';
 import receiptLogo from './assets/receipt-split-logo.png';
 import ProfileSettings from './pages/settings/ProfileSettings';
 import GroupsWorkspace from './pages/groups/GroupsWorkspace';
+import CategoryBudgets from './pages/budgets/CategoryBudgets';
 
 type Tab = 'Home' | 'Budget' | 'Groups' | 'Profile';
 type AuthView = 'login' | 'signup';
@@ -25,7 +26,10 @@ export default function App() {
 
   return <div className="device">
     {preview ? <>
-      {tab !== 'Profile' && tab !== 'Groups' && <main className="placeholder-page"><h1>{tab}</h1></main>}
+      {tab !== 'Profile' && tab !== 'Groups' && tab !== 'Budget' && <main className="placeholder-page"><h1>{tab}</h1></main>}
+      <div hidden={tab !== 'Budget'} className="profile-content">
+        <CategoryBudgets />
+      </div>
       <div hidden={tab !== 'Profile'} className="profile-content">
         <ProfileSettings onRootChange={setProfileAtRoot} onLogout={() => {
           setPreview(false); setTab('Home'); setProfileAtRoot(true); setNotice('');

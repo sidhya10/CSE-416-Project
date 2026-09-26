@@ -1,0 +1,30 @@
+.cb-screen{box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:0;overflow-y:auto;overflow-x:clip;padding:56px 23px 20px;scrollbar-width:thin;color:#1a2421}
+.cb-screen *,.cb-screen *::before,.cb-screen *::after{box-sizing:border-box}
+.cb-screen button{font:inherit}
+
+.cb-header h1{margin:0;font-size:24px;line-height:29px;font-weight:700}
+.cb-header p{margin-top:3px;color:#6b7870;font-size:12px}
+
+.cb-toggle{display:flex;gap:4px;margin-top:18px;padding:4px;border-radius:14px;background:#eeeee5}
+.cb-toggle button{flex:1;min-height:38px;border:0;border-radius:11px;background:transparent;color:#6b7870;font-size:12px;font-weight:600}
+.cb-toggle button.active{background:#fff;color:#1a2421;box-shadow:0 1px 3px #14251d1f}
+
+.cb-hero{padding:16px;margin-top:16px;border-radius:20px;background:#1f6e52;color:#fff}
+.cb-hero-amount{display:block;font-size:24px;font-weight:700}
+.cb-hero-sub{margin:2px 0 0;color:#c6e3d3;font-size:11px}
+.cb-hero-bar{position:relative;height:8px;margin-top:14px;border-radius:6px;background:#3d8a6e;overflow:hidden}
+.cb-hero-bar>div{height:100%;border-radius:6px;background:#fff;transition:width .15s ease}
+.cb-hero-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;color:#dbf0e3;font-size:11px}
+.cb-hero-meta button{border:0;background:none;padding:0;color:#fff;font-size:11px;font-weight:600}
+
+.cb-section-heading{margin:24px 0 12px;font-size:16px;font-weight:700}
+
+.cb-category{padding:14px 16px;margin-bottom:10px;border-radius:16px;background:#fff}
+.cb-category-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.cb-category-head strong{font-size:14px;font-weight:600}
+.cb-category-head span{color:#6b7870;font-size:12px}
+.cb-category-bar{position:relative;height:8px;margin-top:10px;border-radius:6px;background:#eeeee5;overflow:hidden}
+.cb-category-bar>div{height:100%;border-radius:6px;transition:width .15s ease}
+
+.cb-notice{margin:14px 0 0;padding:10px 12px;border-radius:12px;background:#e8f0e3;color:#1f6e52;font-size:11px;line-height:1.45}
+.cb-empty{margin-top:20px;padding:24px 16px;border-radius:16px;background:#fff;color:#6b7870;font-size:12px;line-height:1.5;text-align:center}
