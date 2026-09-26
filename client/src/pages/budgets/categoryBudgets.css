@@ -27,4 +27,11 @@
 .cb-category-bar>div{height:100%;border-radius:6px;transition:width .15s ease}
 
 .cb-notice{margin:14px 0 0;padding:10px 12px;border-radius:12px;background:#e8f0e3;color:#1f6e52;font-size:11px;line-height:1.45}
-.cb-empty{margin-top:20px;padding:24px 16px;border-radius:16px;background:#fff;color:#6b7870;font-size:12px;line-height:1.5;text-align:center}
+.cb-notice.cb-settle strong{display:block;margin-bottom:4px;font-size:13px;font-weight:700}
+.cb-notice.cb-settle p{margin:0}
+
+.cb-member-name{display:flex;align-items:center;gap:8px}
+.cb-member-name .group-avatar{width:28px;height:28px;font-size:12px}
+.cb-member-name .group-avatar.blue-solid{background:#4a7fc4;color:#fff}
+.cb-category.cb-member .cb-category-head span:last-child{color:#6b7870;font-size:11px}
+.cb-owe{color:#e86e57!important;font-weight:600}
