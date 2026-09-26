@@ -9,6 +9,12 @@
 .cb-toggle button{flex:1;min-height:38px;border:0;border-radius:11px;background:transparent;color:#6b7870;font-size:12px;font-weight:600}
 .cb-toggle button.active{background:#fff;color:#1a2421;box-shadow:0 1px 3px #14251d1f}
 
+.cb-group-picker{display:flex;gap:8px;margin-top:16px;padding-bottom:2px;overflow-x:auto;scrollbar-width:none}
+.cb-group-picker::-webkit-scrollbar{display:none}
+.cb-group-picker button{display:flex;flex:none;align-items:center;gap:6px;height:36px;padding:0 14px 0 6px;border:1px solid #dedbcc;border-radius:999px;background:#fff;color:#1a2421;font-size:12px;font-weight:600;white-space:nowrap}
+.cb-group-picker button .group-avatar{width:24px;height:24px;font-size:11px}
+.cb-group-picker button.active{border-color:#1f6e52;background:#1f6e52;color:#fff}
+
 .cb-hero{padding:16px;margin-top:16px;border-radius:20px;background:#1f6e52;color:#fff}
 .cb-hero-amount{display:block;font-size:24px;font-weight:700}
 .cb-hero-sub{margin:2px 0 0;color:#c6e3d3;font-size:11px}
