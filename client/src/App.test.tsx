@@ -10,7 +10,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create an account' }));
     expect(screen.getByRole('heading', { name: 'Create your account' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
-    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Good morning, Vivian' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     expect(screen.getByRole('heading', { name: 'Groups' })).toBeInTheDocument();
   });
