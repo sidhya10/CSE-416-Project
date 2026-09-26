@@ -3,6 +3,7 @@ import receiptLogo from './assets/receipt-split-logo.png';
 import ProfileSettings from './pages/settings/ProfileSettings';
 import GroupsWorkspace from './pages/groups/GroupsWorkspace';
 import CategoryBudgets from './pages/budgets/CategoryBudgets';
+import HomeDashboard from './pages/dashboard/HomeDashboard';
 
 type Tab = 'Home' | 'Budget' | 'Groups' | 'Profile';
 type AuthView = 'login' | 'signup';
@@ -26,7 +27,10 @@ export default function App() {
 
   return <div className="device">
     {preview ? <>
-      {tab !== 'Profile' && tab !== 'Groups' && tab !== 'Budget' && <main className="placeholder-page"><h1>{tab}</h1></main>}
+      {tab !== 'Profile' && tab !== 'Groups' && tab !== 'Budget' && tab !== 'Home' && <main className="placeholder-page"><h1>{tab}</h1></main>}
+      <div hidden={tab !== 'Home'} className="profile-content">
+        <HomeDashboard />
+      </div>
       <div hidden={tab !== 'Budget'} className="profile-content">
         <CategoryBudgets />
       </div>
