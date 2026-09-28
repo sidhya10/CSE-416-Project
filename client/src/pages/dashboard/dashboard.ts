@@ -18,10 +18,10 @@ export const TODOS: Todo[] = [
 ];
 
 export const GROUP_UPDATES_COUNT = 2;
-export const GREETING_NAME = 'Vivian';
+export const GREETING_NAME = 'there';
 export const GREETING_MONTH = 'September';
 export const SYNCED_LABEL = 'Synced 2 min ago';
-export const RECENT_ACTIVITY = 'Nicole confirmed your $38.20 settlement';
+export const RECENT_ACTIVITY = 'A group member confirmed your $38.20 settlement';
 
 export const maxMonthCents = (months: MonthPoint[]) =>
   months.reduce((max, month) => Math.max(max, month.spendingCents, month.incomeCents), 0);
