@@ -35,6 +35,22 @@ describe('App', () => {
     expect(apartment.getByLabelText('Apartment 4B: you are owed money')).toHaveClass('balance-owed');
   });
 
+  it('opens bank connections from the Profile account section', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Profile' }));
+    fireEvent.click(screen.getByRole('button', { name: /bank connections/i }));
+
+    expect(screen.getByRole('heading', { name: 'Connected accounts' })).toBeInTheDocument();
+    expect(screen.getByText('Chase Total Checking')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sync now' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /connect another account/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+  });
+
   it('edits a preview profile, discards canceled changes, and opens account settings', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
