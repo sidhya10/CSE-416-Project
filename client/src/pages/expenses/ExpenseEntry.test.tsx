@@ -71,6 +71,36 @@ describe('Expense entry flow', () => {
   });
 });
 
+describe('Expense balance integration', () => {
+  it('updates a newly created group and the all-groups balance after an expense is confirmed', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
+    fireEvent.click(screen.getByRole('button', { name: /new group/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Alex.*@alex/i }));
+    fireEvent.click(screen.getByRole('button', { name: /next: customize group/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'GROUP NAME' }), { target: { value: 'Project Team' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create group' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add expense' }));
+    fill('EXPENSE NAME', 'Shared supplies');
+    fill('Item 1 name', 'Materials');
+    fill('Item 1 amount', '30.00');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $30.00' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
+
+    expect(screen.getByRole('heading', { name: 'Project Team' })).toBeInTheDocument();
+    expect(screen.getByText('$15.00')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
+
+    const overview = within(screen.getByLabelText('Balance overview'));
+    expect(overview.getByText('$79.80')).toBeInTheDocument();
+    const group = within(screen.getByRole('group', { name: 'Project Team' }));
+    expect(group.getByText('You are owed $15.00')).toBeInTheDocument();
+  });
+});
+
 describe('Split screens', () => {
   it('retains assignments across modes and entry edits, blocks unassigned items, and confirms locally', () => {
     openExpense();
