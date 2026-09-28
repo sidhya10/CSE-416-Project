@@ -149,7 +149,7 @@ it('lists newest created expenses first and opens details for saved and sample e
   const rows = list.getAllByRole('button');
   expect(rows[0]).toHaveTextContent('Second outing');
   expect(rows[1]).toHaveTextContent('First outing');
-  expect(rows[2]).toHaveTextContent('Airbnb');
+  expect(rows[2]).toHaveTextContent('Lodging');
   fireEvent.click(rows[0]!);
   expect(screen.getByRole('heading', { name: 'Expense details' })).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Items and fees' })).toHaveTextContent('Tickets');
