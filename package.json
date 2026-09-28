@@ -2,7 +2,11 @@
   "name": "cse-416-project",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["client", "server", "shared"],
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
   "scripts": {
     "dev": "concurrently -n client,server -c cyan,magenta \"npm run dev --workspace client\" \"npm run dev --workspace server\"",
     "build": "npm run build --workspace shared && npm run build --workspace client && npm run build --workspace server",
@@ -13,10 +17,12 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.3.1",
     "concurrently": "^9.2.1",
     "eslint": "^9.35.0",
