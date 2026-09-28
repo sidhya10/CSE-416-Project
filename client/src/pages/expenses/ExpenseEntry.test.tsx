@@ -125,7 +125,7 @@ describe('Split screens', () => {
     expect(screen.getByRole('heading', { name: 'Split saved' })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
     expect(screen.getByRole('heading', { name: 'Weekend Trip' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('preview session only');
+    expect(screen.getByRole('status')).toHaveTextContent('group balances updated');
     const saved = within(screen.getByRole('region', { name: 'Current trip expenses' })).getByRole('button', { name: /Lunch/ });
     expect(saved).toHaveTextContent('$12.00');
     fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
