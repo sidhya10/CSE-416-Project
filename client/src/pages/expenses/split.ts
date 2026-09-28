@@ -1,9 +1,11 @@
+import type { PaymentRecord } from './payments';
 export type SplitMember = { id: string; name: string };
-export type SplitItem = { id: number; name: string; cents: number };
+export type SplitItem = { id: number; name: string; cents: number; unitCents?: number; quantity?: number };
 export type SplitMode = 'equal' | 'items';
 export type SplitAssignments = Record<number, string[]>;
 export type SplitShare = { memberId: string; baseCents: number; totalCents: number; reimbursementCents: number };
 export type PreviewSplit = {
+  payments?: PaymentRecord[];
   name: string;
   payerId: string;
   date: string;

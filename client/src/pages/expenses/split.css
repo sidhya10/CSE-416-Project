@@ -21,7 +21,7 @@
 .split-share>span:not(.split-avatar){flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}.split-share>strong{flex:none}
 .split-avatar{display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:50%;overflow:hidden}
 .split-avatar.tone-0{background:#c7e5d1}.split-avatar.tone-1{background:#f5d6c7}.split-avatar.tone-2{background:#d6e3f2}.split-avatar.tone-3{background:#f0e0b8}
-.split-avatar .group-avatar{width:100%;height:100%;font-size:10px;font-weight:700;background:transparent}
+.expense-screen .split-avatar .group-avatar{width:100%;height:100%;font-size:10px;font-weight:700;background:transparent}
 .split-legend{display:flex;flex-direction:column;gap:6px}
 .split-body .split-legend>p{font-size:11px;line-height:14px;font-weight:600;text-transform:uppercase}
 .split-legend>div{display:flex;gap:8px;flex-wrap:wrap}

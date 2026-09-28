@@ -1,0 +1,20 @@
+.payment-body{gap:12px}
+.payment-body.payer-payments{gap:8px}
+.payment-body .payment-card{padding:16px;gap:8px}
+.payment-body.payer-payments .payment-card{padding:12px 16px}
+.payment-person{display:flex;align-items:flex-start;gap:8px}
+.payment-person>div{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.payment-person h2{overflow-wrap:anywhere}
+.payment-person .details-row{font-size:14px;font-weight:600}
+.payment-avatar{display:block;width:42px;height:42px;flex:none;border-radius:50%}
+.payment-avatar.tone-0{background:#c7e5d1}.payment-avatar.tone-1{background:#f5d6c7}.payment-avatar.tone-2{background:#d6e3f2}.payment-avatar.tone-3{background:#f2ba45}
+.expense-screen .payment-avatar .group-avatar{width:42px;height:42px;background:transparent;font-size:12px;font-weight:600}
+.payment-body .payment-accent,.payment-body .details-card p.settled{color:#1f6e52}
+.payment-body .details-card .issue{color:#e86e57}
+.payment-body .payment-own>p,.payment-body .payment-progress>p{font-size:13px;line-height:18px}
+.payment-body .payment-progress>p{color:#1a2421}
+.payment-body .payment-progress h2{font-size:16px;line-height:20px}
+.payment-amount{font-size:22px;line-height:27px}
+.payment-actions{display:flex;gap:8px}
+.payment-actions button{flex:1;min-width:0;height:38px;min-height:38px;border-radius:12px;font-size:14px;padding:8px}
+.payment-body .payment-footnote{font-size:11px;line-height:18px;margin:0;color:#6b7870}
