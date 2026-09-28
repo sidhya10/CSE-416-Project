@@ -120,13 +120,22 @@ describe('App', () => {
     expect(screen.getByText('Rent and internet for our apartment')).toBeInTheDocument();
   });
 
-  it('adds a custom recurrence from a date and exposes split entry points', () => {
+  it('splits a running group total and adds a custom recurring expense', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     fireEvent.click(screen.getByRole('button', { name: /Apartment 4B 3 members/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Split current expenses' }));
-    expect(screen.getByRole('status')).toHaveTextContent('Split expense pages are coming soon');
+    expect(screen.getByRole('heading', { name: 'Split current total' })).toBeInTheDocument();
+    expect(screen.getByText('$286.50')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /suggested split/i }));
+    expect(screen.getByRole('heading', { name: 'Review split' })).toBeInTheDocument();
+    expect(screen.getByText('Your share $95.50')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm split' }));
+    expect(screen.getByRole('heading', { name: 'Current total split' })).toBeInTheDocument();
+    expect(screen.getByText('$286.50 allocated')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Current total split saved');
     fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
     fireEvent.click(screen.getByRole('button', { name: /Apartment bills 3 members/i }));
     fireEvent.click(screen.getByRole('button', { name: /add recurring/i }));
