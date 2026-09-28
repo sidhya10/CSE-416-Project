@@ -15,6 +15,26 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Groups' })).toBeInTheDocument();
   });
 
+  it('shows visual totals and balance direction on each group picture', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
+
+    const overview = within(screen.getByLabelText('Balance overview'));
+    expect(overview.getByText('Owed to you')).toBeInTheDocument();
+    expect(overview.getByText('$64.80')).toBeInTheDocument();
+    expect(overview.getByText('You owe')).toBeInTheDocument();
+    expect(overview.getByText('$38.20')).toBeInTheDocument();
+
+    const boston = within(screen.getByRole('group', { name: 'Boston weekend' }));
+    expect(boston.getByText('You owe $38.20')).toBeInTheDocument();
+    expect(boston.getByLabelText('Boston weekend: you owe money')).toHaveClass('balance-owing');
+
+    const apartment = within(screen.getByRole('group', { name: 'Apartment 4B' }));
+    expect(apartment.getByText('You are owed $52.00')).toBeInTheDocument();
+    expect(apartment.getByLabelText('Apartment 4B: you are owed money')).toHaveClass('balance-owed');
+  });
+
   it('edits a preview profile, discards canceled changes, and opens account settings', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
