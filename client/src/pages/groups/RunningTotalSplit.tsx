@@ -140,7 +140,7 @@ export default function RunningTotalSplit({ groupName, totalCents, members, acti
           const member = members[index]!;
           const editable = method === 'percentage' || method === 'exact';
           return <div className="running-share-row" key={member.id}>
-            <Avatar name={member.id === 'you' ? 'Vivian' : member.name} color={member.color} />
+            <Avatar name={member.id === 'you' ? 'You' : member.name} color={member.color} />
             <span><strong>{member.id === 'you' ? 'You' : member.name}</strong><small>{editable ? (method === 'percentage' ? 'Percentage of total' : 'Exact responsibility') : methodTitle}</small></span>
             {editable ? <label className="running-share-input">
               {method === 'exact' && <span>$</span>}

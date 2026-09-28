@@ -11,7 +11,7 @@ export default function SplitSaved({ split, members, onBack, currentUserId = 'yo
 }) {
   const own = split.shares.find(share => share.memberId === currentUserId)!;
   const isPayer = split.payerId === currentUserId;
-  const name = (id: string) => id === 'you' ? 'Vivian' : members.find(member => member.id === id)?.name.split(' ')[0] ?? 'Member';
+  const name = (id: string) => id === 'you' ? 'You' : members.find(member => member.id === id)?.name.split(' ')[0] ?? 'Member';
   const payerName = name(split.payerId);
   const owed = split.totalCents - own.totalCents;
   const subtotal = split.items.reduce((sum, item) => sum + item.cents, 0);

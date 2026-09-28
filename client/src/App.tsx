@@ -79,8 +79,8 @@ export default function App() {
       </button>
       <p className="manual-divider">or register manually</p>
       <form className="signup-form" onSubmit={event => { event.preventDefault(); unavailable('Account registration'); }}>
-        <label>NAME<input name="name" autoComplete="name" required placeholder="Vivian Zheng" /></label>
-        <label>USERNAME<input name="username" autoComplete="username" required placeholder="vivianzheng" /></label>
+        <label>NAME<input name="name" autoComplete="name" required placeholder="Your name" /></label>
+        <label>USERNAME<input name="username" autoComplete="username" required placeholder="your_username" /></label>
         <label>EMAIL<input type="email" name="email" autoComplete="email" required placeholder="you@example.com" /></label>
         <label>PASSWORD<input type="password" name="password" autoComplete="new-password" minLength={8}
           pattern="(?=.*[0-9]).{8,}" required title="Use at least 8 characters with a number" placeholder="••••••••" /></label>

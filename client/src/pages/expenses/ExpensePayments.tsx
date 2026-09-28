@@ -9,7 +9,7 @@ export default function ExpensePayments({ split, members, groupName, currentUser
   split: PreviewSplit; members: SplitMember[]; groupName: string; currentUserId?: string;
   onAction: (memberId: string, action: PaymentAction) => void;
 }) {
-  const name = (id: string) => id === 'you' ? 'Vivian' : members.find(member => member.id === id)?.name.split(' ')[0] ?? 'Member';
+  const name = (id: string) => id === 'you' ? 'You' : members.find(member => member.id === id)?.name.split(' ')[0] ?? 'Member';
   const isPayer = currentUserId === split.payerId;
   const payerName = name(split.payerId);
   const own = paymentFor(split, currentUserId);
@@ -22,7 +22,7 @@ export default function ExpensePayments({ split, members, groupName, currentUser
   return <>
     <section className="details-card payment-card">
       <div className="payment-person">{avatar(split.payerId)}<div><h2>{split.name}</h2><p>{groupName} · {new Date(split.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p></div></div>
-      <p>Paid by {isPayer ? 'you' : payerName} · Added by {currentUserId === 'you' ? 'you' : 'Vivian'}</p>
+      <p>Paid by {isPayer ? 'you' : payerName} · Added by {currentUserId === 'you' ? 'you' : 'the expense creator'}</p>
     </section>
     {isPayer ? <>
       <section className="details-card payment-card" aria-label="Collection summary">
