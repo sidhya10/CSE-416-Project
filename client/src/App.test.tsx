@@ -183,4 +183,20 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
     expect(screen.queryByRole('button', { name: /Shared Apartment 3 members/i })).not.toBeInTheDocument();
   });
+  it('opens the what-if screens from Personal Budget and returns with navigation', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Budget' }));
+    expect(screen.getByRole('heading', { name: 'Personal budget' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open what-if simulator' }));
+    expect(screen.getByRole('heading', { name: 'What-if simulator' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Saved scenarios/ }));
+    expect(screen.getByRole('heading', { name: 'Saved scenarios' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to what-if simulator' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('heading', { name: 'Personal budget' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+  });
+
 });
