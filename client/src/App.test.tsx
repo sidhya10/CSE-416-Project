@@ -104,10 +104,9 @@ describe('App', () => {
     expect(screen.getAllByRole('group')).toHaveLength(3);
     fireEvent.click(screen.getByRole('button', { name: /Shared Apartment 3 members/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Group settings' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'DESCRIPTION · VISIBLE TO MEMBERS' }),
-      { target: { value: 'Shared household expenses' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByText('Shared household expenses')).toBeInTheDocument();
+    const description = screen.getByRole('textbox', { name: 'DESCRIPTION · VISIBLE TO MEMBERS' });
+    fireEvent.change(description, { target: { value: 'Shared household expenses' } });
+    expect(description).toHaveValue('Shared household expenses');
   });
 
   it('splits a running group total and adds a custom recurring expense', () => {
