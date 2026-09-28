@@ -76,7 +76,7 @@ export const GROUP_BUDGETS: GroupBudget[] = [
       { id: 'alex', name: 'Alex', avatarColor: 'mint', barColor: '#3f9d72', pct: 25, paidCents: 15000 },
       { id: 'taylor', name: 'Taylor', avatarColor: 'blue-solid', barColor: '#4a7fc4', pct: 15, paidCents: 9000 },
       { id: 'jordan', name: 'Jordan', avatarColor: 'peach', barColor: '#5b8fa8', pct: 13, paidCents: 8000 },
-      { id: 'jordan', name: 'Jordan', avatarColor: 'sand', barColor: '#e86e57', pct: 8, oweCents: 5000 },
+      { id: 'morgan', name: 'Morgan', avatarColor: 'sand', barColor: '#e86e57', pct: 8, oweCents: 5000 },
       { id: 'casey', name: 'Casey', avatarColor: 'mint', barColor: '#e86e57', pct: 4, oweCents: 2500 },
       { id: 'riley', name: 'Riley', avatarColor: 'sand', barColor: '#e86e57', pct: 3, oweCents: 1700 },
     ],
