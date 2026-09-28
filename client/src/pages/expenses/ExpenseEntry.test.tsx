@@ -155,8 +155,8 @@ it('lists newest created expenses first and opens details for saved and sample e
   expect(screen.getByRole('region', { name: 'Items and fees' })).toHaveTextContent('Tickets');
   expect(screen.getByRole('region', { name: 'Split shares' })).toHaveTextContent('$10.00');
   fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
-  fireEvent.click(screen.getByRole('button', { name: /Airbnb/ }));
-  expect(screen.getByRole('heading', { name: 'Airbnb' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Lodging/ }));
+  expect(screen.getByRole('heading', { name: 'Lodging' })).toBeInTheDocument();
   expect(screen.getByText(/Sample transaction · This is the amount/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
   expect(within(screen.getByRole('region', { name: 'Current trip expenses' })).getAllByRole('button')[0]).toHaveTextContent('Second outing');
