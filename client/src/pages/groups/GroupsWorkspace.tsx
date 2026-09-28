@@ -323,7 +323,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
         <button type="button" onClick={() => photoInput.current?.click()}>Add group photo</button></div>
       <input ref={photoInput} hidden type="file" accept="image/*" onChange={choosePhoto} aria-label="Upload group photo" />
       <form className="group-form" id="create-group" onSubmit={createGroup}>
-        <label>GROUP NAME<input required maxLength={70} value={draft.name} onChange={event => updateGroup({ name: event.target.value })} placeholder="Apartment 4B" /></label>
+        <label>GROUP NAME<input required maxLength={70} value={draft.name} onChange={event => updateGroup({ name: event.target.value })} placeholder="Group name" /></label>
         <label>DESCRIPTION · OPTIONAL<input maxLength={180} value={draft.description} onChange={event => updateGroup({ description: event.target.value })} placeholder="What is this group for?" /></label>
         <div><span className="group-field-label">PURPOSE</span><div className="group-type-picker">{(['General', 'Trip', 'Recurring'] as GroupType[]).map(type =>
           <button type="button" className={draft.type === type ? 'selected' : ''} key={type} onClick={() => updateGroup({ type })}>{type}</button>)}</div>
