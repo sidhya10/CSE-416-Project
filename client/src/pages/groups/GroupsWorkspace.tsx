@@ -51,6 +51,11 @@ const money = (amount: number) => new Intl.NumberFormat('en-US', { style: 'curre
 const balanceMoney = (amount: number) => new Intl.NumberFormat('en-US', {
   style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(amount);
+const splitBalanceDelta = (split: PreviewSplit) => {
+  const yourShare = split.shares.find(share => share.memberId === 'you')?.totalCents ?? 0;
+  const deltaCents = split.payerId === 'you' ? split.totalCents - yourShare : -yourShare;
+  return deltaCents / 100;
+};
 const dateLabel = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 const monthLabel = (value: Date) => value.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 const isoDate = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
@@ -230,15 +235,20 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
 
   if (screen === 'expense' && active) return <ExpenseEntry groupName={active.name} members={members} onBack={() => go('detail')} onConfirm={split => {
     setPreviewSplits(previous => ({ ...previous, [active.id]: [...(previous[active.id] ?? []), split] }));
+    setGroups(previous => previous.map(group => group.id === active.id
+      ? { ...group, balance: group.balance + splitBalanceDelta(split) } : group));
     setSavedSplit(split); go('saved');
   }} />;
 
   if (screen === 'saved' && savedSplit && active) return <SplitSaved split={savedSplit} members={members} onBack={() => {
-    go('detail'); setMessage('Split confirmed in this preview session only. Balances and budgets have not changed; reloading clears the preview.');
+    go('detail'); setMessage('Expense added and group balances updated for this preview session. Reloading clears the preview.');
   }} />;
 
   if (screen === 'edit-expense' && active && viewedExpense?.split) return <ExpenseEntry initialSplit={viewedExpense.split} groupName={active.name} members={members} onBack={() => go('expense-details')} onConfirm={split => {
+    const balanceChange = splitBalanceDelta(split) - splitBalanceDelta(viewedExpense.split!);
     setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
+    setGroups(previous => previous.map(group => group.id === active.id
+      ? { ...group, balance: group.balance + balanceChange } : group));
     setViewedExpense({ title: split.name, subtitle: `${members.find(member => member.id === split.payerId)?.name ?? 'Member'} paid`, amount: formatCents(split.totalCents), split });
     go('expense-details');
   }} />;
