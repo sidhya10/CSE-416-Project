@@ -1,0 +1,32 @@
+.running-split-screen{display:flex;flex-direction:column;width:100%;min-width:0;min-height:0;color:#1a2421}
+.running-split-header{display:flex;align-items:flex-start;gap:9px;padding:56px 23px 14px;flex:none}
+.running-split-header>button{display:flex;align-items:center;padding:7px 8px 7px 0;border:0;background:none}
+.running-split-header img{display:block;width:12px;height:20px}
+.running-split-header>div{min-width:0}.running-split-header h1{margin:0;font-size:22px;line-height:27px}.running-split-header p{margin:4px 0 0;color:#6b7870;font-size:12px}
+.running-split-body{display:flex;flex:1;min-height:0;flex-direction:column;gap:14px;padding:0 23px;overflow-y:auto}
+.running-split-body>h2{margin:4px 0 0;font-size:16px}
+.running-total-card{display:flex;flex-direction:column;gap:7px;padding:16px;border-radius:19px;background:#1f6e52;color:#fff}
+.running-total-card small{font-size:9px;letter-spacing:.03em;color:#d4efe0}.running-total-card strong{font-size:29px;line-height:34px}.running-total-card span{font-size:11px;color:#d4efe0}
+.running-method-list{display:flex;flex-direction:column;gap:9px}
+.running-method-list>button{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:82px;width:100%;padding:13px 14px;border:1px solid transparent;border-radius:17px;background:#fff;color:#1a2421;text-align:left}
+.running-method-list>button:hover{border-color:#1f6e52}.running-method-list>button>span:first-child{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:5px 8px;min-width:0}
+.running-method-list strong{font-size:14px}.running-method-list b{justify-self:start;padding:4px 8px;border-radius:9px;background:#d4efe0;color:#1f6e52;font-size:9px}
+.running-method-list small{grid-column:1/-1;color:#6b7870;font-size:11px;line-height:16px}.running-method-list>button>span:last-child{color:#6b7870;font-size:22px}
+.running-split-note{margin:0;color:#6b7870;font-size:10px;line-height:16px}
+.running-split-status{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border-radius:14px;background:#e8f0e3;color:#1f6e52;font-size:10px}
+.running-split-status strong{font-size:11px;white-space:nowrap}
+.running-share-list{display:flex;flex-direction:column;gap:8px}
+.running-share-row{display:flex;align-items:center;gap:10px;min-height:64px;padding:10px 12px;border-radius:16px;background:#fff}
+.running-share-row>.group-avatar{width:38px;height:38px}.running-share-row>span:nth-child(2){display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
+.running-share-row>span:nth-child(2)>strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.running-share-row small{color:#6b7870;font-size:9px}
+.running-share-row>strong{color:#1f6e52;font-size:12px;white-space:nowrap}
+.running-share-input{display:flex;align-items:center;width:90px;height:38px;padding:0 10px;border:1px solid #dedbcc;border-radius:12px;background:#fff;color:#6b7870;font-size:12px}
+.running-share-input input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#1a2421;text-align:right;font-size:12px}
+.running-change-method{align-self:center;padding:7px;border:0;background:transparent;color:#1f6e52;font-size:11px;font-weight:600}
+.running-split-footer{display:flex;flex:none;flex-direction:column;padding:10px 23px 24px}.running-split-footer .primary-button:disabled{opacity:.45}
+.running-split-body.saved{align-items:center;text-align:center;padding-top:32px}.running-split-check{display:grid;place-items:center;width:62px;height:62px;border-radius:50%;background:#d4efe0;color:#1f6e52;font-size:28px;font-weight:700}
+.running-split-body.saved h2{margin:0;font-size:21px}.running-split-body.saved>p{margin:0;color:#6b7870;font-size:12px}
+.running-split-summary{width:100%;padding:7px 14px;border-radius:17px;background:#fff;text-align:left}
+.running-split-summary>div{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #f0efe6;font-size:12px}.running-split-summary>div:last-child{border-bottom:0}
+.running-split-summary strong{color:#1f6e52}
+@media(max-width:350px){.running-method-list>button{min-height:76px}.running-share-row{padding-inline:9px}.running-share-input{width:80px}}
