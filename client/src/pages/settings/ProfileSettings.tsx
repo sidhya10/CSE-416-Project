@@ -12,10 +12,10 @@ type Profile = {
 type Screen = 'settings' | 'edit' | 'account' | 'banking' | 'notifications' | 'appearance' | 'privacy' | 'help';
 
 const sampleProfile: Profile = {
-  name: 'Vivian Zheng',
-  username: 'vivianzheng',
-  birthday: '2004-01-18',
-  bio: 'Food and travel enthusiast',
+  name: 'Demo User',
+  username: 'demo_user',
+  birthday: '2000-01-01',
+  bio: 'Tracking everyday spending and shared expenses',
   photo: null,
 };
 
