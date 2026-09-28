@@ -108,8 +108,8 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
         <p>You added this expense. The payer can be anyone in the group.</p>
         <div className="payer-options" role="radiogroup" aria-label="Who paid?">
           {members.map((member, index) => <label className={`payer-option ${choice === member.id ? 'selected' : ''}`} key={member.id}>
-            <span className={`payer-avatar tone-${index % 4}`} aria-hidden="true"><Avatar name={member.id === 'you' ? 'Vivian' : member.name} /></span>
-            <span className="payer-copy"><strong>{member.id === 'you' ? 'Vivian (you)' : displayName(member.id)}</strong><small>{member.id === 'you' ? 'Report creator' : choice === member.id ? `Paid ${dollars(total)}` : 'Group member'}</small></span>
+            <span className={`payer-avatar tone-${index % 4}`} aria-hidden="true"><Avatar name={member.id === 'you' ? 'You' : member.name} /></span>
+            <span className="payer-copy"><strong>{member.id === 'you' ? 'You' : displayName(member.id)}</strong><small>{member.id === 'you' ? 'Report creator' : choice === member.id ? `Paid ${dollars(total)}` : 'Group member'}</small></span>
             <input type="radio" name="expense-payer" value={member.id} checked={choice === member.id} onChange={() => setChoice(member.id)} />
           </label>)}
         </div>
@@ -120,7 +120,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
       <div className="expense-body">
         <section className="expense-details">
           <ExpandingNameInput label="EXPENSE NAME" placeholder="e.g. Dinner at Myers + Chang" value={name} onChange={setName} />
-          <p>{groupName} · Created by Vivian (you)</p>
+          <p>{groupName} · Created by you</p>
           <button className="expense-outline" type="button" onClick={() => { setChoice(payer); setChoosing(true); }}>Paid by {displayName(payer)} · Change</button>
         </section>
         <section className="expense-receipt" aria-label="Receipt"><div>
