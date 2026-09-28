@@ -24,30 +24,25 @@ type Group = {
 type Screen = 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'running-split' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
 const friends: Friend[] = [
-  { id: 'nicole', name: 'Nicole Chen', handle: '@nicolec', color: 'mint' },
-  { id: 'eva', name: 'Eva Lin', handle: '@evalin', color: 'peach' },
-  { id: 'sidhya', name: 'Sidhya Shah', handle: '@sidhya10', color: 'blue' },
-  { id: 'jordan', name: 'Jordan Lee', handle: '@jordanlee', color: 'sand' },
-  { id: 'maya', name: 'Maya Patel', handle: '@mayap', color: 'mint' },
-  { id: 'alex', name: 'Alex Kim', handle: '@alexk', color: 'sand' },
-  { id: 'priya', name: 'Priya Shah', handle: '@priyashah', color: 'blue' },
+  { id: 'alex', name: 'Alex', handle: '@alex', color: 'mint' },
+  { id: 'jordan', name: 'Jordan', handle: '@jordan', color: 'peach' },
+  { id: 'taylor', name: 'Taylor', handle: '@taylor', color: 'blue' },
+  { id: 'morgan', name: 'Morgan', handle: '@morgan', color: 'sand' },
+  { id: 'casey', name: 'Casey', handle: '@casey', color: 'mint' },
+  { id: 'riley', name: 'Riley', handle: '@riley', color: 'sand' },
+  { id: 'sam', name: 'Sam', handle: '@sam', color: 'blue' },
 ];
 
 const initialGroups: Group[] = [
-  { id: 1, name: 'Boston weekend', description: 'Weekend trip with friends', type: 'Trip',
-    members: ['nicole', 'eva', 'sidhya'], color: 'gold', photo: null, startDate: '2026-10-10', endDate: '2026-10-13',
+  { id: 1, name: 'Weekend Trip', description: 'Weekend trip with friends', type: 'Trip',
+    members: ['alex', 'jordan', 'taylor'], color: 'gold', photo: null, startDate: '2026-10-10', endDate: '2026-10-13',
     balance: -38.2, privateBudget: null, plans: [], bills: [] },
-  { id: 2, name: 'Apartment 4B', description: 'Shared apartment costs, groceries, and utilities.', type: 'General',
-    members: ['nicole', 'eva'], color: 'green', photo: null, startDate: '', endDate: '',
+  { id: 2, name: 'Shared Apartment', description: 'Shared household costs, groceries, and utilities.', type: 'General',
+    members: ['alex', 'jordan'], color: 'green', photo: null, startDate: '', endDate: '',
     balance: 52, privateBudget: null, plans: [], bills: [] },
-  { id: 3, name: 'WiCS board', description: 'Shared event costs for the board.', type: 'General',
-    members: ['nicole', 'eva', 'sidhya', 'jordan', 'maya', 'alex'], color: 'blue', photo: null,
+  { id: 3, name: 'Community Event', description: 'Shared event costs for the group.', type: 'General',
+    members: ['alex', 'jordan', 'taylor', 'morgan', 'casey', 'riley'], color: 'blue', photo: null,
     startDate: '', endDate: '', balance: 12.8, privateBudget: null, plans: [], bills: [] },
-  { id: 4, name: 'Apartment bills', description: 'Shared rent, internet, and utilities.', type: 'Recurring',
-    members: ['nicole', 'eva'], color: 'gold', photo: null, startDate: '', endDate: '',
-    balance: 0, privateBudget: null, plans: [],
-    bills: [{ id: 1, title: 'Rent', amount: 1800, startDate: '2026-10-01', frequency: 'Monthly', customEvery: 1, customUnit: 'months', cycles: {} },
-      { id: 2, title: 'Internet', amount: 75, startDate: '2026-10-15', frequency: 'Monthly', customEvery: 1, customUnit: 'months', cycles: {} }] },
 ];
 
 const sampleRunningTotals: Record<number, number> = { 1: 145000, 2: 28650, 3: 41280 };
@@ -109,7 +104,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const [draft, setDraft] = useState<Group>(initialDraft);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState('');
-  const [knownFriends, setKnownFriends] = useState<string[]>(['nicole', 'eva', 'sidhya', 'jordan', 'maya']);
+  const [knownFriends, setKnownFriends] = useState<string[]>(['alex', 'jordan', 'taylor', 'morgan', 'casey']);
   const [message, setMessage] = useState('');
   const [editing, setEditing] = useState(false);
   const [billId, setBillId] = useState<number | null>(null);
@@ -142,6 +137,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const currentRunningTotal = active ? recordedRunningTotal || sampleRunningTotals[active.id] || 0 : 0;
   const runningActivityWeights = Object.fromEntries(members.map(member => [member.id,
     activeSplits.reduce((total, split) => total + (split.shares.find(share => share.memberId === member.id)?.totalCents ?? 0), 0)]));
+  const yourCurrentExpenses = activeSplits.length ? runningActivityWeights.you ?? 0 : active?.id === 1 ? 40000 : 0;
 
   const go = (next: Screen) => { setScreen(next); setQuery(''); setMessage(''); onRootChange(next === 'list'); };
   const updateGroup = (patch: Partial<Group>) => {
@@ -180,7 +176,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   };
   const openBill = (id: number, index = 0) => { setBillId(id); setCycleIndex(index); setAllocationDraft(null); go('bill'); };
   const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
-  const startCreate = () => { setDraft(initialDraft()); setSelected(['nicole', 'eva', 'sidhya']); setEditing(false); go('select'); };
+  const startCreate = () => { setDraft(initialDraft()); setSelected([]); setEditing(false); go('select'); };
   const createGroup = (event: FormEvent) => {
     event.preventDefault();
     if (draft.type === 'Trip' && (!draft.startDate || !draft.endDate || draft.endDate < draft.startDate)) {
@@ -373,11 +369,12 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
           <button type="button" onClick={() => setMessage('Split expense pages are coming soon.')}>Split settled expenses</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
       </> : <>
-        <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE · SAMPLE'}</small>
-          <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? '$1,450' : '$38.20'}</strong></span>
-            <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? '$400' : '$64.80'}</strong></span></div></section>
+        <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : sampleRunningTotals[active.id] ? 'CURRENT RUNNING BALANCE · SAMPLE' : 'CURRENT RUNNING BALANCE'}</small>
+          <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? formatCents(currentRunningTotal) : balanceMoney(Math.max(-active.balance, 0))}</strong></span>
+            <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? formatCents(yourCurrentExpenses) : balanceMoney(Math.max(active.balance, 0))}</strong></span></div></section>
         <div className="group-split-actions"><button type="button" onClick={() => go('expense')}>+ Add expense</button>
-          <button type="button" onClick={() => go('running-split')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
+          <button type="button" disabled={!currentRunningTotal} title={!currentRunningTotal ? 'Add an expense before splitting the current total' : undefined}
+            onClick={() => go('running-split')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
         <section className="group-info"><strong>{active.type === 'Trip' ? active.description || 'Trip with friends' : 'Any member can add expenses and split when ready.'}</strong>
           <small>{active.type === 'Trip' ? `Trip dates · ${dateLabel(active.startDate)} – ${dateLabel(active.endDate)}` : `About · ${active.description || 'No description yet'}`}</small></section>
@@ -400,8 +397,8 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
             <span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b>
           </button>;
         })}
-        {(active.type === 'Trip' ? [['Airbnb', 'Nicole paid · Lodging', '+$247.50'], ['Dinner at Myers + Chang', 'You paid · Dining', '−$93.60'], ['Parking', 'Eva paid · Transit', '+$48.00']] :
-          [['Electric bill', 'Vivian paid · Utilities', '+$247.50'], ['Weekly groceries', 'Nicole paid · Groceries', '−$93.60'], ['Parking', 'Eva paid · Transit', '+$48.00']]).map(([title, subtitle, amount]) =>
+        {sampleRunningTotals[active.id] && (active.type === 'Trip' ? [['Lodging', 'Alex paid · Travel', '+$247.50'], ['Group dinner', 'You paid · Dining', '−$93.60'], ['Parking', 'Jordan paid · Transit', '+$48.00']] :
+          [['Utility bill', 'You paid · Utilities', '+$247.50'], ['Weekly groceries', 'Alex paid · Groceries', '−$93.60'], ['Parking', 'Jordan paid · Transit', '+$48.00']]).map(([title, subtitle, amount]) =>
           <button type="button" className="group-transaction expense-list-row" key={title} onClick={() => { setViewedExpense({ title: title!, subtitle: subtitle!, amount: amount! }); go('expense-details'); }}><span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b></button>)}
         <p className="group-caption">New expenses are session-only previews. Other rows are sample transactions; live balances and persistence are not connected yet.</p>
         </section>
