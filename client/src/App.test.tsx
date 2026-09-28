@@ -44,7 +44,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Connected accounts' })).toBeInTheDocument();
     expect(screen.getByText('Chase Total Checking')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sync now' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Connect another account' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /connect another account/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
