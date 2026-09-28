@@ -1,3 +1,4 @@
+import { updatePayment, type PaymentAction } from '../expenses/payments';
 import ExpenseDetails from '../expenses/ExpenseDetails';
 import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import './groups.css';
@@ -19,7 +20,7 @@ type Group = {
   color: string; photo: string | null; startDate: string; endDate: string;
   privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
 };
-type Screen = 'expense-details' | 'saved' | 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
+type Screen = 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
 const friends: Friend[] = [
   { id: 'nicole', name: 'Nicole Chen', handle: '@nicolec', color: 'mint' },
@@ -219,7 +220,18 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     go('detail'); setMessage('Split confirmed in this preview session only. Balances and budgets have not changed; reloading clears the preview.');
   }} />;
 
-  if (screen === 'expense-details' && active && viewedExpense) return <ExpenseDetails expense={viewedExpense} groupName={active.name} members={members} onBack={() => go('detail')} />;
+  if (screen === 'edit-expense' && active && viewedExpense?.split) return <ExpenseEntry initialSplit={viewedExpense.split} groupName={active.name} members={members} onBack={() => go('expense-details')} onConfirm={split => {
+    setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
+    setViewedExpense({ title: split.name, subtitle: `${members.find(member => member.id === split.payerId)?.name ?? 'Member'} paid`, amount: formatCents(split.totalCents), split });
+    go('expense-details');
+  }} />;
+
+  if (screen === 'expense-details' && active && viewedExpense) return <ExpenseDetails onPaymentViewChange={onRootChange} onPaymentAction={(memberId: string, action: PaymentAction) => {
+    if (!viewedExpense.split) return;
+    const split = updatePayment(viewedExpense.split, 'you', memberId, action);
+    setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
+    setViewedExpense({ ...viewedExpense, split });
+  }} onEdit={() => go('edit-expense')} expense={viewedExpense} groupName={active.name} members={members} onBack={() => go('detail')} />;
 
   return <main className="groups-workspace">
     {screen === 'list' && <>

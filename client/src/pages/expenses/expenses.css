@@ -42,4 +42,24 @@
 .payer-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:8px;line-height:18px}
 .payer-copy strong{font-size:14px;font-weight:600}.payer-copy small,.payer-body>small{font-size:11px;line-height:18px;color:#6b7870}
 .payer-option input{accent-color:#1f6e52;margin:4px 4px 0 0;width:14px;height:14px;flex:none}
-.payer-avatar .group-avatar{width:42px;height:42px;background:transparent;font-size:12px;font-weight:600}
+.expense-screen .payer-avatar .group-avatar{width:42px;height:42px;background:transparent;font-size:12px;font-weight:600}
+
+/* Shared Add/Edit expense layout. Keep payer and split screens independent. */
+.expense-entry-screen .expense-body{gap:8px;padding-inline:23px}
+.expense-entry-screen .expense-outline{min-height:40px}
+.expense-entry-screen .expense-receipt{padding:0;background:transparent}
+.expense-entry-screen .expense-items{gap:6px}
+.expense-item-entry{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #dedbcc;border-radius:17px;background:#fff}
+.expense-entry-screen .expense-item{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:8px}
+.expense-item-field{display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;line-height:18px;font-weight:600;color:#6b7870}
+.expense-entry-screen .expense-item-field>input:not([type=radio]):not([type=file]),.expense-entry-screen .expense-item-field>.expense-money{width:100%;height:36px;padding:0 10px;border:0;border-radius:12px;background:#f6f4ed;font-size:15px;font-weight:400;color:#1a2421}
+.expense-entry-screen .expense-item .expense-money input:not([type=radio]):not([type=file]){height:34px;font-size:15px}
+.expense-item-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px}
+.expense-item-heading strong{max-width:110px;padding:8px 2px;font-size:13px;line-height:20px;font-weight:600;overflow-wrap:anywhere;text-align:right;color:#1f6e52}
+.expense-item-remove{border:0;background:transparent;color:#6b7870;font:inherit;font-size:12px;font-weight:600;min-height:36px;padding:4px;border-radius:8px}
+.expense-item-remove:hover{background:#e8f0e3;color:#1f6e52}
+.expense-entry-screen .expense-footer{padding:8px 23px 16px;gap:4px}
+
+.expense-entry-screen .expense-name-input{display:block;width:100%;min-width:0;min-height:44px;box-sizing:border-box;padding:11px 16px;border:1px solid #dedbcc;border-radius:16px;background:#fff;color:#1a2421;font:inherit;font-size:14px;line-height:20px;resize:none;overflow:hidden;overflow-wrap:anywhere;white-space:pre-wrap}
+.expense-entry-screen .expense-item{align-items:start}
+.expense-entry-screen .expense-item-heading .expense-name-input{min-height:36px;padding:7px 10px;border:0;border-radius:12px;background:#f6f4ed;font-size:15px;line-height:22px}
