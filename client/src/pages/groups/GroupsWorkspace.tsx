@@ -18,7 +18,7 @@ type RecurringBill = { id: number; title: string; amount: number; startDate: str
 type Group = {
   id: number; name: string; description: string; type: GroupType; members: string[];
   color: string; photo: string | null; startDate: string; endDate: string;
-  privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
+  balance: number; privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
 };
 type Screen = 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
@@ -35,21 +35,24 @@ const friends: Friend[] = [
 const initialGroups: Group[] = [
   { id: 1, name: 'Boston weekend', description: 'Weekend trip with friends', type: 'Trip',
     members: ['nicole', 'eva', 'sidhya'], color: 'gold', photo: null, startDate: '2026-10-10', endDate: '2026-10-13',
-    privateBudget: null, plans: [], bills: [] },
+    balance: -38.2, privateBudget: null, plans: [], bills: [] },
   { id: 2, name: 'Apartment 4B', description: 'Shared apartment costs, groceries, and utilities.', type: 'General',
     members: ['nicole', 'eva'], color: 'green', photo: null, startDate: '', endDate: '',
-    privateBudget: null, plans: [], bills: [] },
+    balance: 52, privateBudget: null, plans: [], bills: [] },
   { id: 3, name: 'WiCS board', description: 'Shared event costs for the board.', type: 'General',
     members: ['nicole', 'eva', 'sidhya', 'jordan', 'maya', 'alex'], color: 'blue', photo: null,
-    startDate: '', endDate: '', privateBudget: null, plans: [], bills: [] },
+    startDate: '', endDate: '', balance: 12.8, privateBudget: null, plans: [], bills: [] },
   { id: 4, name: 'Apartment bills', description: 'Shared rent, internet, and utilities.', type: 'Recurring',
     members: ['nicole', 'eva'], color: 'gold', photo: null, startDate: '', endDate: '',
-    privateBudget: null, plans: [],
+    balance: 0, privateBudget: null, plans: [],
     bills: [{ id: 1, title: 'Rent', amount: 1800, startDate: '2026-10-01', frequency: 'Monthly', customEvery: 1, customUnit: 'months', cycles: {} },
       { id: 2, title: 'Internet', amount: 75, startDate: '2026-10-15', frequency: 'Monthly', customEvery: 1, customUnit: 'months', cycles: {} }] },
 ];
 
 const money = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: amount % 1 ? 2 : 0 }).format(amount);
+const balanceMoney = (amount: number) => new Intl.NumberFormat('en-US', {
+  style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
+}).format(amount);
 const dateLabel = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 const monthLabel = (value: Date) => value.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 const isoDate = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
@@ -83,7 +86,7 @@ const defaultAllocation = (bill: RecurringBill, members: Friend[]): Allocation =
   return { payerId: 'you', shares: Object.fromEntries(members.map((member, index) => [member.id, each + (index < cents % members.length ? 1 : 0)])) };
 };
 const initialDraft = (): Group => ({ id: 0, name: '', description: '', type: 'General', members: [], color: 'gold',
-  photo: null, startDate: '', endDate: '', privateBudget: null, plans: [], bills: [] });
+  photo: null, startDate: '', endDate: '', balance: 0, privateBudget: null, plans: [], bills: [] });
 
 
 function Header({ title, subtitle, back, trailing }: { title: string; subtitle?: string; back?: () => void; trailing?: ReactNode }) {
@@ -126,6 +129,11 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const members = active ? groupMembers(active) : [];
   const allocation = bill ? bill.cycles[cycleDate] ?? defaultAllocation(bill, members) : null;
   const cycleEntries = active?.bills.flatMap(item => occurrencesInMonth(item, calendarMonth).map(date => ({ item, date }))) ?? [];
+  const balanceGroups = groups.filter(group => !group.archived);
+  const owedToYou = balanceGroups.reduce((total, group) => total + Math.max(group.balance, 0), 0);
+  const youOwe = balanceGroups.reduce((total, group) => total + Math.max(-group.balance, 0), 0);
+  const largestBalance = Math.max(owedToYou, youOwe, 1);
+  const balanceWidth = (amount: number) => `${Math.round((amount / largestBalance) * 100)}%`;
 
   const go = (next: Screen) => { setScreen(next); setQuery(''); setMessage(''); onRootChange(next === 'list'); };
   const updateGroup = (patch: Partial<Group>) => {
@@ -238,7 +246,17 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       <Header title="Groups" subtitle="Split, plan, and settle with people you trust" />
       <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search groups" aria-label="Search groups" /></label>
       <div className="group-actions"><button type="button" onClick={() => go('friends')}>+&nbsp; Find friends</button><button type="button" onClick={startCreate}>+&nbsp; New group</button></div>
-      <section className="group-balance"><small>Across all groups · Sample data</small><div><strong>$64.80 owed to you</strong><strong>$38.20 you owe</strong></div></section>
+      <section className="group-balance" aria-label="Balance overview">
+        <small>Across all groups</small>
+        <div className="group-balance-row is-owed">
+          <span>Owed to you</span><span className="group-balance-track" aria-hidden="true"><span style={{ width: balanceWidth(owedToYou) }} /></span>
+          <strong>{balanceMoney(owedToYou)}</strong>
+        </div>
+        <div className="group-balance-row is-owing">
+          <span>You owe</span><span className="group-balance-track" aria-hidden="true"><span style={{ width: balanceWidth(youOwe) }} /></span>
+          <strong>{balanceMoney(youOwe)}</strong>
+        </div>
+      </section>
       <h2 className="group-section-title">Your groups</h2>
       {message && <p className="group-notice" role="status">{message}</p>}
       <div className="group-list">{groups.filter(group => !group.archived && group.name.toLowerCase().includes(query.toLowerCase())).map(group =>
@@ -252,8 +270,13 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
             if (suppressCardClick.current === group.id) { suppressCardClick.current = null; return; }
             if (openActionsId === group.id) { setOpenActionsId(null); return; }
             enterGroup(group.id);
-          }}><Avatar name={group.name} color={group.color} photo={group.photo} />
-              <span><strong>{group.name}</strong><small>{group.members.length + 1} members · {group.type}</small><em>{group.description}</em></span></button>
+          }}><Avatar name={group.name} color={group.color} photo={group.photo}
+              balanceDirection={group.balance > 0 ? 'owed' : group.balance < 0 ? 'owing' : undefined} />
+              <span><strong>{group.name}</strong><small>{group.members.length + 1} members · {group.type}</small>
+                <em className={group.balance < 0 ? 'is-owing' : group.balance > 0 ? 'is-owed' : undefined}>
+                  {group.balance < 0 ? `You owe ${balanceMoney(Math.abs(group.balance))}`
+                    : group.balance > 0 ? `You are owed ${balanceMoney(group.balance)}` : group.description}
+                </em></span></button>
             <button className="group-card-menu" type="button" aria-label="Group actions" aria-expanded={openActionsId === group.id}
               onClick={() => setOpenActionsId(openActionsId === group.id ? null : group.id)}>›</button></div>
         </div>)}</div>
