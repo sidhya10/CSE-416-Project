@@ -7,7 +7,7 @@ import './categoryBudgets.css';
 
 type BudgetScope = 'personal' | 'group';
 
-export default function CategoryBudgets() {
+export default function CategoryBudgets({ onOpenSimulator }: { onOpenSimulator: () => void }) {
   const [scope, setScope] = useState<BudgetScope>('personal');
   const [activeGroupId, setActiveGroupId] = useState(DEFAULT_GROUP_BUDGET.id);
   const [notice, setNotice] = useState('');
@@ -25,7 +25,8 @@ export default function CategoryBudgets() {
         <h1>{activeGroup.name}</h1>
         <p>{activeGroup.memberInfo}</p>
       </> : <>
-        <h1>Personal budget</h1>
+        <div className="cb-heading-row"><h1>Personal budget</h1>
+          <button type="button" className="cb-simulator-link" aria-label="Open what-if simulator" onClick={onOpenSimulator}>What-if ›</button></div>
         <p>Budgets, bank sync, and spending insights</p>
       </>}
     </header>
