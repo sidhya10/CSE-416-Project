@@ -18,7 +18,7 @@ export default function SplitExpense(props: Props) {
   const selectedMember = members.find(member => member.id === selectedMemberId);
   const [confirming, setConfirming] = useState(false);
   const result = calculateSplit(items, feeCents, members, payerId, mode, assignments);
-  const memberName = (member: SplitMember) => member.id === 'you' ? 'Vivian' : member.name.split(' ')[0] ?? member.name;
+  const memberName = (member: SplitMember) => member.id === 'you' ? 'You' : member.name.split(' ')[0] ?? member.name;
   const payer = members.find(member => member.id === payerId)!;
   const avatar = (member: SplitMember, index: number) => <span className={`split-avatar tone-${index % 4}`} aria-hidden="true"><Avatar name={memberName(member)} /></span>;
   const toggle = (itemId: number, memberId: string) => {
