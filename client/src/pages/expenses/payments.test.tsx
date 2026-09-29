@@ -5,7 +5,7 @@ import ExpensePayments from './ExpensePayments';
 import { paymentFor, updatePayment } from './payments';
 import { calculateSplit, type PreviewSplit } from './split';
 
-const members = [{ id: 'you', name: 'Vivian' }, { id: 'nicole', name: 'Nicole' }, { id: 'eva', name: 'Eva' }, { id: 'sidhya', name: 'Sidhya' }];
+const members = [{ id: 'you', name: 'You' }, { id: 'nicole', name: 'Alex' }, { id: 'eva', name: 'Jordan' }, { id: 'sidhya', name: 'Taylor' }];
 function expense(): PreviewSplit {
   const items = [{ id: 1, name: 'Dinner', cents: 7750 }];
   const result = calculateSplit(items, 0, members, 'nicole', 'equal', {});
@@ -14,7 +14,7 @@ function expense(): PreviewSplit {
 function Harness() {
   const [split, setSplit] = useState(expense);
   const [actor, setActor] = useState('you');
-  return <><button onClick={() => setActor(actor === 'you' ? 'nicole' : 'you')}>Switch test actor</button><ExpensePayments split={split} members={members} groupName="Boston weekend" currentUserId={actor} onAction={(member, action) => setSplit(previous => updatePayment(previous, actor, member, action))} /></>;
+  return <><button onClick={() => setActor(actor === 'you' ? 'nicole' : 'you')}>Switch test actor</button><ExpensePayments split={split} members={members} groupName="Weekend Trip" currentUserId={actor} onAction={(member, action) => setSplit(previous => updatePayment(previous, actor, member, action))} /></>;
 }
 
 describe('Payment tracking', () => {
@@ -27,9 +27,9 @@ describe('Payment tracking', () => {
     expect(screen.queryByRole('button', { name: 'Confirm receipt' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Switch test actor' }));
     expect(screen.getByRole('region', { name: 'Collection summary' })).toHaveTextContent('$58.12');
-    expect(screen.queryByRole('region', { name: 'Nicole payment' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Alex payment' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Not received' }));
-    expect(screen.getByRole('region', { name: 'Vivian payment' })).toHaveTextContent('Payment issue');
+    expect(screen.getByRole('region', { name: 'You payment' })).toHaveTextContent('Payment issue');
     fireEvent.click(screen.getByRole('button', { name: 'Switch test actor' }));
     expect(screen.getByRole('region', { name: 'Your payment' })).toHaveTextContent('Check the recipient');
     fireEvent.click(screen.getByRole('button', { name: 'Confirm payment' }));
@@ -47,7 +47,7 @@ describe('Payment tracking', () => {
     const sent = updatePayment(expense(), 'you', 'you', 'sent');
     const issue = updatePayment(sent, 'nicole', 'you', 'issue');
     render(<ExpensePayments split={issue} members={members} groupName="Boston" currentUserId="nicole" onAction={() => {}} />);
-    expect(within(screen.getByRole('region', { name: 'Vivian payment' })).getByRole('button', { name: 'Now received' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'You payment' })).getByRole('button', { name: 'Now received' })).toBeInTheDocument();
     const settled = updatePayment(issue, 'nicole', 'you', 'received');
     expect(paymentFor(settled, 'you').status).toBe('Settled');
     expect(updatePayment(settled, 'nicole', 'you', 'received')).toBe(settled);

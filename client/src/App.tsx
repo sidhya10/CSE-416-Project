@@ -3,6 +3,7 @@ import receiptLogo from './assets/receipt-split-logo.png';
 import ProfileSettings from './pages/settings/ProfileSettings';
 import GroupsWorkspace from './pages/groups/GroupsWorkspace';
 import CategoryBudgets from './pages/budgets/CategoryBudgets';
+import WhatIfSimulator from './pages/budgets/WhatIfSimulator';
 import HomeDashboard from './pages/dashboard/HomeDashboard';
 
 type Tab = 'Home' | 'Budget' | 'Groups' | 'Profile';
@@ -21,6 +22,8 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [profileAtRoot, setProfileAtRoot] = useState(true);
   const [groupsAtRoot, setGroupsAtRoot] = useState(true);
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [simulatorVisited, setSimulatorVisited] = useState(false);
 
   const changeView = (next: AuthView) => { setNotice(''); setView(next); };
   const unavailable = (service: string) => setNotice(`${service} is not connected yet. Explore the app preview below.`);
@@ -31,8 +34,11 @@ export default function App() {
       <div hidden={tab !== 'Home'} className="profile-content">
         <HomeDashboard />
       </div>
-      <div hidden={tab !== 'Budget'} className="profile-content">
-        <CategoryBudgets />
+      <div hidden={tab !== 'Budget' || simulatorOpen} className="profile-content">
+        <CategoryBudgets onOpenSimulator={() => { setSimulatorVisited(true); setSimulatorOpen(true); }} />
+      </div>
+      <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">
+        {simulatorVisited && <WhatIfSimulator onBack={() => setSimulatorOpen(false)} />}
       </div>
       <div hidden={tab !== 'Profile'} className="profile-content">
         <ProfileSettings onRootChange={setProfileAtRoot} onLogout={() => {
@@ -42,7 +48,7 @@ export default function App() {
       <div hidden={tab !== 'Groups'} className="profile-content">
         <GroupsWorkspace onRootChange={setGroupsAtRoot} />
       </div>
-      {(tab === 'Home' || tab === 'Budget' || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
+      {(tab === 'Home' || (tab === 'Budget' && !simulatorOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
         {tabs.map(({ label, glyph }) => <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'}
           aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}>
           <span className="tab-glyph" aria-hidden="true">{glyph}</span><span>{label}</span>
@@ -79,8 +85,8 @@ export default function App() {
       </button>
       <p className="manual-divider">or register manually</p>
       <form className="signup-form" onSubmit={event => { event.preventDefault(); unavailable('Account registration'); }}>
-        <label>NAME<input name="name" autoComplete="name" required placeholder="Vivian Zheng" /></label>
-        <label>USERNAME<input name="username" autoComplete="username" required placeholder="vivianzheng" /></label>
+        <label>NAME<input name="name" autoComplete="name" required placeholder="Your name" /></label>
+        <label>USERNAME<input name="username" autoComplete="username" required placeholder="your_username" /></label>
         <label>EMAIL<input type="email" name="email" autoComplete="email" required placeholder="you@example.com" /></label>
         <label>PASSWORD<input type="password" name="password" autoComplete="new-password" minLength={8}
           pattern="(?=.*[0-9]).{8,}" required title="Use at least 8 characters with a number" placeholder="••••••••" /></label>

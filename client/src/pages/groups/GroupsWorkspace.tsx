@@ -6,6 +6,7 @@ import Avatar from '../../components/common/Avatar';
 import { formatCents, type PreviewSplit } from '../expenses/split';
 import SplitSaved from '../expenses/SplitSaved';
 import ExpenseEntry from '../expenses/ExpenseEntry';
+import RunningTotalSplit from './RunningTotalSplit';
 
 type GroupType = 'General' | 'Trip' | 'Recurring';
 type Friend = { id: string; name: string; handle: string; color: string };
@@ -18,38 +19,43 @@ type RecurringBill = { id: number; title: string; amount: number; startDate: str
 type Group = {
   id: number; name: string; description: string; type: GroupType; members: string[];
   color: string; photo: string | null; startDate: string; endDate: string;
-  privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
+  balance: number; privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
 };
-type Screen = 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
+type Screen = 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'running-split' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
 const friends: Friend[] = [
-  { id: 'nicole', name: 'Nicole Chen', handle: '@nicolec', color: 'mint' },
-  { id: 'eva', name: 'Eva Lin', handle: '@evalin', color: 'peach' },
-  { id: 'sidhya', name: 'Sidhya Shah', handle: '@sidhya10', color: 'blue' },
-  { id: 'jordan', name: 'Jordan Lee', handle: '@jordanlee', color: 'sand' },
-  { id: 'maya', name: 'Maya Patel', handle: '@mayap', color: 'mint' },
-  { id: 'alex', name: 'Alex Kim', handle: '@alexk', color: 'sand' },
-  { id: 'priya', name: 'Priya Shah', handle: '@priyashah', color: 'blue' },
+  { id: 'alex', name: 'Alex', handle: '@alex', color: 'mint' },
+  { id: 'jordan', name: 'Jordan', handle: '@jordan', color: 'peach' },
+  { id: 'taylor', name: 'Taylor', handle: '@taylor', color: 'blue' },
+  { id: 'morgan', name: 'Morgan', handle: '@morgan', color: 'sand' },
+  { id: 'casey', name: 'Casey', handle: '@casey', color: 'mint' },
+  { id: 'riley', name: 'Riley', handle: '@riley', color: 'sand' },
+  { id: 'sam', name: 'Sam', handle: '@sam', color: 'blue' },
 ];
 
 const initialGroups: Group[] = [
-  { id: 1, name: 'Boston weekend', description: 'Weekend trip with friends', type: 'Trip',
-    members: ['nicole', 'eva', 'sidhya'], color: 'gold', photo: null, startDate: '2026-10-10', endDate: '2026-10-13',
-    privateBudget: null, plans: [], bills: [] },
-  { id: 2, name: 'Apartment 4B', description: 'Shared apartment costs, groceries, and utilities.', type: 'General',
-    members: ['nicole', 'eva'], color: 'green', photo: null, startDate: '', endDate: '',
-    privateBudget: null, plans: [], bills: [] },
-  { id: 3, name: 'WiCS board', description: 'Shared event costs for the board.', type: 'General',
-    members: ['nicole', 'eva', 'sidhya', 'jordan', 'maya', 'alex'], color: 'blue', photo: null,
-    startDate: '', endDate: '', privateBudget: null, plans: [], bills: [] },
-  { id: 4, name: 'Apartment bills', description: 'Shared rent, internet, and utilities.', type: 'Recurring',
-    members: ['nicole', 'eva'], color: 'gold', photo: null, startDate: '', endDate: '',
-    privateBudget: null, plans: [],
-    bills: [{ id: 1, title: 'Rent', amount: 1800, startDate: '2026-10-01', frequency: 'Monthly', customEvery: 1, customUnit: 'months', cycles: {} },
-      { id: 2, title: 'Internet', amount: 75, startDate: '2026-10-15', frequency: 'Monthly', customEvery: 1, customUnit: 'months', cycles: {} }] },
+  { id: 1, name: 'Weekend Trip', description: 'Weekend trip with friends', type: 'Trip',
+    members: ['alex', 'jordan', 'taylor'], color: 'gold', photo: null, startDate: '2026-10-10', endDate: '2026-10-13',
+    balance: -38.2, privateBudget: null, plans: [], bills: [] },
+  { id: 2, name: 'Shared Apartment', description: 'Shared household costs, groceries, and utilities.', type: 'General',
+    members: ['alex', 'jordan'], color: 'green', photo: null, startDate: '', endDate: '',
+    balance: 52, privateBudget: null, plans: [], bills: [] },
+  { id: 3, name: 'Community Event', description: 'Shared event costs for the group.', type: 'General',
+    members: ['alex', 'jordan', 'taylor', 'morgan', 'casey', 'riley'], color: 'blue', photo: null,
+    startDate: '', endDate: '', balance: 12.8, privateBudget: null, plans: [], bills: [] },
 ];
 
+const sampleRunningTotals: Record<number, number> = { 1: 145000, 2: 28650, 3: 41280 };
+
 const money = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: amount % 1 ? 2 : 0 }).format(amount);
+const balanceMoney = (amount: number) => new Intl.NumberFormat('en-US', {
+  style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
+}).format(amount);
+const splitBalanceDelta = (split: PreviewSplit) => {
+  const yourShare = split.shares.find(share => share.memberId === 'you')?.totalCents ?? 0;
+  const deltaCents = split.payerId === 'you' ? split.totalCents - yourShare : -yourShare;
+  return deltaCents / 100;
+};
 const dateLabel = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 const monthLabel = (value: Date) => value.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 const isoDate = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
@@ -83,7 +89,7 @@ const defaultAllocation = (bill: RecurringBill, members: Friend[]): Allocation =
   return { payerId: 'you', shares: Object.fromEntries(members.map((member, index) => [member.id, each + (index < cents % members.length ? 1 : 0)])) };
 };
 const initialDraft = (): Group => ({ id: 0, name: '', description: '', type: 'General', members: [], color: 'gold',
-  photo: null, startDate: '', endDate: '', privateBudget: null, plans: [], bills: [] });
+  photo: null, startDate: '', endDate: '', balance: 0, privateBudget: null, plans: [], bills: [] });
 
 
 function Header({ title, subtitle, back, trailing }: { title: string; subtitle?: string; back?: () => void; trailing?: ReactNode }) {
@@ -103,7 +109,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const [draft, setDraft] = useState<Group>(initialDraft);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState('');
-  const [knownFriends, setKnownFriends] = useState<string[]>(['nicole', 'eva', 'sidhya', 'jordan', 'maya']);
+  const [knownFriends, setKnownFriends] = useState<string[]>(['alex', 'jordan', 'taylor', 'morgan', 'casey']);
   const [message, setMessage] = useState('');
   const [editing, setEditing] = useState(false);
   const [billId, setBillId] = useState<number | null>(null);
@@ -126,6 +132,17 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const members = active ? groupMembers(active) : [];
   const allocation = bill ? bill.cycles[cycleDate] ?? defaultAllocation(bill, members) : null;
   const cycleEntries = active?.bills.flatMap(item => occurrencesInMonth(item, calendarMonth).map(date => ({ item, date }))) ?? [];
+  const balanceGroups = groups.filter(group => !group.archived);
+  const owedToYou = balanceGroups.reduce((total, group) => total + Math.max(group.balance, 0), 0);
+  const youOwe = balanceGroups.reduce((total, group) => total + Math.max(-group.balance, 0), 0);
+  const largestBalance = Math.max(owedToYou, youOwe, 1);
+  const balanceWidth = (amount: number) => `${Math.round((amount / largestBalance) * 100)}%`;
+  const activeSplits = active ? previewSplits[active.id] ?? [] : [];
+  const recordedRunningTotal = activeSplits.reduce((total, split) => total + split.totalCents, 0);
+  const currentRunningTotal = active ? recordedRunningTotal || sampleRunningTotals[active.id] || 0 : 0;
+  const runningActivityWeights = Object.fromEntries(members.map(member => [member.id,
+    activeSplits.reduce((total, split) => total + (split.shares.find(share => share.memberId === member.id)?.totalCents ?? 0), 0)]));
+  const yourCurrentExpenses = activeSplits.length ? runningActivityWeights.you ?? 0 : active?.id === 1 ? 40000 : 0;
 
   const go = (next: Screen) => { setScreen(next); setQuery(''); setMessage(''); onRootChange(next === 'list'); };
   const updateGroup = (patch: Partial<Group>) => {
@@ -164,7 +181,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   };
   const openBill = (id: number, index = 0) => { setBillId(id); setCycleIndex(index); setAllocationDraft(null); go('bill'); };
   const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
-  const startCreate = () => { setDraft(initialDraft()); setSelected(['nicole', 'eva', 'sidhya']); setEditing(false); go('select'); };
+  const startCreate = () => { setDraft(initialDraft()); setSelected([]); setEditing(false); go('select'); };
   const createGroup = (event: FormEvent) => {
     event.preventDefault();
     if (draft.type === 'Trip' && (!draft.startDate || !draft.endDate || draft.endDate < draft.startDate)) {
@@ -211,17 +228,27 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     setAllocationDraft(null); setMessage('Payment plan saved for this cycle.');
   };
 
+  if (screen === 'running-split' && active) return <RunningTotalSplit groupName={active.name} totalCents={currentRunningTotal}
+    members={members} activityWeights={runningActivityWeights} onBack={() => go('detail')} onDone={() => {
+      go('detail'); setMessage('Current total split saved in this preview session.');
+    }} />;
+
   if (screen === 'expense' && active) return <ExpenseEntry groupName={active.name} members={members} onBack={() => go('detail')} onConfirm={split => {
     setPreviewSplits(previous => ({ ...previous, [active.id]: [...(previous[active.id] ?? []), split] }));
+    setGroups(previous => previous.map(group => group.id === active.id
+      ? { ...group, balance: group.balance + splitBalanceDelta(split) } : group));
     setSavedSplit(split); go('saved');
   }} />;
 
   if (screen === 'saved' && savedSplit && active) return <SplitSaved split={savedSplit} members={members} onBack={() => {
-    go('detail'); setMessage('Split confirmed in this preview session only. Balances and budgets have not changed; reloading clears the preview.');
+    go('detail'); setMessage('Expense added and group balances updated for this preview session. Reloading clears the preview.');
   }} />;
 
   if (screen === 'edit-expense' && active && viewedExpense?.split) return <ExpenseEntry initialSplit={viewedExpense.split} groupName={active.name} members={members} onBack={() => go('expense-details')} onConfirm={split => {
+    const balanceChange = splitBalanceDelta(split) - splitBalanceDelta(viewedExpense.split!);
     setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
+    setGroups(previous => previous.map(group => group.id === active.id
+      ? { ...group, balance: group.balance + balanceChange } : group));
     setViewedExpense({ title: split.name, subtitle: `${members.find(member => member.id === split.payerId)?.name ?? 'Member'} paid`, amount: formatCents(split.totalCents), split });
     go('expense-details');
   }} />;
@@ -238,7 +265,17 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
       <Header title="Groups" subtitle="Split, plan, and settle with people you trust" />
       <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search groups" aria-label="Search groups" /></label>
       <div className="group-actions"><button type="button" onClick={() => go('friends')}>+&nbsp; Find friends</button><button type="button" onClick={startCreate}>+&nbsp; New group</button></div>
-      <section className="group-balance"><small>Across all groups · Sample data</small><div><strong>$64.80 owed to you</strong><strong>$38.20 you owe</strong></div></section>
+      <section className="group-balance" aria-label="Balance overview">
+        <small>Across all groups</small>
+        <div className="group-balance-row is-owed">
+          <span>Owed to you</span><span className="group-balance-track" aria-hidden="true"><span style={{ width: balanceWidth(owedToYou) }} /></span>
+          <strong>{balanceMoney(owedToYou)}</strong>
+        </div>
+        <div className="group-balance-row is-owing">
+          <span>You owe</span><span className="group-balance-track" aria-hidden="true"><span style={{ width: balanceWidth(youOwe) }} /></span>
+          <strong>{balanceMoney(youOwe)}</strong>
+        </div>
+      </section>
       <h2 className="group-section-title">Your groups</h2>
       {message && <p className="group-notice" role="status">{message}</p>}
       <div className="group-list">{groups.filter(group => !group.archived && group.name.toLowerCase().includes(query.toLowerCase())).map(group =>
@@ -252,8 +289,13 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
             if (suppressCardClick.current === group.id) { suppressCardClick.current = null; return; }
             if (openActionsId === group.id) { setOpenActionsId(null); return; }
             enterGroup(group.id);
-          }}><Avatar name={group.name} color={group.color} photo={group.photo} />
-              <span><strong>{group.name}</strong><small>{group.members.length + 1} members · {group.type}</small><em>{group.description}</em></span></button>
+          }}><Avatar name={group.name} color={group.color} photo={group.photo}
+              balanceDirection={group.balance > 0 ? 'owed' : group.balance < 0 ? 'owing' : undefined} />
+              <span><strong>{group.name}</strong><small>{group.members.length + 1} members · {group.type}</small>
+                <em className={group.balance < 0 ? 'is-owing' : group.balance > 0 ? 'is-owed' : undefined}>
+                  {group.balance < 0 ? `You owe ${balanceMoney(Math.abs(group.balance))}`
+                    : group.balance > 0 ? `You are owed ${balanceMoney(group.balance)}` : group.description}
+                </em></span></button>
             <button className="group-card-menu" type="button" aria-label="Group actions" aria-expanded={openActionsId === group.id}
               onClick={() => setOpenActionsId(openActionsId === group.id ? null : group.id)}>›</button></div>
         </div>)}</div>
@@ -291,7 +333,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
         <button type="button" onClick={() => photoInput.current?.click()}>Add group photo</button></div>
       <input ref={photoInput} hidden type="file" accept="image/*" onChange={choosePhoto} aria-label="Upload group photo" />
       <form className="group-form" id="create-group" onSubmit={createGroup}>
-        <label>GROUP NAME<input required maxLength={70} value={draft.name} onChange={event => updateGroup({ name: event.target.value })} placeholder="Apartment 4B" /></label>
+        <label>GROUP NAME<input required maxLength={70} value={draft.name} onChange={event => updateGroup({ name: event.target.value })} placeholder="Group name" /></label>
         <label>DESCRIPTION · OPTIONAL<input maxLength={180} value={draft.description} onChange={event => updateGroup({ description: event.target.value })} placeholder="What is this group for?" /></label>
         <div><span className="group-field-label">PURPOSE</span><div className="group-type-picker">{(['General', 'Trip', 'Recurring'] as GroupType[]).map(type =>
           <button type="button" className={draft.type === type ? 'selected' : ''} key={type} onClick={() => updateGroup({ type })}>{type}</button>)}</div>
@@ -337,11 +379,12 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
           <button type="button" onClick={() => setMessage('Split expense pages are coming soon.')}>Split settled expenses</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
       </> : <>
-        <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE · SAMPLE'}</small>
-          <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? '$1,450' : '$38.20'}</strong></span>
-            <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? '$400' : '$64.80'}</strong></span></div></section>
+        <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : sampleRunningTotals[active.id] ? 'CURRENT RUNNING BALANCE · SAMPLE' : 'CURRENT RUNNING BALANCE'}</small>
+          <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? formatCents(currentRunningTotal) : balanceMoney(Math.max(-active.balance, 0))}</strong></span>
+            <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? formatCents(yourCurrentExpenses) : balanceMoney(Math.max(active.balance, 0))}</strong></span></div></section>
         <div className="group-split-actions"><button type="button" onClick={() => go('expense')}>+ Add expense</button>
-          <button type="button" onClick={() => setMessage('Split expense pages are coming soon.')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
+          <button type="button" disabled={!currentRunningTotal} title={!currentRunningTotal ? 'Add an expense before splitting the current total' : undefined}
+            onClick={() => go('running-split')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
         <section className="group-info"><strong>{active.type === 'Trip' ? active.description || 'Trip with friends' : 'Any member can add expenses and split when ready.'}</strong>
           <small>{active.type === 'Trip' ? `Trip dates · ${dateLabel(active.startDate)} – ${dateLabel(active.endDate)}` : `About · ${active.description || 'No description yet'}`}</small></section>
@@ -364,8 +407,8 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
             <span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b>
           </button>;
         })}
-        {(active.type === 'Trip' ? [['Airbnb', 'Nicole paid · Lodging', '+$247.50'], ['Dinner at Myers + Chang', 'You paid · Dining', '−$93.60'], ['Parking', 'Eva paid · Transit', '+$48.00']] :
-          [['Electric bill', 'Vivian paid · Utilities', '+$247.50'], ['Weekly groceries', 'Nicole paid · Groceries', '−$93.60'], ['Parking', 'Eva paid · Transit', '+$48.00']]).map(([title, subtitle, amount]) =>
+        {sampleRunningTotals[active.id] && (active.type === 'Trip' ? [['Lodging', 'Alex paid · Travel', '+$247.50'], ['Group dinner', 'You paid · Dining', '−$93.60'], ['Parking', 'Jordan paid · Transit', '+$48.00']] :
+          [['Utility bill', 'You paid · Utilities', '+$247.50'], ['Weekly groceries', 'Alex paid · Groceries', '−$93.60'], ['Parking', 'Jordan paid · Transit', '+$48.00']]).map(([title, subtitle, amount]) =>
           <button type="button" className="group-transaction expense-list-row" key={title} onClick={() => { setViewedExpense({ title: title!, subtitle: subtitle!, amount: amount! }); go('expense-details'); }}><span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b></button>)}
         <p className="group-caption">New expenses are session-only previews. Other rows are sample transactions; live balances and persistence are not connected yet.</p>
         </section>

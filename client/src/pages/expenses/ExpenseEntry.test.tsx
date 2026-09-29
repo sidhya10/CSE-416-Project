@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import App from '../../App';
 
-function openExpense(group = 'Boston weekend') {
+function openExpense(group = 'Weekend Trip') {
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
   fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
@@ -25,23 +25,23 @@ describe('Expense entry flow', () => {
     expect(screen.getByText('$52.50 subtotal')).toBeInTheDocument();
     expect(screen.getByText('$77.50')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Paid by you · Change' }));
-    fireEvent.click(screen.getByRole('radio', { name: /Nicole/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Use Nicole as payer' }));
-    expect(screen.getByRole('button', { name: 'Paid by Nicole · Change' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /Alex/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use Alex as payer' }));
+    expect(screen.getByRole('button', { name: 'Paid by Alex · Change' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'EXPENSE NAME' })).toHaveValue('Dinner at Myers + Chang');
-    fireEvent.click(screen.getByRole('button', { name: 'Paid by Nicole · Change' }));
-    fireEvent.click(screen.getByRole('radio', { name: /Eva/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Paid by Alex · Change' }));
+    fireEvent.click(screen.getByRole('radio', { name: /Jordan/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to expense' }));
-    expect(screen.getByRole('button', { name: 'Paid by Nicole · Change' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Paid by Alex · Change' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
     expect(screen.getByRole('heading', { name: 'Split expense' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back to expense' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
-    expect(screen.getByRole('heading', { name: 'Boston weekend' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Weekend Trip' })).toBeInTheDocument();
   });
 
   it('validates empty entries, precision and negative fees, and restricts payers to group members', () => {
-    openExpense('Apartment 4B');
+    openExpense('Shared Apartment');
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
     expect(screen.getByRole('status')).toHaveTextContent('Enter an expense name');
     fill('EXPENSE NAME', 'Groceries'); fill('Item 1 name', 'Bread'); fill('Item 1 amount', '1.001');
@@ -54,7 +54,7 @@ describe('Expense entry flow', () => {
     expect(screen.getByText('$0.30')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Paid by you · Change' }));
     expect(within(screen.getByRole('radiogroup')).getAllByRole('radio')).toHaveLength(3);
-    expect(screen.queryByRole('radio', { name: /Sidhya/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /Taylor/ })).not.toBeInTheDocument();
   });
 
   it('accepts a receipt locally and rejects unsupported files without replacing it', () => {
@@ -71,6 +71,36 @@ describe('Expense entry flow', () => {
   });
 });
 
+describe('Expense balance integration', () => {
+  it('updates a newly created group and the all-groups balance after an expense is confirmed', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
+    fireEvent.click(screen.getByRole('button', { name: /new group/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Alex.*@alex/i }));
+    fireEvent.click(screen.getByRole('button', { name: /next: customize group/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'GROUP NAME' }), { target: { value: 'Project Team' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create group' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add expense' }));
+    fill('EXPENSE NAME', 'Shared supplies');
+    fill('Item 1 name', 'Materials');
+    fill('Item 1 amount', '30.00');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $30.00' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
+
+    expect(screen.getByRole('heading', { name: 'Project Team' })).toBeInTheDocument();
+    expect(screen.getByText('$15.00')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
+
+    const overview = within(screen.getByLabelText('Balance overview'));
+    expect(overview.getByText('$79.80')).toBeInTheDocument();
+    const group = within(screen.getByRole('group', { name: 'Project Team' }));
+    expect(group.getByText('You are owed $15.00')).toBeInTheDocument();
+  });
+});
+
 describe('Split screens', () => {
   it('retains assignments across modes and entry edits, blocks unassigned items, and confirms locally', () => {
     openExpense();
@@ -78,28 +108,28 @@ describe('Split screens', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
     expect(screen.getByRole('button', { name: 'Equal split' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Split by item' }));
-    for (const name of ['Vivian', 'Nicole', 'Eva', 'Sidhya']) fireEvent.click(screen.getByRole('button', { name: `${name} for Noodles` }));
+    for (const name of ['You', 'Alex', 'Jordan', 'Taylor']) fireEvent.click(screen.getByRole('button', { name: `${name} for Noodles` }));
     expect(screen.getByRole('button', { name: 'Confirm and split $10.01' })).toBeDisabled();
     expect(screen.getByRole('status')).toHaveTextContent('Assign every item');
-    fireEvent.click(screen.getByRole('button', { name: 'Nicole for Noodles' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Alex for Noodles' }));
     fireEvent.click(screen.getByRole('button', { name: 'Equal split' }));
     fireEvent.click(screen.getByRole('button', { name: 'Split by item' }));
-    expect(screen.getByRole('button', { name: 'Nicole for Noodles' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Vivian for Noodles' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Alex for Noodles' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'You for Noodles' })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(screen.getByRole('button', { name: 'Back to expense' }));
     expect(screen.getByRole('textbox', { name: 'EXPENSE NAME' })).toHaveValue('Lunch');
     fill('Item 1 amount', '12.00');
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
-    expect(screen.getByRole('button', { name: 'Nicole for Noodles' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Alex for Noodles' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $12.00' }));
     expect(screen.getByRole('heading', { name: 'Split saved' })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
-    expect(screen.getByRole('heading', { name: 'Boston weekend' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('preview session only');
+    expect(screen.getByRole('heading', { name: 'Weekend Trip' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('group balances updated');
     const saved = within(screen.getByRole('region', { name: 'Current trip expenses' })).getByRole('button', { name: /Lunch/ });
     expect(saved).toHaveTextContent('$12.00');
     fireEvent.click(screen.getByRole('button', { name: 'Back to Groups' }));
-    fireEvent.click(screen.getByRole('button', { name: /Boston weekend/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Weekend Trip/ }));
     expect(within(screen.getByRole('region', { name: 'Current trip expenses' })).getAllByRole('button', { name: /Lunch/ })).toHaveLength(1);
   });
 });
@@ -111,27 +141,27 @@ it('assigns items by selected name and keeps both assignment methods synchronize
   fill('Item 2 name', 'Tea'); fill('Item 2 amount', '4.00');
   fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
   fireEvent.click(screen.getByRole('button', { name: 'Split by item' }));
-  const nicole = screen.getByRole('button', { name: 'Select Nicole to assign items' });
+  const nicole = screen.getByRole('button', { name: 'Select Alex to assign items' });
   fireEvent.click(nicole);
   expect(nicole).toHaveAttribute('aria-pressed', 'true');
-  const noodles = screen.getByRole('button', { name: 'Assign Noodles to Nicole' });
+  const noodles = screen.getByRole('button', { name: 'Assign Noodles to Alex' });
   fireEvent.click(noodles);
   expect(noodles).toHaveAttribute('aria-pressed', 'false');
-  expect(screen.getByRole('button', { name: 'Nicole for Noodles' })).toHaveAttribute('aria-pressed', 'false');
-  expect(screen.getByRole('button', { name: 'Nicole for Tea' })).toHaveAttribute('aria-pressed', 'true');
-  fireEvent.click(screen.getByRole('button', { name: 'Nicole for Noodles' }));
+  expect(screen.getByRole('button', { name: 'Alex for Noodles' })).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByRole('button', { name: 'Alex for Tea' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Alex for Noodles' }));
   expect(noodles).toHaveAttribute('aria-pressed', 'true');
-  fireEvent.click(screen.getByRole('button', { name: 'Eva for Noodles' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Jordan for Noodles' }));
   expect(noodles).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByRole('button', { name: 'Eva for Noodles' })).toHaveAttribute('aria-pressed', 'false');
-  fireEvent.click(screen.getByRole('button', { name: 'Select Eva to assign items' }));
+  expect(screen.getByRole('button', { name: 'Jordan for Noodles' })).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(screen.getByRole('button', { name: 'Select Jordan to assign items' }));
   expect(nicole).toHaveAttribute('aria-pressed', 'false');
-  expect(screen.getByRole('button', { name: 'Assign Noodles to Eva' })).toHaveAttribute('aria-pressed', 'false');
-  fireEvent.click(screen.getByRole('button', { name: 'Assign Noodles to Eva' }));
-  expect(screen.getByRole('button', { name: 'Eva for Noodles' })).toHaveAttribute('aria-pressed', 'true');
-  fireEvent.click(screen.getByRole('button', { name: 'Select Eva to assign items' }));
-  expect(screen.queryByRole('button', { name: 'Assign Noodles to Eva' })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Eva for Noodles' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Assign Noodles to Jordan' })).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(screen.getByRole('button', { name: 'Assign Noodles to Jordan' }));
+  expect(screen.getByRole('button', { name: 'Jordan for Noodles' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Select Jordan to assign items' }));
+  expect(screen.queryByRole('button', { name: 'Assign Noodles to Jordan' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Jordan for Noodles' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 it('lists newest created expenses first and opens details for saved and sample expenses', () => {
@@ -149,14 +179,14 @@ it('lists newest created expenses first and opens details for saved and sample e
   const rows = list.getAllByRole('button');
   expect(rows[0]).toHaveTextContent('Second outing');
   expect(rows[1]).toHaveTextContent('First outing');
-  expect(rows[2]).toHaveTextContent('Airbnb');
+  expect(rows[2]).toHaveTextContent('Lodging');
   fireEvent.click(rows[0]!);
   expect(screen.getByRole('heading', { name: 'Expense details' })).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Items and fees' })).toHaveTextContent('Tickets');
   expect(screen.getByRole('region', { name: 'Split shares' })).toHaveTextContent('$10.00');
   fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
-  fireEvent.click(screen.getByRole('button', { name: /Airbnb/ }));
-  expect(screen.getByRole('heading', { name: 'Airbnb' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Lodging/ }));
+  expect(screen.getByRole('heading', { name: 'Lodging' })).toBeInTheDocument();
   expect(screen.getByText(/Sample transaction · This is the amount/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
   expect(within(screen.getByRole('region', { name: 'Current trip expenses' })).getAllByRole('button')[0]).toHaveTextContent('Second outing');
@@ -200,21 +230,21 @@ it('edits an existing expense, preserves drafts through review, and saves withou
   expect(screen.getByRole('textbox', { name: 'EXPENSE NAME' })).toHaveValue('Original dinner');
   fill('EXPENSE NAME', 'Updated dinner'); fill('Item 1 amount', '24.00'); fill('Tax', '4.00');
   fireEvent.click(screen.getByRole('button', { name: 'Paid by you · Change' }));
-  fireEvent.click(screen.getByRole('radio', { name: /Nicole/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'Use Nicole as payer' }));
+  fireEvent.click(screen.getByRole('radio', { name: /Alex/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Use Alex as payer' }));
   fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
   fireEvent.click(screen.getByRole('button', { name: 'Split by item' }));
-  for (const name of ['Vivian', 'Nicole', 'Eva', 'Sidhya']) fireEvent.click(screen.getByRole('button', { name: `${name} for Meal` }));
+  for (const name of ['You', 'Alex', 'Jordan', 'Taylor']) fireEvent.click(screen.getByRole('button', { name: `${name} for Meal` }));
   expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
-  fireEvent.click(screen.getByRole('button', { name: 'Select Vivian to assign items' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Assign Meal to Vivian' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Select You to assign items' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Assign Meal to You' }));
   fireEvent.click(screen.getByRole('button', { name: 'Back to expense' }));
   expect(screen.getByRole('textbox', { name: 'Item 1 amount' })).toHaveValue('24.00');
   fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
-  expect(screen.getByRole('button', { name: 'Vivian for Meal' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'You for Meal' })).toHaveAttribute('aria-pressed', 'true');
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
   expect(screen.getByRole('heading', { name: 'Updated dinner' })).toBeInTheDocument();
-  expect(screen.getByRole('region', { name: 'Your payment' })).toHaveTextContent('$28.00 share payable to Nicole');
+  expect(screen.getByRole('region', { name: 'Your payment' })).toHaveTextContent('$28.00 share payable to Alex');
   fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
   const list = within(screen.getByRole('region', { name: 'Current trip expenses' }));
   expect(list.queryByRole('button', { name: /Original dinner/ })).not.toBeInTheDocument();
@@ -226,8 +256,8 @@ it('keeps reported payments through details navigation and expense edits', () =>
   openExpense();
   fill('EXPENSE NAME', 'Shared dinner'); fill('Item 1 name', 'Meal'); fill('Item 1 amount', '40.00');
   fireEvent.click(screen.getByRole('button', { name: 'Paid by you · Change' }));
-  fireEvent.click(screen.getByRole('radio', { name: /Nicole/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'Use Nicole as payer' }));
+  fireEvent.click(screen.getByRole('radio', { name: /Alex/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Use Alex as payer' }));
   fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
   fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $40.00' }));
   fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);

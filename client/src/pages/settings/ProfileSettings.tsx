@@ -1,4 +1,5 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import ConnectedAccounts from '../banking/ConnectedAccounts';
 
 type Profile = {
   name: string;
@@ -8,13 +9,13 @@ type Profile = {
   photo: string | null;
 };
 
-type Screen = 'settings' | 'edit' | 'account' | 'notifications' | 'appearance' | 'privacy' | 'help';
+type Screen = 'settings' | 'edit' | 'account' | 'banking' | 'notifications' | 'appearance' | 'privacy' | 'help';
 
 const sampleProfile: Profile = {
-  name: 'Vivian Zheng',
-  username: 'vivianzheng',
-  birthday: '2004-01-18',
-  bio: 'Food and travel enthusiast',
+  name: 'Demo User',
+  username: 'demo_user',
+  birthday: '2000-01-01',
+  bio: 'Tracking everyday spending and shared expenses',
   photo: null,
 };
 
@@ -70,6 +71,8 @@ export default function ProfileSettings({ onLogout, onRootChange }: {
     <span className="avatar-plus" aria-hidden="true">+</span>
   </span>;
 
+  if (screen === 'banking') return <ConnectedAccounts onBack={back} />;
+
   return <main className="settings-screen">
     {screen === 'settings' && <>
       <header className="settings-heading"><h1>Settings</h1><p>Profile, account, and app preferences</p></header>
@@ -82,6 +85,7 @@ export default function ProfileSettings({ onLogout, onRootChange }: {
       </section>
       <h2 className="settings-section-heading">Account</h2>
       <SettingsRow title="Account settings" subtitle="Email, Google, phone, and password" onClick={() => open('account')} />
+      <SettingsRow title="Bank connections" subtitle="Linked banks, balances, and transaction sync" onClick={() => open('banking')} />
       <h2 className="settings-section-heading preferences-heading">Preferences</h2>
       <SettingsRow title="Notifications" subtitle="Budgets, settlements, and reminders" onClick={() => open('notifications')} />
       <SettingsRow title="Appearance" subtitle="System theme" action={theme} onClick={() => open('appearance')} />

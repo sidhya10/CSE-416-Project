@@ -4,6 +4,9 @@
 
 .cb-header h1{margin:0;font-size:24px;line-height:29px;font-weight:700}
 .cb-header p{margin-top:3px;color:#6b7870;font-size:12px}
+.cb-heading-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.cb-heading-row h1{min-width:0;font-size:clamp(20px,6vw,24px)}
+.cb-simulator-link{flex:none;min-height:34px;padding:7px 10px;border:1px solid #1f6e52;border-radius:11px;background:#e8f0e3;color:#1f6e52;font-size:11px;font-weight:700;white-space:nowrap}
 
 .cb-toggle{display:flex;gap:4px;margin-top:18px;padding:4px;border-radius:14px;background:#eeeee5}
 .cb-toggle button{flex:1;min-height:38px;border:0;border-radius:11px;background:transparent;color:#6b7870;font-size:12px;font-weight:600}

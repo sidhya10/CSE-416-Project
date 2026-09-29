@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import SplitSaved from './SplitSaved';
 import { calculateSplit, type PreviewSplit } from './split';
-const members = [{ id: 'you', name: 'Vivian' }, { id: 'nicole', name: 'Nicole Chen' }, { id: 'eva', name: 'Eva Lin' }, { id: 'sidhya', name: 'Sidhya Shah' }];
+const members = [{ id: 'you', name: 'You' }, { id: 'nicole', name: 'Alex Chen' }, { id: 'eva', name: 'Jordan Lin' }, { id: 'sidhya', name: 'Taylor Shah' }];
 function fixture(mode: 'equal' | 'items', payerId = 'nicole'): PreviewSplit {
   const items = [{ id: 0, name: 'Pad Thai', cents: 1850 }, { id: 1, name: 'Green Curry', cents: 2200 }, { id: 2, name: 'Spring Rolls', cents: 1200 }];
   const assignments = { 0: ['you', 'nicole'], 1: ['nicole', 'eva', 'sidhya'], 2: members.map(m => m.id) };
@@ -13,16 +13,16 @@ describe('Split saved confirmations', () => {
   it('shows equal shares and actual rounding, and both back buttons return to the group', () => {
     const back = vi.fn();
     render(<SplitSaved split={fixture('equal')} members={members} onBack={back} />);
-    expect(screen.getByRole('heading', { name: 'You owe Nicole' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'You owe Alex' })).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Your split outcome' })).getByText('$19.38')).toBeInTheDocument();
-    expect(screen.getByText(/extra 2¢/)).toHaveTextContent('Vivian and Nicole');
+    expect(screen.getByText(/extra 2¢/)).toHaveTextContent('You and Alex');
     screen.getAllByRole('button', { name: 'Back to group' }).forEach(button => fireEvent.click(button));
     expect(back).toHaveBeenCalledTimes(2);
   });
   it('shows item assignments and proportional fees for the current member', () => {
     render(<SplitSaved split={fixture('items')} members={members} onBack={() => {}} />);
     expect(within(screen.getByRole('region', { name: 'Your split outcome' })).getByText('$18.08')).toBeInTheDocument();
-    expect(screen.getByText('Nicole + Eva + Sidhya')).toBeInTheDocument();
+    expect(screen.getByText('Alex + Jordan + Taylor')).toBeInTheDocument();
     expect(screen.getByText('$12.25 in items + $5.83 in fees')).toBeInTheDocument();
   });
   it.each(['equal', 'items'] as const)('shows money owed to the payer, excluding their share in %s mode', mode => {
