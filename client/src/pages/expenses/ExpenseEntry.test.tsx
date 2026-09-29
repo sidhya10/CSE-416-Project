@@ -265,7 +265,7 @@ it('changes receipt quantities in add and edit flows without multiplying the uni
   expect(screen.getByRole('textbox', { name: 'Item 1 amount' })).toHaveValue('5.00');
   expect(screen.getByText('$15.00 subtotal')).toBeInTheDocument();
   expect(screen.getByRole('textbox', { name: 'Item 1 quantity' })).toHaveValue('3');
-  fill('Item 1 quantity', '2');
+  fireEvent.click(screen.getByRole('button', { name: 'Decrease item 1 quantity' }));
   fill('Item 1 amount', '6.00');
   expect(screen.getByText('$12.00 subtotal')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
@@ -293,4 +293,21 @@ it('validates editable quantities and allows removing the final item and adding 
   fill('Item 1 name', 'Pears'); fill('Item 1 amount', '3.00');
   fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
   expect(screen.getByRole('button', { name: 'Confirm and split $3.00' })).toBeInTheDocument();
+});
+
+it('steps quantities within bounds and recovers a cleared quantity', () => {
+  openExpense();
+  fill('EXPENSE NAME', 'Lunch'); fill('Item 1 name', 'Soup'); fill('Item 1 amount', '4.25');
+  const decrease = screen.getByRole('button', { name: 'Decrease item 1 quantity' });
+  const increase = screen.getByRole('button', { name: 'Increase item 1 quantity' });
+  expect(decrease).toBeDisabled();
+  fireEvent.click(increase);
+  expect(screen.getByText('$8.50 subtotal')).toBeInTheDocument();
+  fireEvent.click(decrease);
+  expect(screen.getByText('$4.25 subtotal')).toBeInTheDocument();
+  fill('Item 1 quantity', '999'); expect(increase).toBeDisabled();
+  fireEvent.click(decrease);
+  expect(screen.getByRole('textbox', { name: 'Item 1 quantity' })).toHaveValue('998');
+  fill('Item 1 quantity', ''); fireEvent.click(increase);
+  expect(screen.getByRole('textbox', { name: 'Item 1 quantity' })).toHaveValue('1');
 });
