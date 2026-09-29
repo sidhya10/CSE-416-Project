@@ -38,8 +38,8 @@ function ExpandingNameInput({ label, value, placeholder, onChange }: { label: st
   return <textarea ref={ref} className="expense-name-input" aria-label={label} rows={1} placeholder={placeholder} value={value} onChange={event => onChange(event.target.value)} />;
 }
 
-function AmountInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <span className="expense-money"><span aria-hidden="true">$</span><input aria-label={label} inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} /></span>;
+function AmountInput({ label, value, onChange, suffix }: { label: string; value: string; onChange: (value: string) => void; suffix?: string }) {
+  return <span className="expense-money"><span aria-hidden="true">$</span><input aria-label={label} inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} />{suffix && <span>{suffix}</span>}</span>;
 }
 
 export default function ExpenseEntry({ groupName, members, onBack, onConfirm, initialSplit }: { initialSplit?: PreviewSplit; groupName: string; members: Member[]; onBack: () => void; onConfirm: (split: PreviewSplit) => void }) {
@@ -136,8 +136,12 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
               <strong aria-label={`Item ${index + 1} total`}>{dollars((cents(item.amount) ?? 0) * (quantityValue(item.quantity) ?? 0))}</strong>
             </div>
             <div className="expense-item">
-              <label className="expense-item-field"><span>Each</span><AmountInput label={`Item ${index + 1} amount`} value={item.amount} onChange={amount => updateItem(item.id, { amount })} /></label>
-              <label className="expense-item-field"><span>Qty</span><input aria-label={`Item ${index + 1} quantity`} inputMode="numeric" value={item.quantity} onChange={event => updateItem(item.id, { quantity: event.target.value })} /></label>
+              <AmountInput label={`Item ${index + 1} amount`} value={item.amount} suffix="each" onChange={amount => updateItem(item.id, { amount })} />
+              <div className="expense-quantity" role="group" aria-label={`Item ${index + 1} quantity controls`}>
+                <button type="button" aria-label={`Decrease item ${index + 1} quantity`} disabled={(quantityValue(item.quantity) ?? 1) <= 1} onClick={() => updateItem(item.id, { quantity: String(Math.max(1, (quantityValue(item.quantity) ?? 1) - 1)) })}>−</button>
+                <input aria-label={`Item ${index + 1} quantity`} inputMode="numeric" value={item.quantity} onChange={event => updateItem(item.id, { quantity: event.target.value })} />
+                <button type="button" aria-label={`Increase item ${index + 1} quantity`} disabled={quantityValue(item.quantity) === 999} onClick={() => updateItem(item.id, { quantity: String(Math.min(999, (quantityValue(item.quantity) ?? 0) + 1)) })}>+</button>
+              </div>
               <button className="expense-item-remove" type="button" aria-label={`Remove item ${index + 1}`} onClick={() => removeItem(item.id)}>Remove</button>
             </div>
           </div>)}
