@@ -2,7 +2,7 @@
 
 **Team:** Eva · Vivian · Nicole · Sidhya  
 **Course:** CSE 416 · Software Engineering  
-**Last updated:** September 23, 2026
+**Last updated:** September 28, 2026
 
 ## 1. Problem Statement
 
@@ -42,7 +42,17 @@ There are exactly three group types: **General**, **Trip**, and **Recurring**. E
 
 All group types can surface balances and settlement status. Group insights can show shared monthly spending, trip cost per person, common categories, outstanding balances, and increases in recurring expenses when supporting data exists. Before committing a split, show the user's estimated share and how much of the relevant category budget would remain without exposing private budget numbers to other members.
 
-The current Groups preview connects the group list, friend selection, three creation types, detail pages, settings, member addition, recurring schedule and per-cycle payment plans, and private trip budget planning. A left swipe on a group card reveals Archive and Delete actions; the card's actions button provides the same options for keyboard and mouse users. Archived groups move to a separate list and can be restored. Group settings also offers Delete. Deletion requires confirmation and removes the group and its preview data for the current session. General and Trip groups have local expense entry and split previews; other split entry points display a coming-soon notice. Existing transactions and balances are labeled sample data. Planned costs, splits, and recurring cycle allocations are local preview state and do not change real spending or balances. Settlement confirmation, invitations, server persistence, and access control are subsequent backend work. A private trip budget must eventually be stored per user and group, with server authorization preventing other members from reading it.
+The current Groups preview connects the group list, friend selection, three creation types, detail pages, settings, member addition, recurring schedule and per-cycle payment plans, and private trip budget planning. A left swipe on a group card reveals Archive and Delete actions; the card's actions button provides the same options for keyboard and mouse users. Archived groups move to a separate list and can be restored. Group settings also offers Delete. Deletion requires confirmation and removes the group and its preview data for the current session. General and Trip groups support the expense workflow described below. Some other group actions still show coming-soon notices. Seeded transactions and balances are sample data. Planned costs and recurring cycle allocations remain local preview state. Invitations, server persistence, and access control require backend work. A private trip budget must eventually be stored per user and group, with server authorization preventing other members from reading it.
+
+### Expense splitting and settlement
+
+- Add and edit General and Trip group expenses with payer selection, item quantities, and tax/tip/fees.
+- Split equally or by item, with participant assignment and cent-accurate rounding.
+- View expense details and role-based payment status, report payments sent, and confirm receipt. Edits preserve recorded payments.
+- New expenses update local group balances and the all-groups overview. Automated tests cover the main expense and payment flows.
+
+This is a session-only frontend preview. Receipt files can be selected, but scanning, storage, backend persistence, multi-user settlement, and dashboard/budget reconciliation are not connected. No money moves through the app.
+
 
 ## 3. Technology Stack
 
@@ -56,7 +66,7 @@ The current Groups preview connects the group list, friend selection, three crea
 | Background jobs | Redis, BullMQ | Bank transaction synchronization, recurring bill generation, and scheduled notifications |
 | Live updates | Server-Sent Events (SSE) | Group expense and status updates when available |
 | Bank data | Plaid or Teller (selection pending) | Connect accounts and retrieve transactions with user consent |
-| Document processing | Receipt extraction service (selection pending) | Structured extraction of receipt items |
+| Document processing | Receipt extraction service (Azure Document Intelligence under evaluation) | Planned structured extraction of receipt items; not integrated yet |
 | File storage | S3-compatible object storage | Temporary receipt storage |
 | Security | Argon2id, httpOnly session cookies | Password hashing and authenticated sessions |
 | Notifications | Web Push with email fallback | Recurring bill reminders, parse completion, and budget warnings |
@@ -95,3 +105,43 @@ Authentication is implemented first because it blocks multi-user testing. Budget
 - **Exportable trip summaries:** Produce a clear summary of trip expenses, participant shares, and settlement status.
 - **Anonymous group comparisons:** Compare a user's spending patterns with aggregated, anonymized group averages.
 - **Cross-group debt netting:** Optionally simplify balances across multiple groups rather than calculating them only within each group.
+
+
+## 5. Running the frontend preview and checks
+
+The implemented app currently runs as a frontend preview. Use Node.js 22 or later and npm 10 or later, and run these commands from the repository root. No database, Azure account, or backend configuration is required.
+
+### Start the preview
+
+```sh
+npm ci
+npm run dev --workspace client
+```
+
+Open the URL printed by Vite (normally http://localhost:5173) and select **Explore app preview →**. To try the expense flow, open **Groups**, select a General or Trip group, and use **+ Add expense**. Open a newly created expense from the current expenses list to view its details, payment screens, or edit it.
+
+Preview changes are session-only and are cleared on reload. Authentication, server persistence, and automatic receipt scanning are not connected. If port 5173 is occupied, use the alternate URL printed by Vite.
+
+The backend currently contains setup code and a health endpoint only; it is not required for the frontend preview. Optional backend development notes are in [docs/development.md](docs/development.md).
+
+### Tests and quality checks
+
+Run lint across the repository and type checks, tests, and a production build for the frontend:
+
+```sh
+npm run lint
+npm run typecheck --workspace client
+npm run test --workspace client
+npm run build --workspace client
+```
+
+To run the browser test, install Chromium once and then run Playwright:
+
+```sh
+npx playwright install chromium
+npm run test:e2e
+```
+
+Playwright starts the frontend automatically when needed. The browser test uses preview data and does not require a database or receipt API.
+
+[GitHub Actions CI](.github/workflows/ci.yml) runs on pushes and pull requests. In addition to frontend checks, it validates the backend/database scaffold: Prisma validation, client generation, migration checks against PostgreSQL, and the API health test. It also runs repository-wide lint, type checks, tests, builds, and the Chromium browser test. Failed runs upload the Playwright report. These scaffold checks do not indicate that backend product features are implemented.
