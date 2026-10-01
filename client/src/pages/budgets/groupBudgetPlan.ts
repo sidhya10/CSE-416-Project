@@ -94,3 +94,35 @@ export const DEFAULT_GROUP_BUDGET = GROUP_BUDGETS[0] as GroupBudget;
 
 export const groupBudgetPct = (budget: GroupBudget) =>
   budget.plannedCents ? Math.min(100, Math.max(0, (budget.spentCents / budget.plannedCents) * 100)) : 0;
+
+export type Settlement = { fromId: string; fromName: string; toId: string; toName: string; cents: number };
+
+// Each debtor repays the members who paid, in proportion to how much each paid.
+// Remainder cents go to the largest payers first so the total always matches.
+export function settlementsFor(budget: GroupBudget): Settlement[] {
+  const payers = budget.members.filter(m => (m.paidCents ?? 0) > 0);
+  const paidTotal = payers.reduce((sum, m) => sum + (m.paidCents ?? 0), 0);
+  const sorted = [...payers].sort((a, b) => (b.paidCents ?? 0) - (a.paidCents ?? 0));
+  const result: Settlement[] = [];
+  for (const debtor of budget.members.filter(m => (m.oweCents ?? 0) > 0)) {
+    const owed = debtor.oweCents ?? 0;
+    const shares = sorted.map(p => Math.floor((owed * (p.paidCents ?? 0)) / paidTotal));
+    let remainder = owed - shares.reduce((a, b) => a + b, 0);
+    for (let i = 0; remainder > 0 && sorted.length; i = (i + 1) % sorted.length, remainder--) shares[i] = (shares[i] ?? 0) + 1;
+    sorted.forEach((p, i) => {
+      const cents = shares[i] ?? 0;
+      if (cents > 0) result.push({ fromId: debtor.id, fromName: debtor.name, toId: p.id, toName: p.name, cents });
+    });
+  }
+  return result;
+}
+
+export const totalOwedCents = (budget: GroupBudget) => budget.members.reduce((sum, m) => sum + (m.oweCents ?? 0), 0);
+
+export const settlementKey = (s: Settlement) => `${s.fromId}-${s.toId}`;
+
+// Amount still owed after the given settlements are marked settled; optionally for one debtor.
+export const remainingOwedCents = (budget: GroupBudget, settledKeys: string[], debtorId?: string) =>
+  settlementsFor(budget)
+    .filter(s => !settledKeys.includes(settlementKey(s)) && (!debtorId || s.fromId === debtorId))
+    .reduce((sum, s) => sum + s.cents, 0);
