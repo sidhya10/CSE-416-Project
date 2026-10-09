@@ -4,7 +4,7 @@ test('a new group expense updates its balance and the all-groups overview', asyn
   const run = Date.now();
   await page.goto('/');
   await page.getByRole('button', { name: 'Create an account' }).click();
-  await page.getByRole('textbox', { name: 'NAME' }).fill('Flow Owner');
+  await page.getByRole('textbox', { name: 'NAME', exact: true }).fill('Flow Owner');
   await page.getByRole('textbox', { name: 'USERNAME' }).fill(`flow_owner_${run}`);
   await page.getByRole('textbox', { name: 'EMAIL' }).fill(`flow-owner-${run}@example.com`);
   await page.getByLabel('PASSWORD').fill('password1');
