@@ -97,7 +97,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
       <div hidden={tab !== 'Budget' || simulatorOpen} className="profile-content"><CategoryBudgets onOpenSimulator={() => { setSimulatorVisited(true); setSimulatorOpen(true); }} /></div>
       <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator onBack={() => setSimulatorOpen(false)} />}</div>
       <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>
-      <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>
+      <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace currentUser={user} onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>
       {(tab === 'Home' || (tab === 'Budget' && !simulatorOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
         {tabs.map(({ label, glyph }) => <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'} aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}><span className="tab-glyph" aria-hidden="true">{glyph}</span><span>{label}</span></button>)}
       </nav>}

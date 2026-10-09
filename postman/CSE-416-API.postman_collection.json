@@ -1,0 +1,167 @@
+{
+  "info": {
+    "_postman_id": "b32f71c8-fc4d-4f66-b8c4-c3f6e4160001",
+    "name": "CSE 416 API",
+    "description": "End-to-end HTTP tests for health, email authentication, users, friends, groups, roles, invitations, membership authorization, and group deletion. Google credential verification is covered by the server Vitest suite because CI cannot mint a real Google ID token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "if (!pm.collectionVariables.get('run')) {",
+          "  const run = String(Date.now());",
+          "  pm.collectionVariables.set('run', run);",
+          "  pm.collectionVariables.set('password', 'Testpass123');",
+          "  ['owner', 'member', 'admin', 'outsider'].forEach(role => {",
+          "    pm.collectionVariables.set(role + 'Email', role + '.' + run + '@example.test');",
+          "    pm.collectionVariables.set(role + 'Username', role + '_' + run.slice(-10));",
+          "  });",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:3000" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/health" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('API is healthy', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().status).to.eql('ok'); });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Register owner",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{ownerEmail}}\",\"username\":\"{{ownerUsername}}\",\"password\":\"{{password}}\",\"name\":\"Group Owner\"}" }, "url": "{{baseUrl}}/api/auth/register" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner registered', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('ownerId', pm.response.json().user.id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Register member",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{memberEmail}}\",\"username\":\"{{memberUsername}}\",\"password\":\"{{password}}\",\"name\":\"Group Member\"}" }, "url": "{{baseUrl}}/api/auth/register" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Member registered', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('memberId', pm.response.json().user.id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Register admin",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{adminEmail}}\",\"username\":\"{{adminUsername}}\",\"password\":\"{{password}}\",\"name\":\"Group Admin\"}" }, "url": "{{baseUrl}}/api/auth/register" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Admin registered', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('adminId', pm.response.json().user.id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Register outsider",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{outsiderEmail}}\",\"username\":\"{{outsiderUsername}}\",\"password\":\"{{password}}\",\"name\":\"Outside User\"}" }, "url": "{{baseUrl}}/api/auth/register" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Outsider registered', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('outsiderId', pm.response.json().user.id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Login owner",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{ownerEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner logged in', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().user.id).to.eql(pm.collectionVariables.get('ownerId')); });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Read current account",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/auth/me" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Session identifies owner', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().user.email).to.eql(pm.collectionVariables.get('ownerEmail')); });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Update owner profile",
+      "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Updated Owner\",\"bio\":\"Postman API test\"}" }, "url": "{{baseUrl}}/api/users/me" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Editable profile fields persist', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().user.name).to.eql('Updated Owner'); });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Search all users",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/users?query={{memberUsername}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Account search finds member', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().users.some(user => user.id === pm.collectionVariables.get('memberId'))).to.be.true; });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Add friend",
+      "request": { "method": "POST", "url": "{{baseUrl}}/api/friends/{{memberId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Friend added', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().friend.isFriend).to.be.true; });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "List friends",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/friends" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Friend appears by default', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().friends.some(user => user.id === pm.collectionVariables.get('memberId'))).to.be.true; });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Create group with member",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"API Test Group\",\"description\":\"Persistent group\",\"type\":\"General\",\"color\":\"gold\",\"memberIds\":[\"{{memberId}}\"]}" }, "url": "{{baseUrl}}/api/groups" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Creator and member roles are saved', () => { const body = pm.response.json(); pm.response.to.have.status(201); pm.expect(body.group.createdBy.id).to.eql(pm.collectionVariables.get('ownerId')); pm.expect(body.group.currentUserRole).to.eql('OWNER'); pm.expect(body.group.members).to.have.length(2); });", "pm.collectionVariables.set('groupId', pm.response.json().group.id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Invite admin as owner",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"userIds\":[\"{{adminId}}\"],\"role\":\"ADMIN\"}" }, "url": "{{baseUrl}}/api/groups/{{groupId}}/invitations" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner can add admin', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().group.members.some(member => member.id === pm.collectionVariables.get('adminId') && member.role === 'ADMIN')).to.be.true; });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Login member",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{memberEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Member logged in', () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Member reads group",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Invited member has access', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().group.currentUserRole).to.eql('MEMBER'); });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Member cannot delete group",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Member deletion is forbidden', () => pm.response.to.have.status(403));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Login admin",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{adminEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Admin logged in', () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Admin invites outsider",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"userIds\":[\"{{outsiderId}}\"],\"role\":\"MEMBER\"}" }, "url": "{{baseUrl}}/api/groups/{{groupId}}/invitations" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Admin can add regular member', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().group.members.some(member => member.id === pm.collectionVariables.get('outsiderId'))).to.be.true; });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Login outsider",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{outsiderEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('New member logged in', () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "New member lists group",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/groups" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('New member sees saved group', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().groups.some(group => group.id === pm.collectionVariables.get('groupId'))).to.be.true; });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Login owner for deletion",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{ownerEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner session restored', () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Update group as owner",
+      "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Updated API Group\"}" }, "url": "{{baseUrl}}/api/groups/{{groupId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner can update group', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().group.name).to.eql('Updated API Group'); });"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Delete group as owner",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner deletes group', () => pm.response.to.have.status(204));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Deleted group is gone",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Deleted group cannot be read', () => pm.response.to.have.status(404));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Remove friend",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/friends/{{memberId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Friend removed', () => pm.response.to.have.status(204));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Logout",
+      "request": { "method": "POST", "url": "{{baseUrl}}/api/auth/logout" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Session cleared', () => pm.response.to.have.status(204));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Protected endpoint rejects logout session",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/groups" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Authentication is required', () => pm.response.to.have.status(401));"], "type": "text/javascript" } }]
+    }
+  ]
+}

@@ -79,11 +79,19 @@ usersRouter.delete('/me', async (request, response, next) => {
 usersRouter.get('/:id', async (request, response, next) => {
   const currentUserId = request.userId!;
   try {
-    const [user, friendship] = await Promise.all([
+    const [user, friendship, sharedGroups] = await Promise.all([
       prisma.user.findUnique({ where: { id: request.params.id } }),
       prisma.friendship.findFirst({ where: { OR: [{ userOneId: currentUserId, userTwoId: request.params.id }, { userOneId: request.params.id, userTwoId: currentUserId }] } }),
+      prisma.group.findMany({
+        where: { AND: [
+          { memberships: { some: { userId: currentUserId } } },
+          { memberships: { some: { userId: request.params.id } } },
+        ] },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
     ]);
     if (!user) return response.status(404).json({ error: 'User not found' });
-    return response.json({ user: { ...presentUser(user), isFriend: Boolean(friendship), sharedGroups: [] } });
+    return response.json({ user: { ...presentUser(user), isFriend: Boolean(friendship), sharedGroups } });
   } catch (error) { next(error); }
 });

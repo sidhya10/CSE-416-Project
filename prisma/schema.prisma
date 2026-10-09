@@ -8,20 +8,24 @@ datasource db {
 }
 
 model User {
-  id             String       @id @default(cuid())
-  email          String       @unique
-  username       String       @unique
-  passwordHash   String?
-  googleSubject  String?      @unique
-  name           String
-  phone          String?      @unique
-  birthday       DateTime?
-  bio            String       @default("")
-  photoUrl       String?      @db.Text
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  friendshipsOne Friendship[] @relation("FriendshipOne")
-  friendshipsTwo Friendship[] @relation("FriendshipTwo")
+  id                   String            @id @default(cuid())
+  email                String            @unique
+  username             String            @unique
+  passwordHash         String?
+  googleSubject        String?           @unique
+  name                 String
+  phone                String?           @unique
+  birthday             DateTime?
+  bio                  String            @default("")
+  photoUrl             String?           @db.Text
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  friendshipsOne       Friendship[]      @relation("FriendshipOne")
+  friendshipsTwo       Friendship[]      @relation("FriendshipTwo")
+  createdGroups        Group[]           @relation("GroupCreator")
+  groupMemberships     GroupMembership[]
+  groupInvitations     GroupInvitation[] @relation("GroupInvitationRecipient")
+  sentGroupInvitations GroupInvitation[] @relation("GroupInvitationSender")
 }
 
 model Friendship {
@@ -35,4 +39,65 @@ model Friendship {
   @@unique([userOneId, userTwoId])
   @@index([userOneId])
   @@index([userTwoId])
+}
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum GroupInvitationStatus {
+  ACCEPTED
+  REVOKED
+}
+
+model Group {
+  id          String            @id @default(cuid())
+  name        String
+  description String            @default("")
+  type        String            @default("General")
+  color       String            @default("gold")
+  photoUrl    String?           @db.Text
+  startDate   DateTime?
+  endDate     DateTime?
+  createdById String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  memberships GroupMembership[]
+  invitations GroupInvitation[]
+
+  @@index([createdById])
+}
+
+model GroupMembership {
+  id       String    @id @default(cuid())
+  groupId  String
+  userId   String
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+model GroupInvitation {
+  id            String                @id @default(cuid())
+  groupId       String
+  invitedUserId String
+  invitedById   String
+  role          GroupRole             @default(MEMBER)
+  status        GroupInvitationStatus @default(ACCEPTED)
+  createdAt     DateTime              @default(now())
+  acceptedAt    DateTime?
+  group         Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  invitedUser   User                  @relation("GroupInvitationRecipient", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedBy     User                  @relation("GroupInvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, invitedUserId])
+  @@index([invitedUserId])
+  @@index([invitedById])
 }

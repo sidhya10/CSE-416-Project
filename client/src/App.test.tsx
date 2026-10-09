@@ -29,6 +29,7 @@ describe('App account integration', () => {
       if (url.includes('/users?query=')) return response({ users: [friend, stranger] });
       if (url.endsWith('/users/friend-1')) return response({ user: { ...friend, sharedGroups: [] } });
       if (url.endsWith('/friends')) return response({ friends: [friend] });
+      if (url.endsWith('/groups')) return response({ groups: [] });
       if (url.endsWith('/friends/user-2')) return response({ friend: { ...stranger, isFriend: true } }, 201);
       return response({ error: 'Not found' }, 404);
     }));
