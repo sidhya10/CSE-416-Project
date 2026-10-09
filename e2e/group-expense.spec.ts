@@ -30,6 +30,6 @@ test('a new group expense updates its balance and the all-groups overview', asyn
   await page.getByRole('button', { name: 'Back to Groups' }).click();
 
   const overview = page.getByLabel('Balance overview');
-  await expect(overview.getAllByText('$0.00')).toHaveCount(2);
+  await expect(overview.getByText('$0.00')).toHaveCount(2);
   await expect(page.getByRole('group', { name: 'Project Team' })).toContainText('Project Team');
 });
