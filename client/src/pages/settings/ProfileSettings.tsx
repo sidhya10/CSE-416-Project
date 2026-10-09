@@ -1,23 +1,12 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { ApiError } from '../../api/client';
+import type { AppUser } from '../../api/types';
+import { usersApi } from '../../api/users.api';
 import ConnectedAccounts from '../banking/ConnectedAccounts';
 
-type Profile = {
-  name: string;
-  username: string;
-  birthday: string;
-  bio: string;
-  photo: string | null;
-};
+type Profile = Pick<AppUser, 'name' | 'username' | 'birthday' | 'bio' | 'photoUrl'>;
 
 type Screen = 'settings' | 'edit' | 'account' | 'banking' | 'notifications' | 'appearance' | 'privacy' | 'help';
-
-const sampleProfile: Profile = {
-  name: 'Demo User',
-  username: 'demo_user',
-  birthday: '2000-01-01',
-  bio: 'Tracking everyday spending and shared expenses',
-  photo: null,
-};
 
 function SettingsRow({ title, subtitle, action, onClick }: {
   title: string;
@@ -32,27 +21,35 @@ function SettingsRow({ title, subtitle, action, onClick }: {
     : <div className="setting-row">{content}</div>;
 }
 
-export default function ProfileSettings({ onLogout, onRootChange }: {
+export default function ProfileSettings({ user, onUserChange, onLogout, onRootChange }: {
+  user: AppUser;
+  onUserChange: (user: AppUser) => void;
   onLogout: () => void;
   onRootChange: (atRoot: boolean) => void;
 }) {
   const [screen, setScreen] = useState<Screen>('settings');
-  const [profile, setProfile] = useState<Profile>(sampleProfile);
-  const [draft, setDraft] = useState<Profile>(sampleProfile);
+  const profile = { name: user.name, username: user.username, birthday: user.birthday, bio: user.bio, photoUrl: user.photoUrl };
+  const [draft, setDraft] = useState<Profile>(profile);
   const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
   const [theme, setTheme] = useState('System');
   const [reminders, setReminders] = useState(true);
   const photoInput = useRef<HTMLInputElement>(null);
+  useEffect(() => setDraft(profile), [user.name, user.username, user.birthday, user.bio, user.photoUrl]);
 
   const open = (next: Screen) => { setMessage(''); setScreen(next); onRootChange(next === 'settings'); };
   const edit = () => { setDraft(profile); open('edit'); };
   const back = () => open('settings');
   const update = (field: keyof Pick<Profile, 'name' | 'username' | 'birthday' | 'bio'>, value: string) =>
     setDraft(previous => ({ ...previous, [field]: value }));
-  const save = (event: FormEvent) => {
+  const save = async (event: FormEvent) => {
     event.preventDefault();
-    setProfile({ ...draft, name: draft.name.trim(), username: draft.username.trim().replace(/^@/, ''), bio: draft.bio.trim() });
-    back();
+    setSaving(true); setMessage('');
+    try {
+      const result = await usersApi.updateMe({ ...draft, name: draft.name.trim(), username: draft.username.trim().replace(/^@/, ''), bio: draft.bio.trim() });
+      onUserChange(result.user); back();
+    } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not update your profile.'); }
+    finally { setSaving(false); }
   };
   const selectPhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -62,12 +59,12 @@ export default function ProfileSettings({ onLogout, onRootChange }: {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setDraft(previous => ({ ...previous, photo: typeof reader.result === 'string' ? reader.result : null }));
+    reader.onload = () => setDraft(previous => ({ ...previous, photoUrl: typeof reader.result === 'string' ? reader.result : null }));
     reader.readAsDataURL(file);
   };
 
   const avatar = (item: Profile, large = false) => <span className={large ? 'profile-avatar large' : 'profile-avatar'}>
-    {item.photo ? <img src={item.photo} alt="" /> : item.name.trim().charAt(0).toUpperCase() || '?'}
+    {item.photoUrl ? <img src={item.photoUrl} alt="" /> : item.name.trim().charAt(0).toUpperCase() || '?'}
     <span className="avatar-plus" aria-hidden="true">+</span>
   </span>;
 
@@ -96,7 +93,7 @@ export default function ProfileSettings({ onLogout, onRootChange }: {
     {screen === 'edit' && <>
       <header className="edit-header">
         <button type="button" onClick={back}>Cancel</button><h1>Edit profile</h1>
-        <button type="submit" form="edit-profile-form">Save</button>
+        <button type="submit" form="edit-profile-form" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
       </header>
       <div className="photo-editor">
         <button className="avatar-button" type="button" onClick={() => photoInput.current?.click()} aria-label="Change profile photo">{avatar(draft, true)}</button>
@@ -114,21 +111,24 @@ export default function ProfileSettings({ onLogout, onRootChange }: {
         <label>BIO<textarea value={draft.bio} onChange={event => update('bio', event.target.value)} maxLength={160} /></label>
       </form>
       <p className="bio-note">Your bio is visible to friends and group members.</p>
-      <p className="profile-footnote">Email and login methods are managed in Account Settings.</p>
+      <p className="profile-footnote">Email and phone number are locked after registration.</p>
     </>}
     {screen === 'account' && <>
       <header className="subscreen-heading"><button type="button" onClick={back} aria-label="Back to Settings">‹</button>
         <h1>Account settings</h1><p>Login methods and account recovery</p></header>
       <h2 className="settings-overline">CONTACT</h2>
-      <SettingsRow title="Email" subtitle="Available after account login" action="Locked" />
-      <SettingsRow title="Phone number" subtitle="Not added" onClick={() => setMessage('Phone number management requires an account.')} />
+      <SettingsRow title="Email" subtitle={user.email} action="Locked" />
+      <SettingsRow title="Phone number" subtitle={user.phone ?? 'Not added at registration'} action="Locked" />
       <h2 className="settings-overline spaced">CONNECTED ACCOUNTS</h2>
-      <div className="connected-card"><span className="connected-icon">G</span><span className="setting-row-copy"><strong>Google</strong><small>Not connected in preview</small></span><span>Not connected</span></div>
-      <button className="connect-google" type="button" onClick={() => setMessage('Google account linking requires authentication.')}>+&nbsp; Connect Google account</button>
+      <div className="connected-card"><span className="connected-icon">G</span><span className="setting-row-copy"><strong>Google</strong><small>{user.hasGoogle ? 'Connected login method' : 'Not connected'}</small></span><span>{user.hasGoogle ? 'Connected' : 'Not connected'}</span></div>
+      {!user.hasGoogle && <button className="connect-google" type="button" onClick={() => setMessage('Sign out, then choose Continue with Google using this same email to connect it.')}>+&nbsp; Connect Google account</button>}
       <h2 className="settings-overline spaced">SECURITY</h2>
-      <SettingsRow title="Password" subtitle="Available after account login" onClick={() => setMessage('Password changes require an account.')} />
+      <SettingsRow title="Password" subtitle={user.hasPassword ? 'Password login enabled' : 'Google sign-in only'} onClick={() => setMessage('Password changes are not implemented yet.')} />
       <SettingsRow title="Two-step verification" subtitle="Not enabled" onClick={() => setMessage('Two-step verification requires an account.')} />
-      <button className="delete-account" type="button" onClick={() => setMessage('Account deletion is unavailable in preview. No account data has been created.')}>Delete account <span aria-hidden="true">›</span></button>
+      <button className="delete-account" type="button" onClick={() => {
+        if (!window.confirm('Delete your account and friendships permanently?')) return;
+        void usersApi.deleteMe().then(onLogout).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not delete your account.'));
+      }}>Delete account <span aria-hidden="true">›</span></button>
       {message && <p className="setting-notice" role="status">{message}</p>}
     </>}
     {['notifications', 'appearance', 'privacy', 'help'].includes(screen) && <>
