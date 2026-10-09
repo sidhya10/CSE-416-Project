@@ -5,7 +5,8 @@ import './groups.css';
 import Avatar from '../../components/common/Avatar';
 import { ApiError } from '../../api/client';
 import { friendsApi } from '../../api/friends.api';
-import type { FriendUser } from '../../api/types';
+import { groupsApi } from '../../api/groups.api';
+import type { ApiGroup, AppUser, FriendUser, GroupRole } from '../../api/types';
 import { usersApi } from '../../api/users.api';
 import { formatCents, type PreviewSplit } from '../expenses/split';
 import SplitSaved from '../expenses/SplitSaved';
@@ -22,9 +23,11 @@ type Allocation = { payerId: string; shares: Record<string, number> };
 type RecurringBill = { id: number; title: string; amount: number; startDate: string; frequency: Frequency;
   customEvery: number; customUnit: IntervalUnit; cycles: Record<string, Allocation> };
 type Group = {
-  id: number; name: string; description: string; type: GroupType; members: string[];
+  id: number | string; name: string; description: string; type: GroupType; members: string[];
   color: string; photo: string | null; startDate: string; endDate: string;
   balance: number; privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
+  createdById?: string; createdBy?: AppUser; currentUserRole?: GroupRole;
+  memberRoles?: Record<string, GroupRole>; memberProfiles?: Friend[];
 };
 export type FriendFixture = Friend;
 export type GroupFixture = Group;
@@ -84,17 +87,18 @@ function Header({ title, subtitle, back, trailing }: { title: string; subtitle?:
   </header>;
 }
 
-export default function GroupsWorkspace({ onRootChange, initialGroupsData, initialFriendsData }: {
+export default function GroupsWorkspace({ onRootChange, currentUser, initialGroupsData, initialFriendsData }: {
   onRootChange: (atRoot: boolean) => void;
+  currentUser: AppUser;
   initialGroupsData?: GroupFixture[];
   initialFriendsData?: FriendFixture[];
 }) {
   const [viewedExpense, setViewedExpense] = useState<{ title: string; subtitle: string; amount: string; split?: PreviewSplit } | null>(null);
   const [savedSplit, setSavedSplit] = useState<PreviewSplit | null>(null);
-  const [previewSplits, setPreviewSplits] = useState<Record<number, PreviewSplit[]>>({});
+  const [previewSplits, setPreviewSplits] = useState<Record<string, PreviewSplit[]>>({});
   const [screen, setScreen] = useState<Screen>('list');
   const [groups, setGroups] = useState<Group[]>(initialGroupsData ?? initialGroups);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<number | string | null>(null);
   const [draft, setDraft] = useState<Group>(initialDraft);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState('');
@@ -112,13 +116,17 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
   const [addingBill, setAddingBill] = useState(false);
   const [cycleIndex, setCycleIndex] = useState(0);
   const [allocationDraft, setAllocationDraft] = useState<Allocation | null>(null);
-  const [openActionsId, setOpenActionsId] = useState<number | null>(null);
+  const [openActionsId, setOpenActionsId] = useState<number | string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Group | null>(null);
-  const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null);
-  const suppressCardClick = useRef<number | null>(null);
+  const swipeStart = useRef<{ id: number | string; x: number; y: number } | null>(null);
+  const suppressCardClick = useRef<number | string | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
-  const groupMembers = (group: Group): Member[] => [{ id: 'you', name: 'You', handle: '@you', color: 'green' }, ...group.members.map(id => friends.find(friend => friend.id === id)).filter((friend): friend is Friend => Boolean(friend))];
+  const groupMembers = (group: Group): Member[] => [{ id: 'you', name: 'You', handle: `@${currentUser.username}`, color: 'green' }, ...group.members.map(id =>
+    group.memberProfiles?.find(member => member.id === id) ?? friends.find(friend => friend.id === id)
+  ).filter((friend): friend is Friend => Boolean(friend))];
   const active = groups.find(group => group.id === activeId);
+  const canManageActive = !active?.currentUserRole || active.currentUserRole === 'OWNER' || active.currentUserRole === 'ADMIN';
+  const ownsActive = !active?.currentUserRole || active.currentUserRole === 'OWNER';
   const bill = active?.bills.find(item => item.id === billId);
   const cycleDate = bill ? isoDate(occurrence(bill, cycleIndex)) : '';
   const members = active ? groupMembers(active) : [];
@@ -136,9 +144,35 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
     activeSplits.reduce((total, split) => total + (split.shares.find(share => share.memberId === member.id)?.totalCents ?? 0), 0)]));
   const yourCurrentExpenses = activeSplits.length ? runningActivityWeights.you ?? 0 : 0;
 
-  const toFriend = (user: FriendUser): Friend => ({ ...user, handle: `@${user.username}`, color: ['mint', 'peach', 'blue', 'sand'][user.username.length % 4]! });
+  const toFriend = (user: FriendUser | AppUser): Friend => ({ ...user, isFriend: 'isFriend' in user ? user.isFriend : false,
+    handle: `@${user.username}`, color: ['mint', 'peach', 'blue', 'sand'][user.username.length % 4]! });
+  const fromApiGroup = (group: ApiGroup): Group => ({
+    id: group.id, name: group.name, description: group.description, type: group.type, color: group.color,
+    photo: group.photoUrl, startDate: group.startDate, endDate: group.endDate,
+    members: group.members.filter(member => member.id !== currentUser.id).map(member => member.id),
+    memberProfiles: group.members.filter(member => member.id !== currentUser.id).map(toFriend),
+    memberRoles: Object.fromEntries(group.members.map(member => [member.id, member.role])),
+    createdById: group.createdById, createdBy: group.createdBy, currentUserRole: group.currentUserRole,
+    balance: 0, privateBudget: null, plans: [], bills: [],
+  });
   const refreshFriends = () => friendsApi.list().then(result => setFriends(result.friends.map(toFriend))).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not load friends.'));
+  const refreshGroups = () => groupsApi.list().then(result => {
+    const loaded = result.groups.map(fromApiGroup);
+    setGroups(previous => loaded.map(group => {
+      const local = previous.find(item => item.id === group.id);
+      return local ? { ...group, balance: local.balance, privateBudget: local.privateBudget, plans: local.plans, bills: local.bills, archived: local.archived } : group;
+    }));
+    setActiveId(previous => previous !== null && !loaded.some(group => group.id === previous) ? null : previous);
+  }).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not load groups.'));
   useEffect(() => { if (!initialFriendsData) void refreshFriends(); }, [initialFriendsData]);
+  useEffect(() => {
+    if (initialGroupsData) return;
+    void refreshGroups();
+    const interval = window.setInterval(() => void refreshGroups(), 15_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refreshGroups(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
+  }, [initialGroupsData]);
   useEffect(() => {
     if (screen !== 'friends') return;
     setPeopleLoading(true);
@@ -153,7 +187,7 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
     if (editing && activeId !== null) setGroups(previous => previous.map(group => group.id === activeId ? { ...group, ...patch } : group));
     else setDraft(previous => ({ ...previous, ...patch }));
   };
-  const enterGroup = (id: number) => { setActiveId(id); setEditing(false); go('detail'); };
+  const enterGroup = (id: number | string) => { setActiveId(id); setEditing(false); go('detail'); };
   const archiveGroup = (group: Group) => {
     setGroups(previous => previous.map(item => item.id === group.id ? { ...item, archived: true } : item));
     setOpenActionsId(null);
@@ -163,17 +197,24 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
     setGroups(previous => previous.map(item => item.id === group.id ? { ...item, archived: false } : item));
     setMessage(`${group.name} restored.`);
   };
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!pendingDelete) return;
     const deleted = pendingDelete;
+    try {
+      if (!initialGroupsData) await groupsApi.delete(String(deleted.id));
+    } catch (error) {
+      setPendingDelete(null);
+      setMessage(error instanceof ApiError ? error.message : 'Could not delete this group.');
+      return;
+    }
     setGroups(previous => previous.filter(group => group.id !== deleted.id));
     setPreviewSplits(previous => { const next = { ...previous }; delete next[deleted.id]; return next; });
     setPendingDelete(null);
     setOpenActionsId(null);
     if (activeId === deleted.id) { setActiveId(null); go('list'); }
-    setMessage(`${deleted.name} deleted from this preview.`);
+    setMessage(`${deleted.name} deleted for every member.`);
   };
-  const finishSwipe = (id: number, x: number, y: number) => {
+  const finishSwipe = (id: number | string, x: number, y: number) => {
     const start = swipeStart.current;
     swipeStart.current = null;
     if (!start || start.id !== id) return;
@@ -186,13 +227,21 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
   const openBill = (id: number, index = 0) => { setBillId(id); setCycleIndex(index); setAllocationDraft(null); go('bill'); };
   const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const startCreate = () => { setDraft(initialDraft()); setSelected([]); setEditing(false); go('select'); };
-  const createGroup = (event: FormEvent) => {
+  const createGroup = async (event: FormEvent) => {
     event.preventDefault();
     if (draft.type === 'Trip' && (!draft.startDate || !draft.endDate || draft.endDate < draft.startDate)) {
       setMessage('Choose valid trip start and end dates.'); return;
     }
-    const group = { ...draft, id: Date.now(), name: draft.name.trim(), description: draft.description.trim(), members: selected };
-    setGroups(previous => [group, ...previous]); setActiveId(group.id); go('detail');
+    try {
+      const group = initialGroupsData
+        ? { ...draft, id: Date.now(), name: draft.name.trim(), description: draft.description.trim(), members: selected }
+        : fromApiGroup((await groupsApi.create({
+          name: draft.name.trim(), description: draft.description.trim(), type: draft.type, color: draft.color,
+          photoUrl: draft.photo, startDate: draft.startDate || undefined, endDate: draft.endDate || undefined,
+          memberIds: selected,
+        })).group);
+      setGroups(previous => [group, ...previous]); setActiveId(group.id); go('detail');
+    } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not create this group.'); }
   };
   const choosePhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -219,6 +268,32 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
       setSearchResults(previous => previous.map(item => item.id === friend.id ? { ...item, isFriend: false } : item));
       setActiveFriend(previous => previous?.id === friend.id ? { ...previous, isFriend: false } : previous);
     } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not remove this friend.'); }
+  };
+  const saveGroupSettings = async () => {
+    if (!active) return;
+    if (initialGroupsData) { setMessage('Group settings saved for this test session.'); return; }
+    try {
+      const saved = fromApiGroup((await groupsApi.update(String(active.id), {
+        name: active.name.trim(), description: active.description.trim(), type: active.type, color: active.color,
+        photoUrl: active.photo, startDate: active.startDate, endDate: active.endDate,
+      })).group);
+      setGroups(previous => previous.map(group => group.id === active.id
+        ? { ...saved, balance: group.balance, privateBudget: group.privateBudget, plans: group.plans, bills: group.bills, archived: group.archived } : group));
+      setMessage('Group details saved.');
+    } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not save group details.'); }
+  };
+  const addSelectedMembers = async () => {
+    if (!active || !selected.length) return;
+    try {
+      if (initialGroupsData) {
+        setGroups(previous => previous.map(group => group.id === active.id ? { ...group, members: [...new Set([...group.members, ...selected])] } : group));
+      } else {
+        const saved = fromApiGroup((await groupsApi.invite(String(active.id), selected)).group);
+        setGroups(previous => previous.map(group => group.id === active.id
+          ? { ...saved, balance: group.balance, privateBudget: group.privateBudget, plans: group.plans, bills: group.bills, archived: group.archived } : group));
+      }
+      setSelected([]); go('settings');
+    } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not add these members.'); }
   };
   const openFriend = async (friend: Friend) => {
     setActiveFriend(friend); go('friend-profile');
@@ -468,23 +543,26 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
     </>}
     {screen === 'settings' && active && <>
       <Header title="Group settings" back={() => { setEditing(false); go('detail'); }} />
-      <div className="group-photo-editor"><button type="button" onClick={() => photoInput.current?.click()} aria-label="Change group photo">
+      <div className="group-photo-editor"><button type="button" disabled={!canManageActive} onClick={() => photoInput.current?.click()} aria-label="Change group photo">
         <Avatar name={active.name} color={active.color} photo={active.photo} size="large" /><span>+</span></button>
-        <button type="button" onClick={() => photoInput.current?.click()}>Change group photo</button></div>
+        {canManageActive && <button type="button" onClick={() => photoInput.current?.click()}>Change group photo</button>}</div>
       <input ref={photoInput} hidden type="file" accept="image/*" onChange={choosePhoto} aria-label="Upload group photo" />
       <h2 className="group-overline">GROUP DETAILS</h2>
       <div className="group-form settings-fields">
-        <label>Group name<input value={active.name} maxLength={70} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, name: event.target.value } : group))} /></label>
-        <label>Purpose<select value={active.type} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, type: event.target.value as GroupType } : group))}>
+        <label>Group name<input disabled={!canManageActive} value={active.name} maxLength={70} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, name: event.target.value } : group))} /></label>
+        <label>Purpose<select disabled={!canManageActive} value={active.type} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, type: event.target.value as GroupType } : group))}>
           <option>General</option><option>Trip</option><option>Recurring</option></select></label>
-        {active.type === 'Trip' && <div className="trip-dates"><label>Start date<input type="date" value={active.startDate} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, startDate: event.target.value } : group))} /></label>
-          <label>End date<input type="date" min={active.startDate} value={active.endDate} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, endDate: event.target.value } : group))} /></label></div>}
-        <label>DESCRIPTION · VISIBLE TO MEMBERS<textarea value={active.description} maxLength={180} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, description: event.target.value } : group))} /></label>
+        {active.type === 'Trip' && <div className="trip-dates"><label>Start date<input disabled={!canManageActive} type="date" value={active.startDate} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, startDate: event.target.value } : group))} /></label>
+          <label>End date<input disabled={!canManageActive} type="date" min={active.startDate} value={active.endDate} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, endDate: event.target.value } : group))} /></label></div>}
+        <label>DESCRIPTION · VISIBLE TO MEMBERS<textarea disabled={!canManageActive} value={active.description} maxLength={180} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, description: event.target.value } : group))} /></label>
+        {canManageActive && <button className="group-primary" type="button" onClick={() => void saveGroupSettings()}>Save group details</button>}
       </div>
-      <div className="group-section-line"><h2 className="group-overline">MEMBERS · {active.members.length + 1}</h2><button type="button" onClick={() => { setSelected([]); go('add-members'); }}>+ Add people</button></div>
-      {groupMembers(active).map(member => <div className="member-row" key={member.id}><Avatar name={member.name} color={member.color} /><span><strong>{member.id === 'you' ? 'You' : member.name}</strong><small>{member.id === 'you' ? 'Owner · You' : 'Member'}</small></span></div>)}
+      <div className="group-section-line"><h2 className="group-overline">MEMBERS · {active.members.length + 1}</h2>{canManageActive && <button type="button" onClick={() => { setSelected([]); go('add-members'); }}>+ Add people</button>}</div>
+      {groupMembers(active).map(member => <div className="member-row" key={member.id}><Avatar name={member.name} color={member.color} /><span><strong>{member.id === 'you' ? 'You' : member.name}</strong><small>{member.id === 'you'
+        ? `${active.currentUserRole ?? 'OWNER'} · You` : active.memberRoles?.[member.id] ?? 'MEMBER'}</small></span></div>)}
+      {active.createdBy && <p className="group-info"><strong>Created by {active.createdBy.id === currentUser.id ? 'you' : active.createdBy.name}</strong><small>@{active.createdBy.username}</small></p>}
       <p className="group-info"><strong>New members start from $0</strong><small>Previous expenses and balances are not assigned to them.</small></p>
-      <button className="group-delete-button" type="button" onClick={() => setPendingDelete(active)}>Delete group</button>
+      {ownsActive && <button className="group-delete-button" type="button" onClick={() => setPendingDelete(active)}>Delete group</button>}
       {message && <p className="group-notice" role="status">{message}</p>}
     </>}
     {screen === 'add-members' && active && <>
@@ -496,10 +574,8 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
         <Avatar name={friend.name} color={friend.color} /><span><strong>{friend.name}</strong><small>{friend.handle}</small></span>
         <span className={selected.includes(friend.id) ? 'selection checked' : 'selection'}>{selected.includes(friend.id) ? '✓' : ''}</span></button>)}
       <div className="group-bottom-action"><p>{selected.length} {selected.length === 1 ? 'person' : 'people'} selected</p>
-        <button className="group-primary" type="button" disabled={!selected.length} onClick={() => {
-          setGroups(previous => previous.map(group => group.id === active.id ? { ...group, members: [...group.members, ...selected] } : group)); go('settings');
-        }}>Add selected {selected.length === 1 ? 'person' : 'people'}</button>
-        <small>Invitations and notifications require backend integration.</small></div>
+        <button className="group-primary" type="button" disabled={!selected.length} onClick={() => void addSelectedMembers()}>Add selected {selected.length === 1 ? 'person' : 'people'}</button>
+        <small>Added people can access this group immediately.</small></div>
     </>}
     {screen === 'bill' && active && bill && <>
       <Header title={bill.title} subtitle={active.name} back={() => go('detail')} />
@@ -520,9 +596,9 @@ export default function GroupsWorkspace({ onRootChange, initialGroupsData, initi
     </>}
     {pendingDelete && <div className="group-dialog-backdrop"><div className="group-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-group-title" aria-describedby="delete-group-description" onKeyDown={event => { if (event.key === 'Escape') setPendingDelete(null); }}>
       <h2 id="delete-group-title">Delete {pendingDelete.name}?</h2>
-      <p id="delete-group-description">This removes the group and its preview data for this session.</p>
+      <p id="delete-group-description">This permanently removes the group for every member.</p>
       <div><button type="button" autoFocus onClick={() => setPendingDelete(null)}>Cancel</button>
-        <button type="button" onClick={confirmDelete}>Confirm delete</button></div>
+        <button type="button" onClick={() => void confirmDelete()}>Confirm delete</button></div>
     </div></div>}
   </main>;
 }

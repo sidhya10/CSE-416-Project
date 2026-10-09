@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { friendsRouter } from './modules/friends/friends.routes.js';
+import { groupsRouter } from './modules/groups/groups.routes.js';
 import { usersRouter } from './modules/users/users.routes.js';
 
 export const app = express();
@@ -22,6 +23,7 @@ app.get('/api/health', (_request, response) => {
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/friends', friendsRouter);
+app.use('/api/groups', groupsRouter);
 
 app.use((_request, response) => {
   response.status(404).json({ error: 'Not found' });
