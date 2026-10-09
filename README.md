@@ -26,9 +26,9 @@ The app records settlements but does not move real money. Version 1 is USD-only 
 
 ### Navigation and account flow
 
-The mobile app opens on the Log in screen. Users may move to Create your account, which collects name, username, email, and a password of at least eight characters including a number. Both designs show a Google sign-in option; password reset and Google OAuth require backend integration. After authentication, a persistent bottom navigation bar has four destinations: **Home**, **Budget**, **Groups**, and **Profile**. Home summarizes monthly spending against budget, category spending, month-to-month spending and income, and the difference between imported charges and reconciled personal shares. Budget holds category limits, projections, and what-if planning. Groups lists the user's shared groups. Profile holds account details and settings; the editable fields are profile photo, username, name, and birthday, while email is read-only.
+The mobile app opens on the Log in screen. Users can create an account with name, username, email, optional phone number, and a password of at least eight characters including a number. Email/password authentication and signed httpOnly sessions are implemented. Google Identity Services sign-in is implemented and activates when the Google client ID is configured. After authentication, a persistent bottom navigation bar has four destinations: **Home**, **Budget**, **Groups**, and **Profile**. Profile data is loaded from PostgreSQL; profile photo, username, name, birthday, and bio are editable, while email and phone number are read-only.
 
-The frontend preview provides the account screens, empty Home and Budget destinations, a Groups workspace, and a Profile tab with Settings, Edit profile, and Account settings screens. Profile edits and group changes are in-session React state; they are not saved to the server or retained after a reload. Account connection and security controls explain when backend support is required. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own. Actual registration, sessions, and account persistence require backend implementation.
+Account registration, login, logout, current-session lookup, profile updates, and account deletion call the Express API. Friend discovery searches every registered account by name, username, email, or phone, and friendships persist in PostgreSQL. Group, expense, budget, and bank-connection data are still frontend-only work in progress. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own.
 
 ### Group types and flows
 
@@ -42,7 +42,7 @@ There are exactly three group types: **General**, **Trip**, and **Recurring**. E
 
 All group types can surface balances and settlement status. Group insights can show shared monthly spending, trip cost per person, common categories, outstanding balances, and increases in recurring expenses when supporting data exists. Before committing a split, show the user's estimated share and how much of the relevant category budget would remain without exposing private budget numbers to other members.
 
-The current Groups preview connects the group list, friend selection, three creation types, detail pages, settings, member addition, recurring schedule and per-cycle payment plans, and private trip budget planning. A left swipe on a group card reveals Archive and Delete actions; the card's actions button provides the same options for keyboard and mouse users. Archived groups move to a separate list and can be restored. Group settings also offers Delete. Deletion requires confirmation and removes the group and its preview data for the current session. General and Trip groups support the expense workflow described below. Some other group actions still show coming-soon notices. Seeded transactions and balances are sample data. Planned costs and recurring cycle allocations remain local preview state. Invitations, server persistence, and access control require backend work. A private trip budget must eventually be stored per user and group, with server authorization preventing other members from reading it.
+The Groups workspace starts without seeded groups or transactions. Friend selection is populated from the authenticated user's persisted friend list. New groups, expenses, planned costs, and recurring cycle allocations remain local preview state until the group ledger backend is implemented. Invitations, group persistence, and group access control still require backend work.
 
 ### Expense splitting and settlement
 
@@ -68,7 +68,7 @@ This is a session-only frontend preview. Receipt files can be selected, but scan
 | Bank data | Plaid or Teller (selection pending) | Connect accounts and retrieve transactions with user consent |
 | Document processing | Receipt extraction service (Azure Document Intelligence under evaluation) | Planned structured extraction of receipt items; not integrated yet |
 | File storage | S3-compatible object storage | Temporary receipt storage |
-| Security | Argon2id, httpOnly session cookies | Password hashing and authenticated sessions |
+| Security | bcrypt, signed httpOnly session cookies | Password hashing and authenticated sessions |
 | Notifications | Web Push with email fallback | Recurring bill reminders, parse completion, and budget warnings |
 | Testing and CI | Vitest, Supertest, Playwright, fast-check, GitHub Actions | Unit, API, end-to-end, property-based, and automated integration testing |
 
@@ -107,22 +107,22 @@ Authentication is implemented first because it blocks multi-user testing. Budget
 - **Cross-group debt netting:** Optionally simplify balances across multiple groups rather than calculating them only within each group.
 
 
-## 5. Running the frontend preview and checks
+## 5. Running the app and checks
 
-The implemented app currently runs as a frontend preview. Use Node.js 22 or later and npm 10 or later, and run these commands from the repository root. No database, Azure account, or backend configuration is required.
+Use Node.js 22 or later, npm 10 or later, and PostgreSQL. Copy `.env.example` to `.env`, set a strong `JWT_SECRET`, and start PostgreSQL (the included Docker Compose file is suitable for local development).
 
-### Start the preview
+### Start the app
 
 ```sh
 npm ci
-npm run dev --workspace client
+npm run prisma:generate
+npm run prisma:migrate
+npm run dev
 ```
 
-Open the URL printed by Vite (normally http://localhost:5173) and select **Explore app preview →**. To try the expense flow, open **Groups**, select a General or Trip group, and use **+ Add expense**. Open a newly created expense from the current expenses list to view its details, payment screens, or edit it.
+Open the URL printed by Vite (normally http://localhost:5173), create an account, and sign in. To enable Google sign-in, set both `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth web client ID and add the frontend origin to that client's authorized JavaScript origins.
 
-Preview changes are session-only and are cleared on reload. Authentication, server persistence, and automatic receipt scanning are not connected. If port 5173 is occupied, use the alternate URL printed by Vite.
-
-The backend currently contains setup code and a health endpoint only; it is not required for the frontend preview. Optional backend development notes are in [docs/development.md](docs/development.md).
+Users, profiles, and friendships are persisted. Group, expense, budget, and bank data remain session-only frontend work; automatic receipt scanning is not connected. Additional backend development notes are in [docs/development.md](docs/development.md).
 
 ### Tests and quality checks
 
@@ -142,6 +142,6 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Playwright starts the frontend automatically when needed. The browser test uses preview data and does not require a database or receipt API.
+Playwright starts the frontend and API automatically. Its primary flow requires the configured PostgreSQL database with migrations applied.
 
-[GitHub Actions CI](.github/workflows/ci.yml) runs on pushes and pull requests. In addition to frontend checks, it validates the backend/database scaffold: Prisma validation, client generation, migration checks against PostgreSQL, and the API health test. It also runs repository-wide lint, type checks, tests, builds, and the Chromium browser test. Failed runs upload the Playwright report. These scaffold checks do not indicate that backend product features are implemented.
+[GitHub Actions CI](.github/workflows/ci.yml) runs on pushes and pull requests. It installs with `npm ci`, validates Prisma, generates the client, deploys and checks migrations against PostgreSQL, then runs lint, type checks, client and API tests, production builds, and the Chromium group-expense flow. Failed browser runs upload the Playwright report.

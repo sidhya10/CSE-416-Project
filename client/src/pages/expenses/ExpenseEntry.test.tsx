@@ -1,10 +1,22 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import App from '../../App';
+import type { AppUser } from '../../api/types';
+import type { FriendFixture, GroupFixture } from '../groups/GroupsWorkspace';
+
+const account: AppUser = { id: 'you', email: 'test@example.com', username: 'test_user', name: 'Test User', phone: null,
+  birthday: '', bio: '', photoUrl: null, hasPassword: true, hasGoogle: false, createdAt: '2026-01-01T00:00:00.000Z' };
+const friend = (id: string, name: string, color: string): FriendFixture => ({ ...account, id, name, username: id, email: `${id}@example.com`, handle: `@${id}`, color, isFriend: true });
+const friendFixtures = [friend('alex', 'Alex', 'mint'), friend('jordan', 'Jordan', 'peach'), friend('taylor', 'Taylor', 'blue')];
+const groupFixtures: GroupFixture[] = [
+  { id: 1, name: 'Weekend Trip', description: 'Trip', type: 'Trip', members: ['alex', 'jordan', 'taylor'], color: 'gold', photo: null, startDate: '2026-10-10', endDate: '2026-10-13', balance: -38.2, privateBudget: null, plans: [], bills: [] },
+  { id: 2, name: 'Shared Apartment', description: 'Home', type: 'General', members: ['alex', 'jordan'], color: 'green', photo: null, startDate: '', endDate: '', balance: 52, privateBudget: null, plans: [], bills: [] },
+  { id: 3, name: 'Community Event', description: 'Event', type: 'General', members: ['alex'], color: 'blue', photo: null, startDate: '', endDate: '', balance: 12.8, privateBudget: null, plans: [], bills: [] },
+];
+const renderApp = () => render(<App initialUser={account} groupFixtures={groupFixtures} friendFixtures={friendFixtures} />);
 
 function openExpense(group = 'Weekend Trip') {
-  render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+  renderApp();
   fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
   fireEvent.click(screen.getByRole('button', { name: new RegExp(group) }));
   fireEvent.click(screen.getByRole('button', { name: '+ Add expense' }));
@@ -73,8 +85,7 @@ describe('Expense entry flow', () => {
 
 describe('Expense balance integration', () => {
   it('updates a newly created group and the all-groups balance after an expense is confirmed', () => {
-    render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /explore app preview/i }));
+    renderApp();
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     fireEvent.click(screen.getByRole('button', { name: /new group/i }));
     fireEvent.click(screen.getByRole('button', { name: /Alex.*@alex/i }));
@@ -164,7 +175,7 @@ it('assigns items by selected name and keeps both assignment methods synchronize
   expect(screen.getByRole('button', { name: 'Jordan for Noodles' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-it('lists newest created expenses first and opens details for saved and sample expenses', () => {
+it('lists newest created expenses first and opens their details', () => {
   openExpense();
   const saveExpense = (name: string, amount: string) => {
     fill('EXPENSE NAME', name); fill('Item 1 name', 'Tickets'); fill('Item 1 amount', amount);
@@ -179,15 +190,10 @@ it('lists newest created expenses first and opens details for saved and sample e
   const rows = list.getAllByRole('button');
   expect(rows[0]).toHaveTextContent('Second outing');
   expect(rows[1]).toHaveTextContent('First outing');
-  expect(rows[2]).toHaveTextContent('Lodging');
   fireEvent.click(rows[0]!);
   expect(screen.getByRole('heading', { name: 'Expense details' })).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Items and fees' })).toHaveTextContent('Tickets');
   expect(screen.getByRole('region', { name: 'Split shares' })).toHaveTextContent('$10.00');
-  fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
-  fireEvent.click(screen.getByRole('button', { name: /Lodging/ }));
-  expect(screen.getByRole('heading', { name: 'Lodging' })).toBeInTheDocument();
-  expect(screen.getByText(/Sample transaction · This is the amount/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Back to group' }));
   expect(within(screen.getByRole('region', { name: 'Current trip expenses' })).getAllByRole('button')[0]).toHaveTextContent('Second outing');
 });

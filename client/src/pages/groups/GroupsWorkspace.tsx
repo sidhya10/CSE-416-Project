@@ -1,15 +1,20 @@
 import { updatePayment, type PaymentAction } from '../expenses/payments';
 import ExpenseDetails from '../expenses/ExpenseDetails';
-import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import './groups.css';
 import Avatar from '../../components/common/Avatar';
+import { ApiError } from '../../api/client';
+import { friendsApi } from '../../api/friends.api';
+import type { FriendUser } from '../../api/types';
+import { usersApi } from '../../api/users.api';
 import { formatCents, type PreviewSplit } from '../expenses/split';
 import SplitSaved from '../expenses/SplitSaved';
 import ExpenseEntry from '../expenses/ExpenseEntry';
 import RunningTotalSplit from './RunningTotalSplit';
 
 type GroupType = 'General' | 'Trip' | 'Recurring';
-type Friend = { id: string; name: string; handle: string; color: string };
+type Friend = FriendUser & { handle: string; color: string };
+type Member = { id: string; name: string; handle: string; color: string };
 type PlannedExpense = { id: number; title: string; amount: number };
 type Frequency = 'Weekly' | 'Monthly' | 'Quarterly' | 'Semi-yearly' | 'Yearly' | 'Custom';
 type IntervalUnit = 'days' | 'weeks' | 'months' | 'years';
@@ -21,31 +26,11 @@ type Group = {
   color: string; photo: string | null; startDate: string; endDate: string;
   balance: number; privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
 };
-type Screen = 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'running-split' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
+export type FriendFixture = Friend;
+export type GroupFixture = Group;
+type Screen = 'friend-profile' | 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'running-split' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
-const friends: Friend[] = [
-  { id: 'alex', name: 'Alex', handle: '@alex', color: 'mint' },
-  { id: 'jordan', name: 'Jordan', handle: '@jordan', color: 'peach' },
-  { id: 'taylor', name: 'Taylor', handle: '@taylor', color: 'blue' },
-  { id: 'morgan', name: 'Morgan', handle: '@morgan', color: 'sand' },
-  { id: 'casey', name: 'Casey', handle: '@casey', color: 'mint' },
-  { id: 'riley', name: 'Riley', handle: '@riley', color: 'sand' },
-  { id: 'sam', name: 'Sam', handle: '@sam', color: 'blue' },
-];
-
-const initialGroups: Group[] = [
-  { id: 1, name: 'Weekend Trip', description: 'Weekend trip with friends', type: 'Trip',
-    members: ['alex', 'jordan', 'taylor'], color: 'gold', photo: null, startDate: '2026-10-10', endDate: '2026-10-13',
-    balance: -38.2, privateBudget: null, plans: [], bills: [] },
-  { id: 2, name: 'Shared Apartment', description: 'Shared household costs, groceries, and utilities.', type: 'General',
-    members: ['alex', 'jordan'], color: 'green', photo: null, startDate: '', endDate: '',
-    balance: 52, privateBudget: null, plans: [], bills: [] },
-  { id: 3, name: 'Community Event', description: 'Shared event costs for the group.', type: 'General',
-    members: ['alex', 'jordan', 'taylor', 'morgan', 'casey', 'riley'], color: 'blue', photo: null,
-    startDate: '', endDate: '', balance: 12.8, privateBudget: null, plans: [], bills: [] },
-];
-
-const sampleRunningTotals: Record<number, number> = { 1: 145000, 2: 28650, 3: 41280 };
+const initialGroups: Group[] = [];
 
 const money = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: amount % 1 ? 2 : 0 }).format(amount);
 const balanceMoney = (amount: number) => new Intl.NumberFormat('en-US', {
@@ -83,7 +68,7 @@ const findCycleIndex = (bill: RecurringBill, date: string) => {
   for (let i = 0; i < 1500; i++) if (isoDate(occurrence(bill, i)) === date) return i;
   return 0;
 };
-const defaultAllocation = (bill: RecurringBill, members: Friend[]): Allocation => {
+const defaultAllocation = (bill: RecurringBill, members: Member[]): Allocation => {
   const cents = Math.round(bill.amount * 100);
   const each = Math.floor(cents / members.length);
   return { payerId: 'you', shares: Object.fromEntries(members.map((member, index) => [member.id, each + (index < cents % members.length ? 1 : 0)])) };
@@ -99,17 +84,24 @@ function Header({ title, subtitle, back, trailing }: { title: string; subtitle?:
   </header>;
 }
 
-export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoot: boolean) => void }) {
+export default function GroupsWorkspace({ onRootChange, initialGroupsData, initialFriendsData }: {
+  onRootChange: (atRoot: boolean) => void;
+  initialGroupsData?: GroupFixture[];
+  initialFriendsData?: FriendFixture[];
+}) {
   const [viewedExpense, setViewedExpense] = useState<{ title: string; subtitle: string; amount: string; split?: PreviewSplit } | null>(null);
   const [savedSplit, setSavedSplit] = useState<PreviewSplit | null>(null);
   const [previewSplits, setPreviewSplits] = useState<Record<number, PreviewSplit[]>>({});
   const [screen, setScreen] = useState<Screen>('list');
-  const [groups, setGroups] = useState<Group[]>(initialGroups);
+  const [groups, setGroups] = useState<Group[]>(initialGroupsData ?? initialGroups);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Group>(initialDraft);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState('');
-  const [knownFriends, setKnownFriends] = useState<string[]>(['alex', 'jordan', 'taylor', 'morgan', 'casey']);
+  const [friends, setFriends] = useState<Friend[]>(initialFriendsData ?? []);
+  const [searchResults, setSearchResults] = useState<Friend[]>([]);
+  const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
+  const [peopleLoading, setPeopleLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [editing, setEditing] = useState(false);
   const [billId, setBillId] = useState<number | null>(null);
@@ -125,7 +117,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null);
   const suppressCardClick = useRef<number | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
-  const groupMembers = (group: Group) => [{ id: 'you', name: 'You', handle: '@you', color: 'green' }, ...group.members.map(id => friends.find(friend => friend.id === id)).filter((friend): friend is Friend => Boolean(friend))];
+  const groupMembers = (group: Group): Member[] => [{ id: 'you', name: 'You', handle: '@you', color: 'green' }, ...group.members.map(id => friends.find(friend => friend.id === id)).filter((friend): friend is Friend => Boolean(friend))];
   const active = groups.find(group => group.id === activeId);
   const bill = active?.bills.find(item => item.id === billId);
   const cycleDate = bill ? isoDate(occurrence(bill, cycleIndex)) : '';
@@ -139,10 +131,22 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
   const balanceWidth = (amount: number) => `${Math.round((amount / largestBalance) * 100)}%`;
   const activeSplits = active ? previewSplits[active.id] ?? [] : [];
   const recordedRunningTotal = activeSplits.reduce((total, split) => total + split.totalCents, 0);
-  const currentRunningTotal = active ? recordedRunningTotal || sampleRunningTotals[active.id] || 0 : 0;
+  const currentRunningTotal = active ? recordedRunningTotal : 0;
   const runningActivityWeights = Object.fromEntries(members.map(member => [member.id,
     activeSplits.reduce((total, split) => total + (split.shares.find(share => share.memberId === member.id)?.totalCents ?? 0), 0)]));
-  const yourCurrentExpenses = activeSplits.length ? runningActivityWeights.you ?? 0 : active?.id === 1 ? 40000 : 0;
+  const yourCurrentExpenses = activeSplits.length ? runningActivityWeights.you ?? 0 : 0;
+
+  const toFriend = (user: FriendUser): Friend => ({ ...user, handle: `@${user.username}`, color: ['mint', 'peach', 'blue', 'sand'][user.username.length % 4]! });
+  const refreshFriends = () => friendsApi.list().then(result => setFriends(result.friends.map(toFriend))).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not load friends.'));
+  useEffect(() => { if (!initialFriendsData) void refreshFriends(); }, [initialFriendsData]);
+  useEffect(() => {
+    if (screen !== 'friends') return;
+    setPeopleLoading(true);
+    const timeout = window.setTimeout(() => {
+      usersApi.search(query).then(result => setSearchResults(result.users.map(toFriend))).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not search users.')).finally(() => setPeopleLoading(false));
+    }, 200);
+    return () => window.clearTimeout(timeout);
+  }, [screen, query]);
 
   const go = (next: Screen) => { setScreen(next); setQuery(''); setMessage(''); onRootChange(next === 'list'); };
   const updateGroup = (patch: Partial<Group>) => {
@@ -198,7 +202,29 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     reader.onload = () => updateGroup({ photo: typeof reader.result === 'string' ? reader.result : null });
     reader.readAsDataURL(file);
   };
-  const listFriends = friends.filter(friend => knownFriends.includes(friend.id) && `${friend.name} ${friend.handle}`.toLowerCase().includes(query.toLowerCase()));
+  const listFriends = friends.filter(friend => `${friend.name} ${friend.handle} ${friend.email} ${friend.phone ?? ''}`.toLowerCase().includes(query.toLowerCase()));
+  const addFriend = async (friend: Friend) => {
+    try {
+      const result = await friendsApi.add(friend.id);
+      const added = toFriend(result.friend);
+      setFriends(previous => previous.some(item => item.id === added.id) ? previous : [...previous, added]);
+      setSearchResults(previous => previous.map(item => item.id === added.id ? { ...item, isFriend: true } : item));
+      setActiveFriend(previous => previous?.id === added.id ? { ...previous, isFriend: true } : previous);
+    } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not add this friend.'); }
+  };
+  const removeFriend = async (friend: Friend) => {
+    try {
+      await friendsApi.remove(friend.id);
+      setFriends(previous => previous.filter(item => item.id !== friend.id));
+      setSearchResults(previous => previous.map(item => item.id === friend.id ? { ...item, isFriend: false } : item));
+      setActiveFriend(previous => previous?.id === friend.id ? { ...previous, isFriend: false } : previous);
+    } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not remove this friend.'); }
+  };
+  const openFriend = async (friend: Friend) => {
+    setActiveFriend(friend); go('friend-profile');
+    try { setActiveFriend(toFriend((await usersApi.get(friend.id)).user)); }
+    catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not load this profile.'); }
+  };
   const addPlan = (event: FormEvent) => {
     event.preventDefault();
     const amount = Number(plannedAmount);
@@ -307,12 +333,31 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
     {screen === 'friends' && <>
       <Header title="Find friends" subtitle="Search by username, email, or phone number" back={() => go('list')} />
       <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="@username, email, or phone" aria-label="Search friends" /></label>
-      <h2 className="group-overline">SEARCH RESULTS · SAMPLE CONTACTS</h2>
-      {friends.filter(friend => `${friend.name} ${friend.handle}`.toLowerCase().includes(query.toLowerCase())).map(friend =>
-        <div className="friend-card" key={friend.id}><Avatar name={friend.name} color={friend.color} /><span><strong>{friend.name}</strong><small>{friend.handle}</small></span>
-          {knownFriends.includes(friend.id) ? <span className="friend-status">Friends</span>
-            : <button type="button" onClick={() => setKnownFriends(previous => [...previous, friend.id])}>Add</button>}</div>)}
-      <p className="group-caption">Friend changes in this preview are saved only for this session.</p>
+      <h2 className="group-overline">{query ? 'SEARCH RESULTS' : `ALL PEOPLE · FRIENDS FIRST`}</h2>
+      {peopleLoading && <p className="group-caption" role="status">Searching accounts…</p>}
+      {!peopleLoading && searchResults.length === 0 && <p className="group-caption">No matching accounts found.</p>}
+      {searchResults.map(friend => <div className="friend-card" key={friend.id}>
+        <button type="button" className="friend-profile-link" onClick={() => void openFriend(friend)}>
+          <Avatar name={friend.name} color={friend.color} photo={friend.photoUrl} /><span><strong>{friend.name}</strong><small>{friend.handle} · {friend.email}</small></span>
+        </button>
+        {friend.isFriend ? <span className="friend-status">Friends</span> : <button type="button" onClick={() => void addFriend(friend)}>Add</button>}
+      </div>)}
+      {message && <p className="group-notice" role="status">{message}</p>}
+    </>}
+    {screen === 'friend-profile' && activeFriend && <>
+      <Header title="Friend profile" back={() => go('friends')} />
+      <section className="friend-detail-card">
+        <Avatar name={activeFriend.name} color={activeFriend.color} photo={activeFriend.photoUrl} size="large" />
+        <h2>{activeFriend.name}</h2><strong>@{activeFriend.username}</strong>
+        {activeFriend.bio && <p>{activeFriend.bio}</p>}
+        <dl><div><dt>Email</dt><dd>{activeFriend.email}</dd></div><div><dt>Phone</dt><dd>{activeFriend.phone ?? 'Not provided'}</dd></div></dl>
+        {activeFriend.isFriend ? <button className="group-secondary" type="button" onClick={() => void removeFriend(activeFriend)}>Remove friend</button>
+          : <button className="group-primary" type="button" onClick={() => void addFriend(activeFriend)}>Add friend</button>}
+      </section>
+      <h2 className="group-overline">GROUPS YOU SHARE</h2>
+      {activeFriend.sharedGroups?.length ? activeFriend.sharedGroups.map(group => <div className="group-info" key={group.id}><strong>{group.name}</strong></div>)
+        : <p className="group-caption">No shared groups yet.</p>}
+      {message && <p className="group-notice" role="status">{message}</p>}
     </>}
     {screen === 'select' && <>
       <header className="group-centered-header"><button type="button" onClick={() => go('list')}>Cancel</button><h1>Select friends</h1></header>
@@ -379,7 +424,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
           <button type="button" onClick={() => setMessage('Split expense pages are coming soon.')}>Split settled expenses</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
       </> : <>
-        <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : sampleRunningTotals[active.id] ? 'CURRENT RUNNING BALANCE · SAMPLE' : 'CURRENT RUNNING BALANCE'}</small>
+        <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE'}</small>
           <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? formatCents(currentRunningTotal) : balanceMoney(Math.max(-active.balance, 0))}</strong></span>
             <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? formatCents(yourCurrentExpenses) : balanceMoney(Math.max(active.balance, 0))}</strong></span></div></section>
         <div className="group-split-actions"><button type="button" onClick={() => go('expense')}>+ Add expense</button>
@@ -407,10 +452,7 @@ export default function GroupsWorkspace({ onRootChange }: { onRootChange: (atRoo
             <span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b>
           </button>;
         })}
-        {sampleRunningTotals[active.id] && (active.type === 'Trip' ? [['Lodging', 'Alex paid · Travel', '+$247.50'], ['Group dinner', 'You paid · Dining', '−$93.60'], ['Parking', 'Jordan paid · Transit', '+$48.00']] :
-          [['Utility bill', 'You paid · Utilities', '+$247.50'], ['Weekly groceries', 'Alex paid · Groceries', '−$93.60'], ['Parking', 'Jordan paid · Transit', '+$48.00']]).map(([title, subtitle, amount]) =>
-          <button type="button" className="group-transaction expense-list-row" key={title} onClick={() => { setViewedExpense({ title: title!, subtitle: subtitle!, amount: amount! }); go('expense-details'); }}><span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b></button>)}
-        <p className="group-caption">New expenses are session-only previews. Other rows are sample transactions; live balances and persistence are not connected yet.</p>
+        <p className="group-caption">New expenses update this group's running total for the current session.</p>
         </section>
       </>}
     </>}

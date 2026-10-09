@@ -8,8 +8,31 @@ datasource db {
 }
 
 model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  username       String       @unique
+  passwordHash   String?
+  googleSubject  String?      @unique
+  name           String
+  phone          String?      @unique
+  birthday       DateTime?
+  bio            String       @default("")
+  photoUrl       String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  friendshipsOne Friendship[] @relation("FriendshipOne")
+  friendshipsTwo Friendship[] @relation("FriendshipTwo")
+}
+
+model Friendship {
   id        String   @id @default(cuid())
-  email     String   @unique
+  userOneId String
+  userTwoId String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  userOne   User     @relation("FriendshipOne", fields: [userOneId], references: [id], onDelete: Cascade)
+  userTwo   User     @relation("FriendshipTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
+
+  @@unique([userOneId, userTwoId])
+  @@index([userOneId])
+  @@index([userTwoId])
 }
