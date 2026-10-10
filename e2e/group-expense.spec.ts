@@ -78,7 +78,7 @@ test('item splits and two-sided payments persist for different signed-in members
     await payerPage.getByRole('textbox', { name: 'Item 1 amount' }).fill('12.00');
     await payerPage.getByRole('button', { name: 'Continue to split' }).click();
     await payerPage.getByRole('button', { name: 'Split by item', exact: true }).click();
-    // Items initially include everyone. These buttons toggle assignments.
+    // Items start unassigned. Select the members responsible for each item.
     for (const name of ['You for Noodles', 'Debtor for Noodles']) {
       const assignment = payerPage.getByRole('button', { name, exact: true });
       if (await assignment.getAttribute('aria-pressed') !== 'true') await assignment.click();
