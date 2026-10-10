@@ -138,7 +138,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
       setMessage('Enter non-negative tax, tip, and fees with up to two decimal places.'); return;
     }
     if (!Number.isSafeInteger(total)) { setMessage('The expense total is too large.'); return; }
-    setAssignments(previous => Object.fromEntries(items.map(item => [item.id, previous[item.id] ?? members.map(member => member.id)])));
+    setAssignments(previous => Object.fromEntries(items.map(item => [item.id, previous[item.id] ?? []])));
     setMessage('');
     setSplitting(true);
   };
