@@ -1,6 +1,6 @@
 # Expense persistence API
 
-The F1 expense screens now save and load through these APIs. They reuse Vivian’s `Group`, `GroupMembership`, `User`, group routes, and signed-cookie authentication. No parallel group tables are created. Azure parsing is integrated with a persistent cache and requires server credentials; see [receipt parsing](receipt-parsing.md). Receipt file storage is not implemented.
+The F1 expense screens now save and load through these APIs. They reuse Vivian’s `Group`, `GroupMembership`, `User`, group routes, and signed-cookie authentication. No parallel group tables are created. Azure parsing is integrated with a persistent cache and requires server credentials; see [receipt parsing](receipt-parsing.md). Receipt attachments are saved in PostgreSQL and served to current group members.
 
 ## Setup
 
@@ -112,7 +112,7 @@ The fixture-only component tests retain an explicit in-memory preview path; norm
 
 ## Remaining work
 
-- Persistent receipt file storage and expense attachment metadata. Scanning sends the selected file to Azure through the backend and caches extracted values; original files are not stored. See [receipt parsing setup](receipt-parsing.md).
+- External object storage and multi-photo receipt merging. Single receipt attachments are saved in PostgreSQL; see [receipt parsing setup](receipt-parsing.md).
 - Category IDs/budget posting and bank matching without duplicate spending.
 - Recurring bill generation, persistent private trip budgets/planned expenses, and persistent archiving.
 - Financial edits after payment history, refunds, and an append-only adjustment audit ledger.

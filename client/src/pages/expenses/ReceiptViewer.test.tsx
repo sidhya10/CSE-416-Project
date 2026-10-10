@@ -1,0 +1,24 @@
+import { render, screen, fireEvent } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import ReceiptViewer from './ReceiptViewer';
+import { loadReceipt } from '../../api/receipts.api';
+vi.mock('../../api/receipts.api', () => ({ loadReceipt: vi.fn() }));
+afterEach(() => vi.restoreAllMocks());
+it('loads a saved image, offers download without zoom or a filename heading, and releases the temporary URL', async () => {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value: function(this: HTMLDialogElement) { this.setAttribute('open', ''); } });
+  const create = vi.fn().mockReturnValue('blob:receipt');
+  const revoke = vi.fn();
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: create });
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revoke });
+  vi.mocked(loadReceipt).mockResolvedValue(new Blob(['image'], { type: 'image/jpeg' }));
+  const close = vi.fn();
+  const view = render(<ReceiptViewer expenseId="expense-1" name="receipt.jpg" onClose={close} />);
+  expect(await screen.findByAltText('Saved receipt')).toHaveAttribute('src', 'blob:receipt');
+  expect(screen.queryByRole('button', { name: 'Zoom in' })).not.toBeInTheDocument();
+  expect(screen.queryByText('receipt.jpg')).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Download receipt' })).toHaveAttribute('download', 'receipt.jpg');
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(close).toHaveBeenCalled();
+  view.unmount();
+  expect(revoke).toHaveBeenCalledWith('blob:receipt');
+});

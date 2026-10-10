@@ -40,11 +40,11 @@ export default function SplitExpense(props: Props) {
         const lower = count ? Math.floor(item.cents / count) : 0;
         const upper = count ? Math.ceil(item.cents / count) : 0;
         const amount = lower === upper ? `${formatCents(lower)} ea` : `${formatCents(lower)}–${formatCents(upper)} ea`;
-        return <div className={`split-item ${mode === 'items' && selectedMember && assignments[item.id]?.includes(selectedMember.id) ? 'selected-member-item' : ''}`} key={item.id}>
+        return <div className={`split-item ${mode === 'items' && selectedMember ? 'member-selection-active' : ''} ${mode === 'items' && selectedMember && assignments[item.id]?.includes(selectedMember.id) ? 'selected-member-item' : ''}`} key={item.id}>
           {mode === 'items' && selectedMember && <button className="split-item-target" type="button" aria-label={`Assign ${item.name} to ${memberName(selectedMember)}`} aria-pressed={assignments[item.id]?.includes(selectedMember.id) ?? false} onClick={() => toggle(item.id, selectedMember.id)} />}
           <div className="split-item-title"><strong>{item.name}{(item.quantity ?? 1) > 1 && ` × ${item.quantity}`}</strong><b>{formatCents(item.cents)}</b></div>
           {mode === 'items' && <div className="split-assignment"><p>{!count ? 'Assign at least one member' : count === members.length ? `Shared by everyone (${amount})` : `Split ${count} ${count === 1 ? 'way' : 'ways'} (${amount})`}</p>
-            <div role="group" aria-label={`Assign ${item.name}`}>{members.map((member, index) => <button type="button" key={member.id} aria-label={`${memberName(member)} for ${item.name}`} aria-pressed={assignments[item.id]?.includes(member.id) ?? false} onClick={() => toggle(item.id, member.id)}>{avatar(member, index)}</button>)}</div>
+            <div role="group" aria-label={`Assign ${item.name}`}>{members.map((member, index) => <button type="button" key={member.id} aria-label={`${memberName(member)} for ${item.name}`} disabled={!!selectedMember} aria-pressed={assignments[item.id]?.includes(member.id) ?? false} onClick={() => toggle(item.id, member.id)}>{avatar(member, index)}</button>)}</div>
           </div>}
         </div>;
       })}<div className="split-fees"><p>Tax, tip &amp; fees · {mode === 'equal' ? 'Equal split' : 'Proportional split'}</p><b>{formatCents(feeCents)}</b></div></section>

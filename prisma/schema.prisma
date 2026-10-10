@@ -133,6 +133,7 @@ model Expense {
   clientRequestId String
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  receipt         ExpenseReceipt?
   items           ExpenseItem[]
   shares          ExpenseShare[]
 
@@ -221,4 +222,12 @@ model ReceiptUsage {
   attempts     Int      @default(0)
   busyUntil    DateTime?
   activeScanId String?
+}
+
+model ExpenseReceipt {
+  expenseId String @id
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  name String
+  mimeType String
+  data Bytes
 }

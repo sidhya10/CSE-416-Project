@@ -21,3 +21,14 @@ describe('HEIC input validation and conversion failures', () => {
     expect(await prepareReceiptImage(bytes, 'application/pdf')).toBe(bytes);
   });
 });
+
+it('compresses a real image to a displayable JPEG attachment without Azure', async () => {
+  const { default: sharp } = await import('sharp');
+  const { prepareAttachment } = await import('../src/modules/receipts/receipt.attachment.js');
+  const png = await sharp({ create: { width: 4000, height: 1000, channels: 3, background: 'white' } }).png().toBuffer();
+  const result = await prepareAttachment({ name: 'long.png', mimeType: 'image/png', base64: png.toString('base64') });
+  const bytes = Buffer.from(result.base64, 'base64');
+  expect(result.mimeType).toBe('image/jpeg');
+  expect(bytes.length).toBeLessThanOrEqual(1024 * 1024);
+  expect((await sharp(bytes).metadata()).width).toBe(3200);
+});

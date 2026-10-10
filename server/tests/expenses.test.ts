@@ -182,3 +182,24 @@ describe('persisted expenses and settlements', () => {
     expect(expense.shares.reduce((sum, share) => sum + share.totalCents, 0)).toBe(expense.totalCents);
   });
 });
+
+it('saves receipt bytes atomically, restricts viewing, and supports keep/replace/remove on edit', async () => {
+  const receipt = { name: 'receipt.pdf', mimeType: 'application/pdf', base64: Buffer.from('%PDF-1.4 test attachment').toString('base64') };
+  const body = { ...input(), receipt };
+  const created = await create(body).expect(201);
+  const id = created.body.expense.id;
+  expect(created.body.expense.receipt).toEqual({ name: 'receipt.pdf', mimeType: 'application/pdf' });
+  expect(JSON.stringify(created.body)).not.toContain(receipt.base64);
+  await request(app).get(`/api/expenses/${id}/receipt`).expect(401);
+  await outsider.get(`/api/expenses/${id}/receipt`).expect(404);
+  const viewed = await member.get(`/api/expenses/${id}/receipt`).expect(200);
+  expect(viewed.headers['content-type']).toContain('application/pdf');
+  expect(viewed.body.toString()).toBe('%PDF-1.4 test attachment');
+  await owner.put(`/api/expenses/${id}`).send({ version: 1, expense: input() }).expect(200);
+  await member.get(`/api/expenses/${id}/receipt`).expect(200);
+  await member.put(`/api/expenses/${id}`).send({ version: 2, expense: { ...input(), receipt: null } }).expect(403);
+  await owner.put(`/api/expenses/${id}`).send({ version: 2, expense: { ...input(), receipt: { ...receipt, name: 'replacement.pdf' } } }).expect(200);
+  expect((await owner.get(`/api/expenses/${id}`).expect(200)).body.expense.receipt.name).toBe('replacement.pdf');
+  await owner.put(`/api/expenses/${id}`).send({ version: 3, expense: { ...input(), receipt: null } }).expect(200);
+  await member.get(`/api/expenses/${id}/receipt`).expect(404);
+});
