@@ -19,6 +19,7 @@ describe('group backend integration', () => {
     let groups: ApiGroup[] = [];
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.endsWith('/expenses')) return response({ expenses: [] });
       if (url.endsWith('/friends')) return response({ friends: [friend] });
       if (url.endsWith('/groups') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));

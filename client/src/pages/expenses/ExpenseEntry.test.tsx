@@ -71,10 +71,10 @@ describe('Expense entry flow', () => {
 
   it('accepts a receipt locally and rejects unsupported files without replacing it', () => {
     openExpense();
-    const input = document.querySelector('input[accept="image/*,application/pdf"]') as HTMLInputElement;
+    const input = document.querySelector('input[accept="image/*,application/pdf,.heic,.heif"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['receipt'], 'dinner.png', { type: 'image/png' })] } });
     expect(screen.getByText('dinner.png')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('automatic receipt reading is not connected');
+    expect(screen.getByRole('status')).toHaveTextContent('Scan with Azure');
     fireEvent.change(input, { target: { files: [new File(['bad'], 'bad.txt', { type: 'text/plain' })] } });
     expect(screen.getByRole('status')).toHaveTextContent('Choose an image or PDF');
     expect(screen.getByText('dinner.png')).toBeInTheDocument();
@@ -202,7 +202,7 @@ it('preserves individual fees and receipt metadata in expense details without in
   openExpense();
   fill('EXPENSE NAME', 'Receipt dinner'); fill('Item 1 name', 'Meal'); fill('Item 1 amount', '20.00');
   fill('Tax', '2.00'); fill('Tip', '4.00'); fill('Other', '1.00');
-  const input = document.querySelector('input[accept="image/*,application/pdf"]') as HTMLInputElement;
+  const input = document.querySelector('input[accept="image/*,application/pdf,.heic,.heif"]') as HTMLInputElement;
   fireEvent.change(input, { target: { files: [new File(['receipt'], 'meal.png', { type: 'image/png' })] } });
   fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
   fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $27.00' }));

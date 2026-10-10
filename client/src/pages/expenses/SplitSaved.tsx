@@ -25,7 +25,7 @@ export default function SplitSaved({ split, members, onBack, currentUserId = 'yo
   return <main className="expense-screen saved-screen">
     <header className="expense-header"><button type="button" aria-label="Back to group" onClick={onBack}><img src={arrowLeft} alt="" /></button><h1>Split saved</h1></header>
     <div className="expense-body saved-body">
-      <section className="split-context"><h2>{split.name}</h2><div><p>Paid by {isPayer ? `you (${payerName})` : payerName} · {new Date(split.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p><strong>{formatCents(split.totalCents)} total</strong></div></section>
+      <section className="split-context"><h2>{split.name}</h2><div><p>Paid by {isPayer ? `you (${payerName})` : payerName} · {new Date(split.date).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })}</p><strong>{formatCents(split.totalCents)} total</strong></div></section>
       <h2 className="saved-added">Expense added to the group</h2>
       <section className="saved-impact" aria-label="Your split outcome">
         <h2>{isPayer ? 'The group owes you' : own.totalCents ? `You owe ${payerName}` : 'You owe nothing'}</h2>
@@ -51,6 +51,6 @@ export default function SplitSaved({ split, members, onBack, currentUserId = 'yo
         <p>{isPayer ? `Your ${formatCents(own.totalCents)} share is already covered by the bill you paid.` : split.mode === 'items' ? `${formatCents(own.baseCents)} in items + ${formatCents(own.totalCents - own.baseCents)} in fees` : remainder ? `Split evenly. The extra ${remainder}¢ ${remainder === 1 ? 'goes to' : 'are shared between'} ${extraNames.join(' and ')}.` : 'The total is split evenly, including tax, tip and fees.'}</p>
       </section>
     </div>
-    <footer className="expense-footer saved-footer"><button type="button" className="primary-button" onClick={onBack}>Back to group</button><small>Saved in this preview only. Reloading clears expenses.</small></footer>
+    <footer className="expense-footer saved-footer"><button type="button" className="primary-button" onClick={onBack}>Back to group</button><small>{split.expenseId ? 'Saved to your group. You can return to this expense anytime.' : 'Saved in this preview only. Reloading clears expenses.'}</small></footer>
   </main>;
 }

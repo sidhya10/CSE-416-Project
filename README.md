@@ -2,7 +2,7 @@
 
 **Team:** Eva · Vivian · Nicole · Sidhya  
 **Course:** CSE 416 · Software Engineering  
-**Last updated:** September 28, 2026
+**Last updated:** October 9, 2026
 
 ## 1. Problem Statement
 
@@ -28,7 +28,7 @@ The app records settlements but does not move real money. Version 1 is USD-only 
 
 The mobile app opens on the Log in screen. Users can create an account with name, username, email, optional phone number, and a password of at least eight characters including a number. Email/password authentication and signed httpOnly sessions are implemented. Google Identity Services sign-in is implemented and activates when the Google client ID is configured. After authentication, a persistent bottom navigation bar has four destinations: **Home**, **Budget**, **Groups**, and **Profile**. Profile data is loaded from PostgreSQL; profile photo, username, name, birthday, and bio are editable, while email and phone number are read-only.
 
-Account registration, login, logout, current-session lookup, profile updates, and account deletion call the Express API. Friend discovery searches every registered account by name, username, email, or phone, and friendships persist in PostgreSQL. Group, expense, budget, and bank-connection data are still frontend-only work in progress. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own.
+Account registration, login, logout, current-session lookup, profile updates, and account deletion call the Express API. Friend discovery searches every registered account by name, username, email, or phone, and friendships persist in PostgreSQL. Groups, memberships, expenses, split assignments, and payment confirmations now persist through the API. Budget and bank-connection persistence remain work in progress. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own.
 
 ### Group types and flows
 
@@ -42,19 +42,23 @@ There are exactly three group types: **General**, **Trip**, and **Recurring**. E
 
 All group types can surface balances and settlement status. Group insights can show shared monthly spending, trip cost per person, common categories, outstanding balances, and increases in recurring expenses when supporting data exists. Before committing a split, show the user's estimated share and how much of the relevant category budget would remain without exposing private budget numbers to other members.
 
-The Groups workspace starts without seeded groups or transactions. Friend selection is populated from the authenticated user's persisted friend list. New groups, expenses, planned costs, and recurring cycle allocations remain local preview state until the group ledger backend is implemented. Invitations, group persistence, and group access control still require backend work.
+The Groups workspace starts without seeded groups or transactions. Friend selection is populated from the authenticated user's persisted friend list. Group creation, settings, membership, and General/Trip expenses now persist with server-side access checks. Member additions currently take effect immediately. Planned costs, private trip budgets, recurring cycle allocations, and archiving remain local preview state.
 
 ### Expense splitting and settlement
 
 - Add and edit General and Trip group expenses with payer selection, item quantities, and tax/tip/fees.
 - Split equally or by item, with participant assignment and cent-accurate rounding.
-- View expense details and role-based payment status, report payments sent, and confirm receipt. Edits preserve recorded payments.
-- New expenses update local group balances and the all-groups overview. Automated tests cover the main expense and payment flows.
+- Scan receipts with Azure Document Intelligence, review extracted items, quantities, prices, tax, and tip, then explicitly apply them to Add/Edit Expense. HEIC/HEIF photos are converted to JPEG on the backend.
+- Reuse cached scan results for identical files uploaded by the same account. PostgreSQL retains the cache across restarts; configurable limits default to 450 new attempts per UTC month across the app and 20 per day per user.
+- View expense details and role-based payment status, report payments sent, and confirm receipt. Expense creators and payers may edit before payment history exists; later financial edits are blocked until an adjustment flow is implemented.
+- New expenses persist across reloads, appear newest first, and update group balances and the all-groups overview. Only confirmed payments reduce debt. Automated tests cover the main expense and payment flows.
 
-This is a session-only frontend preview. Receipt files can be selected, but scanning, storage, backend persistence, multi-user settlement, and dashboard/budget reconciliation are not connected. No money moves through the app.
+Expense entry, equal/item splits, details, editing, and two-sided payment confirmation are connected to PostgreSQL through authenticated APIs. Group/account deletion is blocked when it would erase expense history, and members must settle their payments before leaving or removal. Receipt scanning is implemented and requires server-side Azure credentials. Original receipt attachment storage, multi-photo receipt merging, dashboard/budget reconciliation, and group-wide split reallocation remain unimplemented. Scanning handles one file at a time and only the first page/main image; users must review extraction warnings and correct values before saving. No money moves through the app. See [Expense persistence API](docs/expense-backend.md) for the schema, endpoints, setup, and limitations.
 
 
 ## 3. Technology Stack
+
+The table includes the intended architecture as well as implemented services. Tailwind CSS, TanStack Query/IndexedDB, Redis/BullMQ, SSE, object storage, and notification integrations remain planned; the expense UI currently uses regular CSS, React state, and API refreshes.
 
 | Layer | Technologies | Purpose |
 |---|---|---|
@@ -66,7 +70,7 @@ This is a session-only frontend preview. Receipt files can be selected, but scan
 | Background jobs | Redis, BullMQ | Bank transaction synchronization, recurring bill generation, and scheduled notifications |
 | Live updates | Server-Sent Events (SSE) | Group expense and status updates when available |
 | Bank data | Plaid or Teller (selection pending) | Connect accounts and retrieve transactions with user consent |
-| Document processing | Receipt extraction service (Azure Document Intelligence under evaluation) | Planned structured extraction of receipt items; not integrated yet |
+| Document processing | Azure Document Intelligence (`prebuilt-receipt`), heic-convert, sharp | Authenticated receipt parsing with PostgreSQL cache, usage limits, and editable review; requires server Azure credentials |
 | File storage | S3-compatible object storage | Temporary receipt storage |
 | Security | bcrypt, signed httpOnly session cookies | Password hashing and authenticated sessions |
 | Notifications | Web Push with email fallback | Recurring bill reminders, parse completion, and budget warnings |
@@ -122,7 +126,13 @@ npm run dev
 
 Open the URL printed by Vite (normally http://localhost:5173), create an account, and sign in. To enable Google sign-in, set both `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth web client ID and add the frontend origin to that client's authorized JavaScript origins.
 
-Users, profiles, and friendships are persisted. Group, expense, budget, and bank data remain session-only frontend work; automatic receipt scanning is not connected. Additional backend development notes are in [docs/development.md](docs/development.md).
+Users, profiles, friendships, groups, expenses, and payment records are persisted. After adding a General/Trip expense, refresh and reopen the group to see it retained. Budget/bank persistence is not connected. Receipt scanning is integrated with Azure and requires server credentials; see [receipt parsing setup and cache behavior](docs/receipt-parsing.md). Additional backend development notes are in [docs/development.md](docs/development.md).
+
+### Receipt scanning setup
+
+Set `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `AZURE_DOCUMENT_INTELLIGENCE_KEY` in the root `.env`, then restart the backend. Keep the key server-only; never prefix it with `VITE_`. Use a Free F0 Azure resource for the free allowance. The app limits cover only requests through this app/database, not Azure Studio or other apps using the resource.
+
+In Add/Edit Expense, select **Take photo** or **Upload receipt**, then **Scan receipt with Azure**. Review the result and select **Replace entries with scanned items** to apply it. HEIC/HEIF originals can be up to 12 MB; JPEG, PNG, and PDF uploads can be up to 4 MB. Conversion keeps HEIC output within Azure's 4 MB limit. Manual entry remains available without Azure configuration. See [receipt parsing documentation](docs/receipt-parsing.md) for cache behavior, failure handling, and testing.
 
 ### Tests and quality checks
 
@@ -135,13 +145,15 @@ npm run test --workspace client
 npm run build --workspace client
 ```
 
-To run the browser test, install Chromium once and then run Playwright:
+For full frontend and backend checks, use `npm run typecheck`, `npm test`, and `npm run build`. Before running backend tests, point `DATABASE_URL` to a dedicated PostgreSQL test database and apply migrations with `npx prisma migrate deploy`. Receipt integration tests require its name to contain `test` or `integration`; they reset test scan counters. Azure calls are mocked, so automated tests do not consume Azure pages.
+
+To run the browser tests, install Chromium once and then run Playwright:
 
 ```sh
 npx playwright install chromium
 npm run test:e2e
 ```
 
-Playwright starts the frontend and API automatically. Its primary flow requires the configured PostgreSQL database with migrations applied.
+Playwright starts the frontend and API automatically. The flows exercise expense persistence/editing and item splits with two-sided payments. Use a dedicated database with migrations applied: these tests create real accounts, groups, and expenses. When reusing already-running dev servers, those servers determine which database is used.
 
 [GitHub Actions CI](.github/workflows/ci.yml) runs on pushes and pull requests. It installs with `npm ci`, validates Prisma, generates the client, deploys and checks migrations against PostgreSQL, then runs lint, type checks, client and API tests, production builds, and the Chromium group-expense flow. Failed browser runs upload the Playwright report.

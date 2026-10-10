@@ -68,3 +68,13 @@
 .expense-entry-screen .expense-name-input{display:block;width:100%;min-width:0;min-height:44px;box-sizing:border-box;padding:11px 16px;border:1px solid #dedbcc;border-radius:16px;background:#fff;color:#1a2421;font:inherit;font-size:14px;line-height:20px;resize:none;overflow:hidden;overflow-wrap:anywhere;white-space:pre-wrap}
 .expense-entry-screen .expense-item{align-items:start}
 .expense-entry-screen .expense-item-heading .expense-name-input{min-height:36px;padding:7px 10px;border:0;border-radius:12px;background:#f6f4ed;font-size:15px;line-height:22px}
+
+.receipt-review{display:flex;flex-direction:column;gap:10px;padding:14px;background:#f4f3ed;border:1px solid #dedbce;border-radius:16px;min-width:0}
+.expense-receipt .receipt-review{display:flex;flex-direction:column}
+.receipt-review ul{list-style:none;padding:0;margin:0;max-height:250px;overflow:auto}
+.receipt-review li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #dedbce}
+.receipt-review li span{overflow-wrap:anywhere;min-width:0}
+.receipt-review li strong{flex-shrink:0}
+.receipt-review p,.expense-receipt small{font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+
+.expense-receipt .receipt-upload-warning{margin:0;padding:10px 12px;border-radius:12px;background:#fbe6e1;color:#b74d3b;font-size:13px;line-height:18px;overflow-wrap:anywhere}

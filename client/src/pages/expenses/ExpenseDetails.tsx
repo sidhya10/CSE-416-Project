@@ -9,14 +9,16 @@ import './details.css';
 type Expense = { title: string; subtitle: string; amount: string; split?: PreviewSplit };
 
 export default function ExpenseDetails({ expense, groupName, members, onBack, onEdit, onPaymentAction, onPaymentViewChange }: {
-  expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction) => void; onPaymentViewChange: (visible: boolean) => void;
+  expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction) => void | Promise<void>; onPaymentViewChange: (visible: boolean) => void;
 }) {
   const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [paymentBusy, setPaymentBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const split = expense.split;
   const name = (id: string) => id === 'you' ? 'You' : members.find(member => member.id === id)?.name ?? 'Member';
   const ownPayment = split ? paymentFor(split, 'you') : undefined;
   const payer = split?.payerId === 'you';
+  const editLocked = !!split?.expenseId && (split.hasPaymentHistory || (split.creatorId !== 'you' && !payer));
   const changeTab = (open: boolean) => { setPaymentsOpen(open); setNotice(''); onPaymentViewChange(open); };
   const paymentNotice = () => split ? changeTab(true) : setNotice('Payment records are unavailable for this sample.');
   return <main className="expense-screen expense-details-screen">
@@ -26,11 +28,17 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
         <button type="button" aria-pressed={!paymentsOpen} onClick={() => changeTab(false)}>Details</button>
         <button type="button" aria-pressed={paymentsOpen} onClick={paymentNotice}>Payments</button>
       </div>
-      {paymentsOpen && split ? <ExpensePayments split={split} groupName={groupName} members={members} onAction={onPaymentAction} /> : <>
+      {paymentsOpen && split ? <ExpensePayments split={split} groupName={groupName} members={members} busy={paymentBusy} onAction={async (memberId, action) => {
+        if (paymentBusy) return;
+        setPaymentBusy(true); setNotice('');
+        try { await onPaymentAction(memberId, action); }
+        catch (error) { setNotice(error instanceof Error ? error.message : 'Could not update payment. Please retry.'); }
+        finally { setPaymentBusy(false); }
+      }} /> : <>
       <section className="details-card details-report">
         <h2>{expense.title}</h2>
-        <p>{groupName}{split && ` · ${new Date(split.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}</p>
-        <p>{split ? `Paid by ${name(split.payerId)} · Created by you` : expense.subtitle}</p>
+        <p>{groupName}{split && ` · ${new Date(split.date).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })}`}</p>
+        <p>{split ? `Paid by ${name(split.payerId)} · Created by ${split.creatorId && split.creatorId !== 'you' ? split.creatorName : 'you'}` : expense.subtitle}</p>
       </section>
       <section className="details-card details-payment" aria-label="Your payment">
         <div><h2>{payer ? 'You paid this expense' : `Your payment · ${split ? paymentFor(split, 'you').status : 'Unavailable'}`}</h2>
@@ -53,8 +61,8 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
       </section>
       </>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
-      {split && !paymentsOpen && <p className="details-preview">Session-only preview. Live balances are not connected.</p>}
+      {split && !paymentsOpen && <p className="details-preview">{split.expenseId ? (editLocked ? split.hasPaymentHistory ? 'Editing is locked because this expense has payment history.' : 'Only the expense creator or payer can edit.' : 'Saved to your group.') : 'Session-only preview. Live balances are not connected.'}</p>}
     </div>
-    {!paymentsOpen && <footer className="expense-footer"><button type="button" className="expense-outline" onClick={() => split ? onEdit() : setNotice('This sample has no item or split records to edit. Create an expense to try the editing flow.')}>Edit expense</button></footer>}
+    {!paymentsOpen && <footer className="expense-footer"><button type="button" className="expense-outline" disabled={editLocked} onClick={() => split ? onEdit() : setNotice('This sample has no item or split records to edit. Create an expense to try the editing flow.')}>Edit expense</button></footer>}
   </main>;
 }

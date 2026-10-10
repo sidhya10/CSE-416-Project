@@ -1,4 +1,6 @@
-import { updatePayment, type PaymentAction } from '../expenses/payments';
+import { createRequestId } from '../../utils/requestId';
+import { expensesApi, fromApiExpense } from '../../api/expenses.api';
+import { paymentFor, updatePayment, type PaymentAction } from '../expenses/payments';
 import ExpenseDetails from '../expenses/ExpenseDetails';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import './groups.css';
@@ -42,7 +44,8 @@ const balanceMoney = (amount: number) => new Intl.NumberFormat('en-US', {
 const splitBalanceDelta = (split: PreviewSplit) => {
   const yourShare = split.shares.find(share => share.memberId === 'you')?.totalCents ?? 0;
   const deltaCents = split.payerId === 'you' ? split.totalCents - yourShare : -yourShare;
-  return deltaCents / 100;
+  const received = (split.payments ?? []).reduce((total, payment) => total + (split.payerId === 'you' ? -payment.receivedCents : payment.memberId === 'you' ? payment.receivedCents : 0), 0);
+  return (deltaCents + received) / 100;
 };
 const dateLabel = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 const monthLabel = (value: Date) => value.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -96,6 +99,11 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const [viewedExpense, setViewedExpense] = useState<{ title: string; subtitle: string; amount: string; split?: PreviewSplit } | null>(null);
   const [savedSplit, setSavedSplit] = useState<PreviewSplit | null>(null);
   const [previewSplits, setPreviewSplits] = useState<Record<string, PreviewSplit[]>>({});
+  const requestId = useRef(createRequestId());
+  const paymentRequestIds = useRef(new Map<string, string>());
+  const refreshSequence = useRef(0);
+  const screenRef = useRef<Screen>('list');
+  const [expensesLoading, setExpensesLoading] = useState(!initialGroupsData);
   const [screen, setScreen] = useState<Screen>('list');
   const [groups, setGroups] = useState<Group[]>(initialGroupsData ?? initialGroups);
   const [activeId, setActiveId] = useState<number | string | null>(null);
@@ -156,14 +164,28 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     balance: 0, privateBudget: null, plans: [], bills: [],
   });
   const refreshFriends = () => friendsApi.list().then(result => setFriends(result.friends.map(toFriend))).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not load friends.'));
-  const refreshGroups = () => groupsApi.list().then(result => {
-    const loaded = result.groups.map(fromApiGroup);
-    setGroups(previous => loaded.map(group => {
-      const local = previous.find(item => item.id === group.id);
-      return local ? { ...group, balance: local.balance, privateBudget: local.privateBudget, plans: local.plans, bills: local.bills, archived: local.archived } : group;
-    }));
-    setActiveId(previous => previous !== null && !loaded.some(group => group.id === previous) ? null : previous);
-  }).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not load groups.'));
+  const refreshGroups = async () => {
+    const sequence = ++refreshSequence.current;
+    try {
+      const result = await groupsApi.list();
+      const rows = await Promise.all(result.groups.map(async group => {
+        const response = await expensesApi.list(group.id);
+        return { group: fromApiGroup(group), splits: response.expenses.map(expense => fromApiExpense(expense, currentUser.id)).reverse() };
+      }));
+      if (sequence !== refreshSequence.current) return;
+      setPreviewSplits(Object.fromEntries(rows.map(row => [row.group.id, row.splits])));
+      setGroups(previous => rows.map(({ group, splits }) => {
+        const local = previous.find(item => item.id === group.id);
+        return { ...group, balance: splits.reduce((sum, split) => sum + splitBalanceDelta(split), 0),
+          privateBudget: local?.privateBudget ?? null, plans: local?.plans ?? [], bills: local?.bills ?? [], archived: local?.archived };
+      }));
+      if (screenRef.current === 'expense-details') setViewedExpense(previous => {
+        const split = rows.flatMap(row => row.splits).find(value => value.expenseId === previous?.split?.expenseId);
+        return split && previous ? { ...previous, split, title: split.name, amount: formatCents(split.totalCents) } : previous;
+      });
+    } catch (error) { if (sequence === refreshSequence.current) setMessage(error instanceof Error ? error.message : 'Could not load expenses.'); }
+    finally { if (sequence === refreshSequence.current) setExpensesLoading(false); }
+  };
   useEffect(() => { if (!initialFriendsData) void refreshFriends(); }, [initialFriendsData]);
   useEffect(() => {
     if (initialGroupsData) return;
@@ -182,7 +204,14 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     return () => window.clearTimeout(timeout);
   }, [screen, query]);
 
-  const go = (next: Screen) => { setScreen(next); setQuery(''); setMessage(''); onRootChange(next === 'list'); };
+  useEffect(() => {
+    if (activeId !== null && !active && !expensesLoading) {
+      setActiveId(null); setViewedExpense(null); setScreen('list'); screenRef.current = 'list';
+      onRootChange(true); setMessage('This group is no longer available to your account.');
+    }
+  }, [activeId, active, expensesLoading, onRootChange]);
+
+  const go = (next: Screen) => { screenRef.current = next; setScreen(next); setQuery(''); setMessage(''); onRootChange(next === 'list'); };
   const updateGroup = (patch: Partial<Group>) => {
     if (editing && activeId !== null) setGroups(previous => previous.map(group => group.id === activeId ? { ...group, ...patch } : group));
     else setDraft(previous => ({ ...previous, ...patch }));
@@ -329,12 +358,60 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     setAllocationDraft(null); setMessage('Payment plan saved for this cycle.');
   };
 
+  const storeRemoteSplit = (groupId: string | number, split: PreviewSplit) => {
+    ++refreshSequence.current;
+    setPreviewSplits(previous => {
+      const entries = previous[groupId] ?? [];
+      return { ...previous, [groupId]: entries.some(entry => entry.expenseId === split.expenseId)
+        ? entries.map(entry => entry.expenseId === split.expenseId ? split : entry) : [...entries, split] };
+    });
+    setExpensesLoading(false);
+  };
+  const saveRemoteExpense = async (split: PreviewSplit, editingSplit?: PreviewSplit) => {
+    if (!active) return;
+    ++refreshSequence.current;
+    const response = editingSplit?.expenseId
+      ? await expensesApi.edit(split, currentUser.id, editingSplit.expenseId, editingSplit.version!)
+      : await expensesApi.create(String(active.id), split, currentUser.id, requestId.current);
+    const saved = fromApiExpense(response.expense, currentUser.id);
+    storeRemoteSplit(active.id, saved);
+    setGroups(previous => previous.map(group => group.id === active.id ? { ...group,
+      balance: group.balance + splitBalanceDelta(saved) - (editingSplit ? splitBalanceDelta(editingSplit) : 0) } : group));
+    if (editingSplit) { setViewedExpense({ title: saved.name, subtitle: 'Saved expense', amount: formatCents(saved.totalCents), split: saved }); go('expense-details'); }
+    else { setSavedSplit(saved); go('saved'); }
+    void refreshGroups();
+  };
+  const applyRemotePayment = async (memberId: string, action: PaymentAction) => {
+    const split = viewedExpense?.split;
+    if (!active || !split?.expenseId) return;
+    ++refreshSequence.current;
+    const state = paymentFor(split, memberId);
+    if (action === 'sent') {
+      const key = `${split.expenseId}:${memberId}`;
+      const requestKey = paymentRequestIds.current.get(key) ?? createRequestId();
+      paymentRequestIds.current.set(key, requestKey);
+      await expensesApi.send(split.expenseId, state.remaining, requestKey);
+
+    } else {
+      for (const paymentId of state.record?.pendingIds ?? []) await expensesApi.resolve(split.expenseId, paymentId, action === 'received' ? 'CONFIRMED' : 'ISSUE');
+    }
+    const response = await expensesApi.get(split.expenseId);
+    const saved = fromApiExpense(response.expense, currentUser.id);
+    paymentRequestIds.current.delete(`${split.expenseId}:${memberId}`);
+    storeRemoteSplit(active.id, saved);
+    setViewedExpense(previous => previous ? { ...previous, split: saved } : previous);
+    await refreshGroups();
+  };
+  const expenseMembers = viewedExpense?.split ? viewedExpense.split.shares.map(share => ({ id: share.memberId,
+    name: share.memberId === 'you' ? 'You' : viewedExpense.split?.memberNames?.[share.memberId] ?? members.find(member => member.id === share.memberId)?.name ?? 'Member' })) : members;
+
   if (screen === 'running-split' && active) return <RunningTotalSplit groupName={active.name} totalCents={currentRunningTotal}
     members={members} activityWeights={runningActivityWeights} onBack={() => go('detail')} onDone={() => {
       go('detail'); setMessage('Current total split saved in this preview session.');
     }} />;
 
   if (screen === 'expense' && active) return <ExpenseEntry groupName={active.name} members={members} onBack={() => go('detail')} onConfirm={split => {
+    if (!initialGroupsData) return saveRemoteExpense(split);
     setPreviewSplits(previous => ({ ...previous, [active.id]: [...(previous[active.id] ?? []), split] }));
     setGroups(previous => previous.map(group => group.id === active.id
       ? { ...group, balance: group.balance + splitBalanceDelta(split) } : group));
@@ -342,26 +419,29 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   }} />;
 
   if (screen === 'saved' && savedSplit && active) return <SplitSaved split={savedSplit} members={members} onBack={() => {
-    go('detail'); setMessage('Expense added and group balances updated for this preview session. Reloading clears the preview.');
+    go('detail'); setMessage(initialGroupsData ? 'Expense added and group balances updated for this preview session.' : 'Expense saved. Everyone in the group can view it.');
   }} />;
 
-  if (screen === 'edit-expense' && active && viewedExpense?.split) return <ExpenseEntry initialSplit={viewedExpense.split} groupName={active.name} members={members} onBack={() => go('expense-details')} onConfirm={split => {
+  if (screen === 'edit-expense' && active && viewedExpense?.split) return <ExpenseEntry initialSplit={viewedExpense.split} groupName={active.name} members={expenseMembers} onBack={() => go('expense-details')} onConfirm={split => {
+    if (!initialGroupsData) return saveRemoteExpense(split, viewedExpense.split);
     const balanceChange = splitBalanceDelta(split) - splitBalanceDelta(viewedExpense.split!);
     setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
     setGroups(previous => previous.map(group => group.id === active.id
       ? { ...group, balance: group.balance + balanceChange } : group));
-    setViewedExpense({ title: split.name, subtitle: `${members.find(member => member.id === split.payerId)?.name ?? 'Member'} paid`, amount: formatCents(split.totalCents), split });
+    setViewedExpense({ title: split.name, subtitle: `${members.find(member => member.id === split.payerId)?.name ?? split.memberNames?.[split.payerId] ?? 'Member'} paid`, amount: formatCents(split.totalCents), split });
     go('expense-details');
   }} />;
 
   if (screen === 'expense-details' && active && viewedExpense) return <ExpenseDetails onPaymentViewChange={onRootChange} onPaymentAction={(memberId: string, action: PaymentAction) => {
     if (!viewedExpense.split) return;
+    if (!initialGroupsData) return applyRemotePayment(memberId, action);
     const split = updatePayment(viewedExpense.split, 'you', memberId, action);
     setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
     setViewedExpense({ ...viewedExpense, split });
-  }} onEdit={() => go('edit-expense')} expense={viewedExpense} groupName={active.name} members={members} onBack={() => go('detail')} />;
+  }} onEdit={() => go('edit-expense')} expense={viewedExpense} groupName={active.name} members={expenseMembers} onBack={() => go('detail')} />;
 
   return <main className="groups-workspace">
+    {expensesLoading && <p role="status">Loading saved expenses…</p>}
     {screen === 'list' && <>
       <Header title="Groups" subtitle="Split, plan, and settle with people you trust" />
       <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search groups" aria-label="Search groups" /></label>
@@ -502,8 +582,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE'}</small>
           <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? formatCents(currentRunningTotal) : balanceMoney(Math.max(-active.balance, 0))}</strong></span>
             <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? formatCents(yourCurrentExpenses) : balanceMoney(Math.max(active.balance, 0))}</strong></span></div></section>
-        <div className="group-split-actions"><button type="button" onClick={() => go('expense')}>+ Add expense</button>
-          <button type="button" disabled={!currentRunningTotal} title={!currentRunningTotal ? 'Add an expense before splitting the current total' : undefined}
+        <div className="group-split-actions"><button type="button" onClick={() => { requestId.current = createRequestId(); go('expense'); }}>+ Add expense</button>
+          <button type="button" disabled={!currentRunningTotal || !initialGroupsData} title={!initialGroupsData ? 'Each saved expense already has its own split' : !currentRunningTotal ? 'Add an expense before splitting the current total' : undefined}
             onClick={() => go('running-split')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
         <section className="group-info"><strong>{active.type === 'Trip' ? active.description || 'Trip with friends' : 'Any member can add expenses and split when ready.'}</strong>
@@ -521,13 +601,13 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         <h2 className="group-section-title">{active.type === 'Trip' ? 'Current trip expenses' : 'Transactions · Current period'}</h2>
         {[...(previewSplits[active.id] ?? [])].reverse().map((split, index) => {
           const title = split.name;
-          const subtitle = `${members.find(member => member.id === split.payerId)?.name ?? 'Member'} paid · ${split.mode === 'equal' ? 'Equal split' : 'Split by item'} · Preview`;
+          const subtitle = `${members.find(member => member.id === split.payerId)?.name ?? split.memberNames?.[split.payerId] ?? 'Member'} paid · ${split.mode === 'equal' ? 'Equal split' : 'Split by item'}${initialGroupsData ? ' · Preview' : ''}`;
           const amount = formatCents(split.totalCents);
-          return <button type="button" className="group-transaction expense-list-row" key={index} onClick={() => { setViewedExpense({ title, subtitle, amount, split }); go('expense-details'); }}>
+          return <button type="button" className="group-transaction expense-list-row" key={split.expenseId ?? index} onClick={() => { setViewedExpense({ title, subtitle, amount, split }); go('expense-details'); }}>
             <span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b>
           </button>;
         })}
-        <p className="group-caption">New expenses update this group's running total for the current session.</p>
+        <p className="group-caption">{initialGroupsData ? 'Expenses are saved for this preview session.' : 'Expenses and confirmed payments are saved for your group.'}</p>
         </section>
       </>}
     </>}

@@ -70,6 +70,11 @@ usersRouter.patch('/me', async (request, response, next) => {
 
 usersRouter.delete('/me', async (request, response, next) => {
   try {
+    const history = await prisma.expense.count({ where: { OR: [
+      { createdByUserId: request.userId! }, { paidByUserId: request.userId! },
+      { shares: { some: { userId: request.userId! } } }, { group: { createdById: request.userId! } },
+    ] } });
+    if (history) return response.status(409).json({ error: 'Accounts with shared expense history cannot be deleted yet' });
     await prisma.user.delete({ where: { id: request.userId! } });
     clearSession(response);
     response.status(204).end();

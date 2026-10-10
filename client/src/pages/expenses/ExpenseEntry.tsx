@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState, type ChangeEvent } from 'react';
+import { receiptMimeType, scanReceipt, type ParsedReceipt } from '../../api/receipts.api';
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react';
 import arrowLeft from '../../assets/expense-arrow-left.svg';
 import './expenses.css';
 import SplitExpense from './SplitExpense';
@@ -42,11 +43,11 @@ function AmountInput({ label, value, onChange, suffix }: { label: string; value:
   return <span className="expense-money"><span aria-hidden="true">$</span><input aria-label={label} inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} />{suffix && <span>{suffix}</span>}</span>;
 }
 
-export default function ExpenseEntry({ groupName, members, onBack, onConfirm, initialSplit }: { initialSplit?: PreviewSplit; groupName: string; members: Member[]; onBack: () => void; onConfirm: (split: PreviewSplit) => void }) {
+export default function ExpenseEntry({ groupName, members, onBack, onConfirm, initialSplit }: { initialSplit?: PreviewSplit; groupName: string; members: Member[]; onBack: () => void; onConfirm: (split: PreviewSplit) => void | Promise<void> }) {
   const [splitting, setSplitting] = useState(false);
   const [splitMode, setSplitMode] = useState<SplitMode>(initialSplit?.mode ?? 'equal');
   const [assignments, setAssignments] = useState<SplitAssignments>(initialSplit?.assignments ?? {});
-  const [date] = useState(() => initialSplit?.date ?? new Date().toISOString());
+  const [date] = useState(() => initialSplit?.date ?? (() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; })());
   const [name, setName] = useState(initialSplit?.name ?? '');
   const [items, setItems] = useState<Item[]>(initialSplit?.items.map(item => ({ id: item.id, name: item.name, amount: ((item.unitCents ?? item.cents) / 100).toFixed(2), quantity: String(item.quantity ?? 1) })) ?? [{ id: 0, name: '', amount: '', quantity: '1' }]);
   const nextId = useRef(Math.max(0, ...items.map(item => item.id)) + 1);
@@ -55,7 +56,13 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [choice, setChoice] = useState(payer);
   const [choosing, setChoosing] = useState(false);
   const [message, setMessage] = useState('');
+  const [uploadWarning, setUploadWarning] = useState('');
   const [receiptName, setReceiptName] = useState(initialSplit?.receiptName);
+  const [receiptFile, setReceiptFile] = useState<File>();
+  const [scanning, setScanning] = useState(false);
+  const [parsedReceipt, setParsedReceipt] = useState<ParsedReceipt>();
+  const scanController = useRef<AbortController | null>(null);
+  useEffect(() => () => scanController.current?.abort(), []);
   const camera = useRef<HTMLInputElement>(null);
   const upload = useRef<HTMLInputElement>(null);
   const subtotal = items.reduce((sum, item) => sum + (cents(item.amount) ?? 0) * (quantityValue(item.quantity) ?? 0), 0);
@@ -70,11 +77,53 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if ((!file.type.startsWith('image/') && file.type !== 'application/pdf') || file.size > 10 * 1024 * 1024) {
-      setMessage('Choose an image or PDF up to 10 MB.'); return;
+    setUploadWarning('');
+    setMessage('');
+    const mimeType = receiptMimeType(file);
+    const heic = mimeType === 'image/heic' || mimeType === 'image/heif';
+    if (!['image/jpeg', 'image/png', 'application/pdf', 'image/heic', 'image/heif'].includes(mimeType)) {
+      setUploadWarning('Choose an image or PDF in HEIC, HEIF, JPEG, PNG, or PDF format.'); return;
     }
+    if (!file.size) {
+      setUploadWarning('This file is empty. Choose another receipt.'); return;
+    }
+    const sizeLimit = heic ? 12 : 4;
+    if (file.size > sizeLimit * 1024 * 1024) {
+      setUploadWarning(`This file is too large. Choose a file under ${sizeLimit} MB.`); return;
+    }
+    scanController.current?.abort();
+    setScanning(false);
+    setParsedReceipt(undefined);
+    setReceiptFile(file);
     setReceiptName(file.name);
-    setMessage('Receipt selected for this preview. Enter its items below; automatic receipt reading is not connected yet.');
+    setMessage('Receipt selected. Scan with Azure to extract items, or enter them manually. Only the first page is scanned.');
+  };
+  const readReceipt = async () => {
+    if (!receiptFile || scanning) return;
+    setUploadWarning('');
+    const controller = new AbortController();
+    scanController.current = controller;
+    setScanning(true);
+    setMessage('Reading receipt… Your current entries will stay unchanged until you apply the result.');
+    try {
+      const result = await scanReceipt(receiptFile, controller.signal);
+      if (controller.signal.aborted) return;
+      setParsedReceipt(result.receipt);
+      setMessage(result.cached ? 'Loaded saved scan — no new Azure scan was used.' : 'Receipt scanned. Review the result before replacing your entries.');
+    } catch (error) {
+      if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : 'Could not scan receipt. You can enter items manually.');
+    } finally {
+      if (!controller.signal.aborted) setScanning(false);
+    }
+  };
+  const applyReceipt = () => {
+    if (!parsedReceipt?.items.length) return;
+    setItems(parsedReceipt.items.map(item => ({ id: nextId.current++, name: item.name, amount: item.unitPriceCents === null ? '' : (item.unitPriceCents / 100).toFixed(2), quantity: String(item.quantity) })));
+    setAssignments({});
+    setFees({ Tax: (parsedReceipt.taxCents / 100).toFixed(2), Tip: (parsedReceipt.tipCents / 100).toFixed(2), Other: '0.00' });
+    if (!name.trim() && parsedReceipt.merchant) setName(parsedReceipt.merchant);
+    setParsedReceipt(undefined);
+    setMessage('Receipt items applied. Check names, quantities, prices, tax, tip, and other fees before continuing.');
   };
   const continueToSplit = () => {
     if (!name.trim()) { setMessage('Enter an expense name.'); return; }
@@ -120,14 +169,27 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
       <div className="expense-body">
         <section className="expense-details">
           <ExpandingNameInput label="EXPENSE NAME" placeholder="e.g. Dinner at Myers + Chang" value={name} onChange={setName} />
-          <p>{groupName} · Created by you</p>
+          <p>{groupName} · Created by {initialSplit?.creatorId && initialSplit.creatorId !== 'you' ? initialSplit.creatorName : 'you'}</p>
           <button className="expense-outline" type="button" onClick={() => { setChoice(payer); setChoosing(true); }}>Paid by {displayName(payer)} · Change</button>
         </section>
         <section className="expense-receipt" aria-label="Receipt"><div>
           <button className="expense-outline" type="button" onClick={() => camera.current?.click()}>Take photo</button>
           <button className="expense-outline" type="button" onClick={() => upload.current?.click()}>Upload receipt</button>
-        </div><input ref={camera} hidden type="file" accept="image/*" capture="environment" onChange={selectReceipt} /><input ref={upload} hidden type="file" accept="image/*,application/pdf" onChange={selectReceipt} />
-          {receiptName && <p className="expense-receipt-name">{receiptName}<button type="button" onClick={() => { setReceiptName(undefined); setMessage(''); }}>Remove receipt</button></p>}
+        </div><input ref={camera} hidden type="file" accept="image/*" capture="environment" onChange={selectReceipt} /><input ref={upload} hidden type="file" accept="image/*,application/pdf,.heic,.heif" onChange={selectReceipt} />
+          {uploadWarning && <p className="receipt-upload-warning" role="status">{uploadWarning}</p>}
+          {receiptName && <p className="expense-receipt-name">{receiptName}<button type="button" onClick={() => { scanController.current?.abort(); setScanning(false); setReceiptName(undefined); setReceiptFile(undefined); setParsedReceipt(undefined); setUploadWarning(''); setMessage(''); }}>Remove receipt</button></p>}
+          {receiptFile && <button className="expense-outline" type="button" disabled={scanning} onClick={() => void readReceipt()}>{scanning ? 'Scanning…' : 'Scan receipt with Azure'}</button>}
+          {parsedReceipt && <div className="receipt-review" role="region" aria-label="Receipt scan review">
+            <h2>Review scanned items</h2>
+            {parsedReceipt.merchant && <p>{parsedReceipt.merchant}</p>}
+            <ul>{parsedReceipt.items.map((item, index) => <li key={index}><span>{item.name} × {item.quantity}</span><strong>{item.unitPriceCents === null ? 'Enter price' : dollars(item.unitPriceCents * item.quantity)}</strong></li>)}</ul>
+            <p>Tax {dollars(parsedReceipt.taxCents)} · Tip {dollars(parsedReceipt.tipCents)}</p>
+            {parsedReceipt.totalCents !== null && <p>Receipt total: {dollars(parsedReceipt.totalCents)}</p>}
+            {parsedReceipt.warnings.map(warning => <p key={warning}>{warning}</p>)}
+            <p>Applying replaces your current items, tax, tip, other fees, and item assignments. You can edit all values afterward.</p>
+            <button className="expense-outline" type="button" disabled={!parsedReceipt.items.length || scanning} onClick={applyReceipt}>Replace entries with scanned items</button>
+            <button className="expense-outline" type="button" onClick={() => setParsedReceipt(undefined)}>Keep current entries</button>
+          </div>}
         </section>
         <section className="expense-items"><div className="expense-section-title"><h2>Items</h2><p aria-live="polite">{dollars(subtotal)} subtotal</p></div>
           {items.map((item, index) => <div className="expense-item-entry" key={item.id}>
@@ -151,7 +213,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
         <section className="expense-fees"><h2>Tax, tip &amp; fees</h2><div>{(Object.keys(fees) as (keyof typeof fees)[]).map(key => <label key={key}>{key}<AmountInput label={key} value={fees[key]} onChange={value => setFees(previous => ({ ...previous, [key]: value }))} /></label>)}</div></section>
         {message && <p className="form-notice" role="status">{message}</p>}
       </div>
-      <footer className="expense-footer"><div className="expense-total"><strong>Total</strong><strong aria-live="polite">{dollars(total)}</strong></div><button className="primary-button" type="button" onClick={continueToSplit}>{initialSplit ? 'Review changes' : 'Continue to split'}</button></footer>
+      <footer className="expense-footer"><div className="expense-total"><strong>Total</strong><strong aria-live="polite">{dollars(total)}</strong></div><button className="primary-button" type="button" disabled={scanning || !!parsedReceipt} onClick={continueToSplit}>{initialSplit ? 'Review changes' : 'Continue to split'}</button></footer>
     </>}
   </main>;
 }

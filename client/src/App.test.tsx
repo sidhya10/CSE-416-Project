@@ -35,6 +35,22 @@ describe('App account integration', () => {
     }));
   });
 
+  it('logs in and opens Groups when randomUUID is unavailable on LAN HTTP', async () => {
+    authenticated = false;
+    const getRandomValues = globalThis.crypto.getRandomValues.bind(globalThis.crypto);
+    vi.stubGlobal('crypto', { getRandomValues });
+    try {
+      render(<App />);
+      await screen.findByRole('heading', { name: 'Welcome back' });
+      fireEvent.change(screen.getByRole('textbox', { name: 'EMAIL' }), { target: { value: account.email } });
+      fireEvent.change(screen.getByLabelText('PASSWORD'), { target: { value: 'password1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
+      expect(await screen.findByRole('heading', { name: 'Good morning, there' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
+      expect(await screen.findByRole('button', { name: /new group/i })).toBeInTheDocument();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it('registers with email and enters the authenticated app', async () => {
     authenticated = false;
     render(<App />);
