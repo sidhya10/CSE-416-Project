@@ -1,3 +1,4 @@
+import { ExpenseError, transaction } from '../expenses/expense.service.js';
 import { GroupRole, Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -139,6 +140,7 @@ groupsRouter.delete('/:groupId', async (request, response, next) => {
     const member = await requireMember(request.params.groupId, request.userId!);
     if (!member) return response.status(404).json({ error: 'Group not found' });
     if (member.role !== GroupRole.OWNER) return response.status(403).json({ error: 'Only the group owner can delete this group' });
+    if (await prisma.expense.count({ where: { groupId: request.params.groupId } })) return response.status(409).json({ error: 'Groups with expense history cannot be deleted' });
     await prisma.group.delete({ where: { id: request.params.groupId } });
     return response.status(204).end();
   } catch (error) { next(error); }
@@ -184,11 +186,19 @@ groupsRouter.delete('/:groupId/members/:userId', async (request, response, next)
     const leavingSelf = request.params.userId === request.userId;
     if (!leavingSelf && actor.role === GroupRole.MEMBER) return response.status(403).json({ error: 'Only group owners and admins can remove members' });
     if (!leavingSelf && target.role === GroupRole.ADMIN && actor.role !== GroupRole.OWNER) return response.status(403).json({ error: 'Only the group owner can remove an admin' });
-    await prisma.$transaction([
-      prisma.groupMembership.delete({ where: { groupId_userId: { groupId: request.params.groupId, userId: request.params.userId } } }),
-      prisma.groupInvitation.updateMany({ where: { groupId: request.params.groupId, invitedUserId: request.params.userId }, data: { status: 'REVOKED', acceptedAt: null } }),
-      prisma.group.update({ where: { id: request.params.groupId }, data: { updatedAt: new Date() } }),
-    ]);
+    await transaction(async tx => {
+      const expenses = await tx.expense.findMany({ where: { groupId: request.params.groupId }, include: { shares: { include: { payments: true } } } });
+      const targetId = request.params.userId;
+      for (const expense of expenses) {
+        const shares = expense.paidByUserId === targetId ? expense.shares.filter(share => share.userId !== targetId) : expense.shares.filter(share => share.userId === targetId);
+        if (shares.some(share => share.totalCents > share.payments.filter(payment => payment.status === 'CONFIRMED').reduce((sum, payment) => sum + payment.amountCents, 0))) {
+          throw new ExpenseError(409, 'Settle this member’s expense payments before removing them');
+        }
+      }
+      await tx.groupMembership.delete({ where: { groupId_userId: { groupId: request.params.groupId, userId: targetId } } });
+      await tx.groupInvitation.updateMany({ where: { groupId: request.params.groupId, invitedUserId: targetId }, data: { status: 'REVOKED', acceptedAt: null } });
+      await tx.group.update({ where: { id: request.params.groupId }, data: { updatedAt: new Date() } });
+    });
     return response.status(204).end();
   } catch (error) { next(error); }
 });

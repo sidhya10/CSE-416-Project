@@ -10,12 +10,13 @@ type Props = {
   mode: SplitMode; assignments: SplitAssignments;
   onModeChange: (mode: SplitMode) => void;
   onAssignmentsChange: (assignments: SplitAssignments) => void;
-  onBack: () => void; onConfirm: (split: PreviewSplit) => void;
+  onBack: () => void; onConfirm: (split: PreviewSplit) => void | Promise<void>;
 };
 export default function SplitExpense(props: Props) {
   const { name, items, feeCents, members, payerId, date, mode, assignments, onModeChange, onAssignmentsChange, onBack, onConfirm } = props;
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const selectedMember = members.find(member => member.id === selectedMemberId);
+  const [saveError, setSaveError] = useState('');
   const [confirming, setConfirming] = useState(false);
   const result = calculateSplit(items, feeCents, members, payerId, mode, assignments);
   const memberName = (member: SplitMember) => member.id === 'you' ? 'You' : member.name.split(' ')[0] ?? member.name;
@@ -28,7 +29,7 @@ export default function SplitExpense(props: Props) {
   return <main className="expense-screen split-screen">
     <header className="expense-header"><button type="button" aria-label="Back to expense" onClick={onBack}><img src={arrowLeft} alt="" /></button><h1>{props.editing ? 'Review changes' : 'Split expense'}</h1></header>
     <div className="expense-body split-body">
-      <section className="split-context"><h2>{name}</h2><div><p>Paid by {payerId === 'you' ? 'you' : memberName(payer)} · {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p><strong>{formatCents(result.totalCents)} total</strong></div></section>
+      <section className="split-context"><h2>{name}</h2><div><p>Paid by {payerId === 'you' ? 'you' : memberName(payer)} · {new Date(date).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })}</p><strong>{formatCents(result.totalCents)} total</strong></div></section>
       <div className="split-modes" role="group" aria-label="Split mode"><button type="button" aria-pressed={mode === 'equal'} onClick={() => onModeChange('equal')}>Equal split</button><button type="button" aria-pressed={mode === 'items'} onClick={() => onModeChange('items')}>Split by item</button></div>
       {mode === 'items' && <section className="split-legend"><p>Tap avatars to assign / unassign</p><div>{members.map((member, index) => <button type="button" key={member.id} aria-label={`Select ${memberName(member)} to assign items`} aria-pressed={selectedMemberId === member.id} onClick={() => setSelectedMemberId(previous => previous === member.id ? null : member.id)}>{avatar(member, index)}{memberName(member)}</button>)}</div><p className="split-selection-hint" aria-live="polite">{selectedMember ? `Tap receipt items to assign or unassign ${memberName(selectedMember)}. Highlighted items include them.` : 'Select a name, then tap receipt items. Or use the avatars on each item.'}</p></section>}
       <section className="split-items"><h2>Receipt Items</h2>{items.map(item => {
@@ -51,10 +52,14 @@ export default function SplitExpense(props: Props) {
       })}</section>
       {!result.valid && <p className="form-notice" role="status">Assign every item to at least one member before confirming. Fees and final shares will update once all items are assigned.</p>}
     </div>
-    <footer className="expense-footer split-footer"><button className="primary-button" type="button" disabled={!result.valid || confirming} onClick={() => {
+    {saveError && <p className="form-notice" role="alert">{saveError}</p>}
+    <footer className="expense-footer split-footer"><button className="primary-button" type="button" disabled={!result.valid || confirming} onClick={async () => {
       if (!result.valid || confirming) return;
       setConfirming(true);
-      onConfirm({ name, payerId, date, mode, items, feeCents, totalCents: result.totalCents, assignments, shares: result.shares });
-    }}>{props.editing ? 'Save changes' : `Confirm and split ${formatCents(result.totalCents)}`}</button><small>{props.editing ? 'Changes are saved for this preview session only.' : <>{mode === 'items' ? 'Fees split proportionally · ' : 'Other members reimburse '}{payerId === 'you' ? (mode === 'items' ? 'Reimburse you.' : 'you for their share.') : mode === 'items' ? `Reimburse ${memberName(payer)}.` : `${memberName(payer)} for their share.`}</>}</small></footer>
+      setSaveError('');
+      try { await onConfirm({ name, payerId, date, mode, items, feeCents, totalCents: result.totalCents, assignments, shares: result.shares }); }
+      catch (error) { setSaveError(error instanceof Error ? error.message : 'Could not save. Please try again.'); }
+      finally { setConfirming(false); }
+    }}>{props.editing ? 'Save changes' : `Confirm and split ${formatCents(result.totalCents)}`}</button><small>{props.editing ? 'Review the updated shares before saving.' : <>{mode === 'items' ? 'Fees split proportionally · ' : 'Other members reimburse '}{payerId === 'you' ? (mode === 'items' ? 'Reimburse you.' : 'you for their share.') : mode === 'items' ? `Reimburse ${memberName(payer)}.` : `${memberName(payer)} for their share.`}</>}</small></footer>
   </main>;
 }

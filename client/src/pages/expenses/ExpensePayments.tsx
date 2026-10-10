@@ -5,8 +5,8 @@ import './payments.css';
 
 const timestamp = (date?: string) => date ? new Date(date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
-export default function ExpensePayments({ split, members, groupName, currentUserId = 'you', onAction }: {
-  split: PreviewSplit; members: SplitMember[]; groupName: string; currentUserId?: string;
+export default function ExpensePayments({ split, members, groupName, currentUserId = 'you', busy = false, onAction }: {
+  split: PreviewSplit; members: SplitMember[]; groupName: string; currentUserId?: string; busy?: boolean;
   onAction: (memberId: string, action: PaymentAction) => void;
 }) {
   const name = (id: string) => id === 'you' ? 'You' : members.find(member => member.id === id)?.name.split(' ')[0] ?? 'Member';
@@ -21,8 +21,8 @@ export default function ExpensePayments({ split, members, groupName, currentUser
   const avatar = (id: string) => <span className={`payment-avatar tone-${Math.max(0, members.findIndex(member => member.id === id)) % 4}`}><Avatar name={name(id)} /></span>;
   return <>
     <section className="details-card payment-card">
-      <div className="payment-person">{avatar(split.payerId)}<div><h2>{split.name}</h2><p>{groupName} · {new Date(split.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p></div></div>
-      <p>Paid by {isPayer ? 'you' : payerName} · Added by {currentUserId === 'you' ? 'you' : 'the expense creator'}</p>
+      <div className="payment-person">{avatar(split.payerId)}<div><h2>{split.name}</h2><p>{groupName} · {new Date(split.date).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })}</p></div></div>
+      <p>Paid by {isPayer ? 'you' : payerName} · Added by {split.creatorId ? split.creatorId === 'you' ? 'you' : split.creatorName : 'you'}</p>
     </section>
     {isPayer ? <>
       <section className="details-card payment-card" aria-label="Collection summary">
@@ -38,8 +38,8 @@ export default function ExpensePayments({ split, members, groupName, currentUser
           <p>{state.status === 'Awaiting receipt' ? `Reported sent ${timestamp(state.record?.sentAt)}` : state.status === 'Payment issue' ? 'You reported that payment has not arrived.' : state.status === 'Settled' ? `Sent ${timestamp(state.record?.sentAt)} · Received ${timestamp(state.record?.receivedAt)}` : state.status === 'No payment needed' ? 'This member has no share to reimburse.' : `Waiting for ${name(share.memberId)} to report payment.`}</p>
           {!!state.record?.pendingCents && state.record.pendingCents !== state.remaining && <p>Reported amount: {formatCents(state.record.pendingCents)} · Updated amount due: {formatCents(state.remaining)}</p>}
           {state.received > state.share && <p>Overpaid by {formatCents(state.received - state.share)} after expense edits. Arrange any refund outside the app.</p>}
-          {state.status === 'Awaiting receipt' && <div className="payment-actions"><button type="button" className="primary-button" onClick={() => onAction(share.memberId, 'received')}>Confirm receipt</button><button type="button" className="expense-outline" onClick={() => onAction(share.memberId, 'issue')}>Not received</button></div>}
-          {state.status === 'Payment issue' && <div className="payment-actions"><button type="button" className="primary-button" onClick={() => onAction(share.memberId, 'received')}>Now received</button></div>}
+          {state.status === 'Awaiting receipt' && <div className="payment-actions"><button type="button" className="primary-button" disabled={busy} onClick={() => onAction(share.memberId, 'received')}>Confirm receipt</button><button type="button" className="expense-outline" disabled={busy} onClick={() => onAction(share.memberId, 'issue')}>Not received</button></div>}
+          {state.status === 'Payment issue' && <div className="payment-actions"><button type="button" className="primary-button" disabled={busy} onClick={() => onAction(share.memberId, 'received')}>Now received</button></div>}
         </section>;
       })}
       <p className="payment-footnote">Only confirm money you have received. Your own share needs no reimbursement.</p>
@@ -49,7 +49,7 @@ export default function ExpensePayments({ split, members, groupName, currentUser
         <p>{own.status === 'Awaiting receipt' ? 'You reported sending' : own.status === 'Settled' ? `Paid to ${payerName}` : own.status === 'Payment issue' ? `${payerName} has not received` : own.status === 'No payment needed' ? 'You have no amount to reimburse' : `You owe ${payerName}`}</p>
         <strong className="payment-amount">{formatCents(own.record?.pendingCents || (own.status === 'Settled' ? own.received : own.remaining))}</strong>
         <p>{own.status === 'Awaiting receipt' ? `${payerName} will confirm when your payment arrives. Your balance stays open until then.` : own.status === 'Settled' ? `${payerName} confirmed receipt. You have $0.00 left to pay for this expense.` : own.status === 'Payment issue' ? `Check the recipient and payment details with ${payerName} before sending any more money.` : own.status === 'No payment needed' ? 'No payment is required for this expense.' : `Pay ${payerName} outside the app, then mark your payment as sent.`}</p>
-        {(own.status === 'Not sent' || own.status === 'Payment issue') && own.remaining > 0 && <button type="button" className="primary-button" onClick={() => onAction(currentUserId, 'sent')}>Confirm payment</button>}
+        {(own.status === 'Not sent' || own.status === 'Payment issue') && own.remaining > 0 && <button type="button" className="primary-button" disabled={busy} onClick={() => onAction(currentUserId, 'sent')}>Confirm payment</button>}
         {own.received > own.share && <p>Overpaid by {formatCents(own.received - own.share)} after expense edits. Arrange any refund with {payerName}.</p>}
       </section>
       <section className="details-card payment-card payment-progress" aria-label="Payment progress"><h2>Payment progress</h2>
@@ -58,6 +58,6 @@ export default function ExpensePayments({ split, members, groupName, currentUser
       </section>
       <section className="details-card payment-card" aria-label="Your share"><div className="details-row"><span>Expense total</span><span>{formatCents(split.totalCents)}</span></div><div className="details-row"><span>Your share · {split.mode === 'equal' ? 'Equal split' : 'Split by item'}</span><span>{formatCents(own.share)}</span></div><p>Includes tax, tip and fees</p></section>
     </>}
-    <p className="payment-footnote">No money moves through the app. Payment records are saved for this preview session only.</p>
+    <p className="payment-footnote">No money moves through the app. {split.expenseId ? 'Payment records are saved to your group.' : 'Payment records are saved for this preview session only.'}</p>
   </>;
 }

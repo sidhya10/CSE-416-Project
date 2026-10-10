@@ -20,6 +20,10 @@ model User {
   photoUrl             String?           @db.Text
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+  createdExpenses      Expense[]         @relation("ExpenseCreator")
+  paidExpenses         Expense[]         @relation("ExpensePayer")
+  expenseShares        ExpenseShare[]
+  receiptScans         ReceiptScan[]
   friendshipsOne       Friendship[]      @relation("FriendshipOne")
   friendshipsTwo       Friendship[]      @relation("FriendshipTwo")
   createdGroups        Group[]           @relation("GroupCreator")
@@ -65,6 +69,7 @@ model Group {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  expenses    Expense[]
   memberships GroupMembership[]
   invitations GroupInvitation[]
 
@@ -100,4 +105,120 @@ model GroupInvitation {
   @@unique([groupId, invitedUserId])
   @@index([invitedUserId])
   @@index([invitedById])
+}
+
+enum ExpenseSplitMode {
+  EQUAL
+  ITEMS
+}
+
+model Expense {
+  id              String           @id @default(cuid())
+  groupId         String
+  group           Group            @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  createdByUserId String
+  creator         User             @relation("ExpenseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  paidByUserId    String
+  payer           User             @relation("ExpensePayer", fields: [paidByUserId], references: [id], onDelete: Restrict)
+  title           String
+  expenseDate     DateTime         @db.Date
+  currency        String           @default("USD")
+  splitMode       ExpenseSplitMode
+  taxCents        Int              @default(0)
+  tipCents        Int              @default(0)
+  otherCents      Int              @default(0)
+  totalCents      Int
+  version         Int              @default(1)
+  // Retried create requests return the existing expense, rather than posting it twice.
+  clientRequestId String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  items           ExpenseItem[]
+  shares          ExpenseShare[]
+
+  @@unique([createdByUserId, clientRequestId])
+  @@index([groupId, createdAt])
+}
+
+model ExpenseItem {
+  id             String           @id @default(cuid())
+  expenseId      String
+  expense        Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  name           String
+  unitPriceCents Int
+  quantity       Int
+  position       Int
+  assignments    ItemAssignment[]
+
+  @@unique([expenseId, id])
+  @@unique([expenseId, position])
+}
+
+model ExpenseShare {
+  expenseId   String
+  userId      String
+  expense     Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  position    Int
+  baseCents   Int
+  totalCents  Int
+  assignments ItemAssignment[]
+  payments    ExpensePayment[]
+
+  @@id([expenseId, userId])
+  @@unique([expenseId, position])
+  @@index([userId])
+}
+
+model ItemAssignment {
+  expenseId String
+  itemId    String
+  userId    String
+  item      ExpenseItem  @relation(fields: [expenseId, itemId], references: [expenseId, id], onDelete: Cascade)
+  share     ExpenseShare @relation(fields: [expenseId, userId], references: [expenseId, userId], onDelete: Cascade)
+
+  @@id([expenseId, itemId, userId])
+}
+
+enum ExpensePaymentStatus {
+  SENT
+  CONFIRMED
+  ISSUE
+}
+
+model ExpensePayment {
+  id              String               @id @default(cuid())
+  expenseId       String
+  senderUserId    String
+  share           ExpenseShare         @relation(fields: [expenseId, senderUserId], references: [expenseId, userId], onDelete: Restrict)
+  amountCents     Int
+  status          ExpensePaymentStatus @default(SENT)
+  clientRequestId String
+  sentAt          DateTime             @default(now())
+  resolvedAt      DateTime?
+
+  @@unique([senderUserId, clientRequestId])
+  @@index([expenseId])
+}
+
+// User-scoped normalized OCR cache; images and full provider responses are not stored.
+model ReceiptScan {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hash      String
+  status    String   @default("PENDING")
+  result    Json?
+  createdAt DateTime @default(now())
+  @@unique([userId, hash])
+  @@index([userId, createdAt])
+}
+
+// Conservative attempt counter survives cache deletion and process restarts.
+model ReceiptUsage {
+  id           String   @id
+  month        String
+  attempts     Int      @default(0)
+  busyUntil    DateTime?
+  activeScanId String?
 }

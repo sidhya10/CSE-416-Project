@@ -5,6 +5,8 @@ export type SplitMode = 'equal' | 'items';
 export type SplitAssignments = Record<number, string[]>;
 export type SplitShare = { memberId: string; baseCents: number; totalCents: number; reimbursementCents: number };
 export type PreviewSplit = {
+  expenseId?: string; version?: number; creatorId?: string; creatorName?: string;
+  hasPaymentHistory?: boolean; memberNames?: Record<string, string>;
   payments?: PaymentRecord[];
   name: string;
   payerId: string;

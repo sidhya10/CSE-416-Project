@@ -1,6 +1,7 @@
 import type { PreviewSplit } from './split';
 
 export type PaymentRecord = {
+  pendingIds?: string[];
   memberId: string; payerId: string; receivedCents: number; pendingCents: number;
   issue: boolean; sentAt?: string; receivedAt?: string;
 };
