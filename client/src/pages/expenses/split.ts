@@ -16,6 +16,8 @@ export type PreviewSplit = {
   feeCents: number;
   feeBreakdown?: { tax: number; tip: number; other: number };
   receiptName?: string;
+  receiptMimeType?: string;
+  receiptAttachment?: import('../../api/receipts.api').ReceiptAttachment | null;
   totalCents: number;
   assignments: SplitAssignments;
   shares: SplitShare[];

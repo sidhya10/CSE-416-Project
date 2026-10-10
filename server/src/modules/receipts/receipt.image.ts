@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
-import { ExpenseError } from '../expenses/expense.service.js';
+import { ExpenseError } from '../expenses/expense.error.js';
 
 const require = createRequire(import.meta.url);
 export const isHeicType = (type: string) => type === 'image/heic' || type === 'image/heif';

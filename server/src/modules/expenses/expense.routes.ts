@@ -37,3 +37,10 @@ expensesRouter.patch('/expenses/:id/payments/:paymentId', async (req, res) => {
   const input = z.object({ status: z.enum(['CONFIRMED', 'ISSUE']) }).strict().parse(req.body);
   res.json({ payment: await resolvePayment(req.params.id, req.params.paymentId, req.userId!, input.status) });
 });
+
+expensesRouter.get('/expenses/:id/receipt', async (req, res) => {
+  const receipt = await prisma.expenseReceipt.findFirst({ where: { expenseId: req.params.id, expense: { group: { memberships: { some: { userId: req.userId! } } } } } });
+  if (!receipt) { res.status(404).json({ error: 'Receipt not found' }); return; }
+  res.set({ 'Content-Type': receipt.mimeType, 'Cache-Control': 'private, no-store', 'Content-Disposition': `inline; filename="receipt.${receipt.mimeType === 'application/pdf' ? 'pdf' : 'jpg'}"` });
+  res.send(Buffer.from(receipt.data));
+});

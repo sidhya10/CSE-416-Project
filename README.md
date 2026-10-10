@@ -53,7 +53,7 @@ The Groups workspace starts without seeded groups or transactions. Friend select
 - View expense details and role-based payment status, report payments sent, and confirm receipt. Expense creators and payers may edit before payment history exists; later financial edits are blocked until an adjustment flow is implemented.
 - New expenses persist across reloads, appear newest first, and update group balances and the all-groups overview. Only confirmed payments reduce debt. Automated tests cover the main expense and payment flows.
 
-Expense entry, equal/item splits, details, editing, and two-sided payment confirmation are connected to PostgreSQL through authenticated APIs. Group/account deletion is blocked when it would erase expense history, and members must settle their payments before leaving or removal. Receipt scanning is implemented and requires server-side Azure credentials. Original receipt attachment storage, multi-photo receipt merging, dashboard/budget reconciliation, and group-wide split reallocation remain unimplemented. Scanning handles one file at a time and only the first page/main image; users must review extraction warnings and correct values before saving. No money moves through the app. See [Expense persistence API](docs/expense-backend.md) for the schema, endpoints, setup, and limitations.
+Expense entry, equal/item splits, details, editing, and two-sided payment confirmation are connected to PostgreSQL through authenticated APIs. Group/account deletion is blocked when it would erase expense history, and members must settle their payments before leaving or removal. Receipt scanning is implemented and requires server-side Azure credentials. Selected receipt attachments are saved in PostgreSQL with the expense and can be viewed by group members from Details without calling Azure. Multi-photo receipt merging, dashboard/budget reconciliation, and group-wide split reallocation remain unimplemented. Scanning handles one file at a time and only the first page/main image; users must review extraction warnings and correct values before saving. No money moves through the app. See [Expense persistence API](docs/expense-backend.md) for the schema, endpoints, setup, and limitations.
 
 
 ## 3. Technology Stack
@@ -71,7 +71,7 @@ The table includes the intended architecture as well as implemented services. Ta
 | Live updates | Server-Sent Events (SSE) | Group expense and status updates when available |
 | Bank data | Plaid or Teller (selection pending) | Connect accounts and retrieve transactions with user consent |
 | Document processing | Azure Document Intelligence (`prebuilt-receipt`), heic-convert, sharp | Authenticated receipt parsing with PostgreSQL cache, usage limits, and editable review; requires server Azure credentials |
-| File storage | S3-compatible object storage | Temporary receipt storage |
+| File storage | PostgreSQL bytea via Prisma Bytes; external object storage planned | Saved receipt JPEGs (up to 1 MB) and PDFs (up to 4 MB), served through an authenticated API |
 | Security | bcrypt, signed httpOnly session cookies | Password hashing and authenticated sessions |
 | Notifications | Web Push with email fallback | Recurring bill reminders, parse completion, and budget warnings |
 | Testing and CI | Vitest, Supertest, Playwright, fast-check, GitHub Actions | Unit, API, end-to-end, property-based, and automated integration testing |

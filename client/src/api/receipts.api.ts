@@ -19,3 +19,19 @@ export async function scanReceipt(file: File, signal: AbortSignal): Promise<{ re
   });
   return apiRequest('/receipts/parse', { method: 'POST', body: JSON.stringify({ base64, mimeType: receiptMimeType(file) }), signal });
 }
+
+export type ReceiptAttachment = { name: string; mimeType: 'image/jpeg' | 'application/pdf'; base64: string };
+export async function prepareReceiptAttachment(file: File): Promise<ReceiptAttachment> {
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(new Error('Could not read the receipt file.'));
+    reader.readAsDataURL(file);
+  });
+  return apiRequest('/receipts/prepare-attachment', { method: 'POST', body: JSON.stringify({ name: file.name, mimeType: receiptMimeType(file), base64 }) });
+}
+export async function loadReceipt(expenseId: string, signal: AbortSignal): Promise<Blob> {
+  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/expenses/${encodeURIComponent(expenseId)}/receipt`, { credentials: 'include', signal });
+  if (!response.ok) throw new Error('Could not load the receipt. Please try again.');
+  return response.blob();
+}

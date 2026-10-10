@@ -1,12 +1,13 @@
+import { validateReceipt } from '../receipts/receipt.validation.js';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database.js';
 import { calculateExpense, type ExpenseInput } from './expense.validation.js';
 
-export class ExpenseError extends Error {
-  constructor(public status: number, message: string) { super(message); }
-}
+import { ExpenseError } from './expense.error.js';
+export { ExpenseError } from './expense.error.js';
 export type Transaction = Prisma.TransactionClient;
 export const expenseInclude = {
+  receipt: { select: { name: true, mimeType: true } },
   creator: { select: { id: true, name: true } },
   items: { orderBy: { position: 'asc' }, include: { assignments: true } },
   shares: { orderBy: { position: 'asc' }, include: { user: { select: { id: true, name: true } }, payments: { orderBy: { sentAt: 'asc' } } } },
@@ -42,6 +43,16 @@ async function writeItemsAndShares(tx: Transaction, expenseId: string, input: Ex
   }
 }
 
+async function writeReceipt(tx: Transaction, expenseId: string, input: ExpenseInput) {
+  if (input.receipt === undefined) return;
+  if (input.receipt === null) { await tx.expenseReceipt.deleteMany({ where: { expenseId } }); return; }
+  const { name, mimeType, base64 } = input.receipt;
+  const bytes = validateReceipt(base64, mimeType);
+  if (mimeType === 'image/jpeg' && bytes.length > 1024 * 1024) throw new ExpenseError(400, 'Saved receipt images must be under 1 MB.');
+  const data = { name, mimeType, data: new Uint8Array(bytes) };
+  await tx.expenseReceipt.upsert({ where: { expenseId }, create: { expenseId, ...data }, update: data });
+}
+
 function expenseFields(input: ExpenseInput) {
   return {
     title: input.title, paidByUserId: input.paidByUserId, expenseDate: new Date(`${input.expenseDate}T00:00:00.000Z`),
@@ -61,6 +72,7 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
     await validateMembers(tx, groupId, input);
     const expense = await tx.expense.create({ data: { groupId, createdByUserId: userId, clientRequestId, ...expenseFields(input) } });
     await writeItemsAndShares(tx, expense.id, input);
+    await writeReceipt(tx, expense.id, input);
     return readExpense(tx, expense.id, userId);
   });
 }
@@ -76,6 +88,7 @@ export function editExpense(id: string, userId: string, version: number, input: 
     await tx.expenseItem.deleteMany({ where: { expenseId: id } });
     await tx.expenseShare.deleteMany({ where: { expenseId: id } });
     await writeItemsAndShares(tx, id, input);
+    await writeReceipt(tx, id, input);
     return readExpense(tx, id, userId);
   });
 }

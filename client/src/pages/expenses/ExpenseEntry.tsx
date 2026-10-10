@@ -1,4 +1,4 @@
-import { receiptMimeType, scanReceipt, type ParsedReceipt } from '../../api/receipts.api';
+import { prepareReceiptAttachment, receiptMimeType, scanReceipt, type ParsedReceipt } from '../../api/receipts.api';
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react';
 import arrowLeft from '../../assets/expense-arrow-left.svg';
 import './expenses.css';
@@ -146,8 +146,11 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   if (splitting) return <SplitExpense editing={!!initialSplit} name={name.trim()} items={items.map(item => ({ id: item.id, name: item.name.trim(), cents: cents(item.amount)! * (quantityValue(item.quantity) ?? 0), unitCents: cents(item.amount)!, quantity: quantityValue(item.quantity)! }))}
     feeCents={Object.values(fees).reduce((sum, value) => sum + (cents(value) ?? 0), 0)} members={members} payerId={payer} date={date}
     mode={splitMode} assignments={assignments} onModeChange={setSplitMode} onAssignmentsChange={setAssignments}
-    onBack={() => setSplitting(false)} onConfirm={split => onConfirm({ ...split, payments: initialSplit?.payments,
-      feeBreakdown: { tax: cents(fees.Tax)!, tip: cents(fees.Tip)!, other: cents(fees.Other)! }, receiptName })} />;
+    onBack={() => setSplitting(false)} onConfirm={async split => {
+      const receiptAttachment = receiptFile ? await prepareReceiptAttachment(receiptFile) : !receiptName && initialSplit?.receiptName ? null : undefined;
+      await onConfirm({ ...split, receiptAttachment, payments: initialSplit?.payments,
+      feeBreakdown: { tax: cents(fees.Tax)!, tip: cents(fees.Tip)!, other: cents(fees.Other)! }, receiptName });
+    }} />;
 
   return <main className={`expense-screen ${choosing ? '' : 'expense-entry-screen'}`}>
     <header className="expense-header"><button type="button" aria-label={choosing ? 'Back to expense' : initialSplit ? 'Back to details' : 'Back to group'} onClick={() => choosing ? setChoosing(false) : onBack()}><img src={arrowLeft} alt="" /></button><h1>{choosing ? 'Who paid?' : initialSplit ? 'Edit expense' : 'Add expense'}</h1></header>

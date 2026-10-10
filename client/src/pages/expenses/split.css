@@ -50,3 +50,5 @@
 .split-legend>.split-member-actions>button{justify-content:center;flex:1;min-width:0;min-height:40px;padding:8px 12px;border:1px solid #dedbcc;border-radius:12px;background:#f6f4ed;color:#1a2421;font:inherit;font-size:13px;font-weight:600}
 .split-legend>.split-member-actions>button:not(:disabled):hover{background:#e8f0e3;border-color:#1f6e52}
 .split-legend>.split-member-actions>button:disabled{color:#526159;background:#eeece4;cursor:default}
+
+.split-item.member-selection-active .split-assignment button{pointer-events:none;z-index:0}

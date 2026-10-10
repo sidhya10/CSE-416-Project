@@ -16,3 +16,21 @@
 .details-row>span:last-child,.details-row>strong:last-child{flex:none;font-variant-numeric:tabular-nums}
 .details-total{font-size:14px}
 .details-total strong{font-weight:600}
+
+.details-item{min-width:0;padding:10px;border:1px solid #dedbcc;border-radius:16px;background:#fff;display:flex;flex-direction:column;gap:6px}
+.details-item .details-row>strong:first-child{min-width:0;overflow-wrap:anywhere;flex:1}
+.details-item-sharing{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.details-contributors{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.details-contributors button{display:grid;place-items:center;padding:5px;border:1px solid #dedbcc;border-radius:50%;background:#f6f4ed;min-width:36px;min-height:36px}
+.details-contributors button[aria-pressed=true]{border-color:#1f6e52;background:#e8f0e3;box-shadow:0 0 0 1px #1f6e52}
+.details-contributors .details-contributor-avatar{width:24px;height:24px}
+.details-contributor-info{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:10px;background:#f6f4ed;color:#1a2421;font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.details-contributor-info strong{font-weight:600}
+.details-body .details-card .details-avatar-hint{color:#526159;font-size:12px}
+
+.receipt-viewer{width:min(94vw,720px);max-height:90dvh;border:1px solid #dedbcc;border-radius:18px;padding:16px;background:#f6f4ed;color:#1a2421;overflow:auto}
+.receipt-viewer::backdrop{background:#1a242199}.receipt-viewer header{display:flex;justify-content:space-between;align-items:center;gap:12px}.receipt-viewer h2{margin:0;font-size:18px}.receipt-viewer p{overflow-wrap:anywhere;margin:8px 0}
+.receipt-viewer button,.receipt-viewer a{display:inline-block;border:1px solid #dedbcc;border-radius:12px;background:#fff;color:#1f6e52;padding:10px;margin:4px;font:inherit;font-size:14px}
+.receipt-image-scroll{overflow:auto;max-height:65dvh;margin-top:8px}.receipt-image-scroll img{display:block;width:100%;height:auto}.receipt-viewer iframe{width:100%;height:60dvh;border:0}
+
+.receipt-viewer a{text-decoration:none}
