@@ -37,3 +37,19 @@
   cursor: not-allowed;
   opacity: 0.45;
 }
+
+.group-filters { margin: 18px 0; border: 1px solid #ddd9cd; border-radius: 16px; padding: 12px; }
+.group-filters summary { cursor: pointer; font-weight: 600; }
+.filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+.filter-grid label { min-width: 0; }
+.filter-grid input, .filter-grid select { min-width: 0; width: 100%; box-sizing: border-box; }
+.archive-tab { display: block; width: 100%; margin: 24px 0 10px; border: 1px solid #1f6e52; border-radius: 14px; padding: 14px; color: #1f6e52; background: white; font-weight: 600; }
+.archive-tag, .unresolved-tag { display: inline-block; width: fit-content; border-radius: 8px; background: #edeae1; padding: 3px 7px; font-size: 11px; font-style: normal; }
+.unresolved-tag { background: #fff0d0; color: #644711; }
+.group-card-actions { width: 100px; }
+.group-list-row.is-open .group-card-foreground { transform: translateX(-100px); }
+@media (max-width: 350px) { .filter-grid { grid-template-columns: 1fr; } }
+.group-card-actions { grid-template-columns: 1fr; }
+.group-card-actions button:last-child { background: #dce9dc; color: #1f6e52; }
+.archive-restore-button { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 1px solid #1f6e52; border-radius: 9px; background: white; color: #1f6e52; padding: 8px; font-size: 12px; }
+.archived-card .group-list-card { padding-right: 80px; }

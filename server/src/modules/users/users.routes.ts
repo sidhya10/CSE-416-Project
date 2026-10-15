@@ -36,17 +36,21 @@ usersRouter.use(requireAuth);
 
 usersRouter.get('/', async (request, response, next) => {
   const currentUserId = request.userId!;
-  const query = typeof request.query.query === 'string' ? request.query.query.trim() : '';
+  const search = z.object({ query: z.string().max(200).default(''), field: z.enum(['all', 'name', 'username', 'email', 'phone']).default('all'), sort: z.enum(['name', 'username', 'email']).default('name') }).parse(request.query);
+  const query = search.query.trim();
   try {
     const [users, friendships] = await Promise.all([
-      prisma.user.findMany({ where: { id: { not: currentUserId }, ...(query ? { OR: [
-        { name: { contains: query, mode: 'insensitive' } }, { username: { contains: query.replace(/^@/, ''), mode: 'insensitive' } },
-        { email: { contains: query, mode: 'insensitive' } }, { phone: { contains: query } },
-      ] } : {}) }, orderBy: [{ name: 'asc' }] }),
+      prisma.user.findMany({ where: { id: { not: currentUserId } } }),
       prisma.friendship.findMany({ where: { OR: [{ userOneId: currentUserId }, { userTwoId: currentUserId }] } }),
     ]);
     const friendIds = new Set(friendships.map(item => item.userOneId === currentUserId ? item.userTwoId : item.userOneId));
-    return response.json({ users: users.map(user => ({ ...presentUser(user), isFriend: friendIds.has(user.id) })).sort((a, b) => Number(b.isFriend) - Number(a.isFriend) || a.name.localeCompare(b.name)) });
+    const lower = query.toLowerCase();
+    const digits = query.replace(/\D/g, '');
+    const filtered = users.filter(user => !query || (search.field === 'all' ? ['name', 'username', 'email', 'phone'] : [search.field]).some(field => {
+      const value = user[field as 'name' | 'username' | 'email' | 'phone'] ?? '';
+      return value.toLowerCase().includes(field === 'username' ? lower.replace(/^@/, '') : lower) || field === 'phone' && digits.length > 0 && /^[+\d\s().-]+$/.test(query) && value.replace(/\D/g, '').includes(digits);
+    }));
+    return response.json({ users: filtered.map(user => ({ ...presentUser(user), isFriend: friendIds.has(user.id) })).sort((a, b) => Number(b.isFriend) - Number(a.isFriend) || a[search.sort].localeCompare(b[search.sort])) });
   } catch (error) { next(error); }
 });
 

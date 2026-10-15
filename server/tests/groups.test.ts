@@ -14,7 +14,7 @@ afterAll(async () => {
 });
 
 describe('groups, memberships, roles, and invitations', () => {
-  it('enforces group membership and removes a deleted group for every user', async () => {
+  it('enforces group membership and shares archives and restores with every user', async () => {
     for (const [index, email] of emails.entries()) {
       const created = await agents[index]!.post('/api/auth/register').send({
         name: ['Owner', 'Member', 'Admin', 'Outsider'][index],
@@ -49,7 +49,7 @@ describe('groups, memberships, roles, and invitations', () => {
     expect(memberGroups.body.groups).toEqual([expect.objectContaining({ id: groupId, currentUserRole: 'MEMBER' })]);
     await agents[3]!.get(`/api/groups/${groupId}`).expect(404);
     await agents[1]!.patch(`/api/groups/${groupId}`).send({ name: 'Unauthorized rename' }).expect(403);
-    await agents[1]!.delete(`/api/groups/${groupId}`).expect(403);
+    await agents[1]!.delete(`/api/groups/${groupId}`).expect(404);
     await agents[1]!.post(`/api/groups/${groupId}/invitations`).send({ userIds: [users[3]!.id] }).expect(403);
 
     const addAdmin = await agents[0]!.post(`/api/groups/${groupId}/invitations`).send({ userIds: [users[2]!.id], role: 'ADMIN' });
@@ -63,15 +63,19 @@ describe('groups, memberships, roles, and invitations', () => {
     const renamed = await agents[2]!.patch(`/api/groups/${groupId}`).send({ name: 'Renamed by admin' });
     expect(renamed.status).toBe(200);
     expect(renamed.body.group.name).toBe('Renamed by admin');
-    await agents[0]!.delete(`/api/groups/${groupId}`).expect(204);
-
+    await agents[0]!.delete(`/api/groups/${groupId}`).expect(404);
+    await agents[1]!.post(`/api/groups/${groupId}/archive`).send({ archived: true }).expect(200);
     for (const agent of agents) {
-      const list = await agent.get('/api/groups');
-      expect(list.body.groups).toEqual([]);
-      await agent.get(`/api/groups/${groupId}`).expect(404);
+      const list = await agent.get('/api/groups').query({ archived: 'archived' });
+      expect(list.body.groups).toEqual([expect.objectContaining({ id: groupId, archiveReason: 'MANUAL' })]);
+      const active = await agent.get('/api/groups').query({ archived: 'active' });
+      expect(active.body.groups).toEqual([]);
     }
-    expect(await prisma.group.findUnique({ where: { id: groupId } })).toBeNull();
-    expect(await prisma.groupMembership.count({ where: { groupId } })).toBe(0);
-    expect(await prisma.groupInvitation.count({ where: { groupId } })).toBe(0);
+    await agents[3]!.post(`/api/groups/${groupId}/archive`).send({ archived: false }).expect(200);
+    for (const agent of agents) {
+      const list = await agent.get('/api/groups').query({ archived: 'active' });
+      expect(list.body.groups).toEqual([expect.objectContaining({ id: groupId, archivedAt: null })]);
+    }
+    expect(await prisma.groupMembership.count({ where: { groupId } })).toBe(4);
   });
 });

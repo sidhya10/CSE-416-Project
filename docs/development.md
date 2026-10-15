@@ -28,3 +28,7 @@ Email/password authentication works with the required variables above. For Googl
 - `npm run build`
 
 Never commit `.env` or real API credentials. Only `.env.example` belongs in version control.
+
+## Recurring schedules and archives
+
+Apply the committed migrations and restart the API. Its scheduler runs at startup and every minute; group-list requests also catch up due work. No new environment variables are required. See [recurring and archive behavior](recurring-and-archives.md).

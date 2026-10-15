@@ -42,7 +42,7 @@ There are exactly three group types: **General**, **Trip**, and **Recurring**. E
 
 All group types can surface balances and settlement status. Group insights can show shared monthly spending, trip cost per person, common categories, outstanding balances, and increases in recurring expenses when supporting data exists. Before committing a split, show the user's estimated share and how much of the relevant category budget would remain without exposing private budget numbers to other members.
 
-The Groups workspace starts without seeded groups or transactions. Friend selection is populated from the authenticated user's persisted friend list. Group creation, settings, membership, and General/Trip expenses now persist with server-side access checks. Member additions currently take effect immediately. Planned costs, private trip budgets, recurring cycle allocations, and archiving remain local preview state.
+The Groups workspace starts without seeded groups or transactions. Friend selection is populated from the authenticated user's persisted friend list. Group creation, settings, membership, and General/Trip expenses now persist with server-side access checks. Member additions currently take effect immediately. Recurring schedules, per-cycle payer/shares, generated expenses, and shared group archives now persist. Groups auto-archive after 60 inactive days by default, and any member can restore them. Group filters and universal user search are available. Planned costs and private trip budgets remain local preview state. See [Recurring bills and archives](docs/recurring-and-archives.md) for behavior, APIs, and setup.
 
 ### Expense splitting and settlement
 
@@ -53,7 +53,7 @@ The Groups workspace starts without seeded groups or transactions. Friend select
 - View expense details and role-based payment status, report payments sent, and confirm receipt. Expense creators and payers may edit before payment history exists; later financial edits are blocked until an adjustment flow is implemented.
 - New expenses persist across reloads, appear newest first, and update group balances and the all-groups overview. Only confirmed payments reduce debt. Automated tests cover the main expense and payment flows.
 
-Expense entry, equal/item splits, details, editing, and two-sided payment confirmation are connected to PostgreSQL through authenticated APIs. Group/account deletion is blocked when it would erase expense history, and members must settle their payments before leaving or removal. Receipt scanning is implemented and requires server-side Azure credentials. Selected receipt attachments are saved in PostgreSQL with the expense and can be viewed by group members from Details without calling Azure. Multi-photo receipt merging, dashboard/budget reconciliation, and group-wide split reallocation remain unimplemented. Scanning handles one file at a time and only the first page/main image; users must review extraction warnings and correct values before saving. No money moves through the app. See [Expense persistence API](docs/expense-backend.md) for the schema, endpoints, setup, and limitations.
+Expense entry, equal/item splits, details, editing, and two-sided payment confirmation are connected to PostgreSQL through authenticated APIs. Group deletion is unavailable; use shared archiving. Account deletion is blocked when it would erase expense history, and members must settle their payments before leaving or removal. Receipt scanning is implemented and requires server-side Azure credentials. Selected receipt attachments are saved in PostgreSQL with the expense and can be viewed by group members from Details without calling Azure. Multi-photo receipt merging, dashboard/budget reconciliation, and group-wide split reallocation remain unimplemented. Scanning handles one file at a time and only the first page/main image; users must review extraction warnings and correct values before saving. No money moves through the app. See [Expense persistence API](docs/expense-backend.md) for the schema, endpoints, setup, and limitations.
 
 
 ## 3. Technology Stack
@@ -67,7 +67,7 @@ The table includes the intended architecture as well as implemented services. Ta
 | Charts | Recharts | Category, monthly spending, and projection visualizations |
 | Backend | Node.js, Express, TypeScript | REST APIs, authentication, groups, expenses, budgets, and imports |
 | Database | PostgreSQL, Prisma | Relational financial data and enforcement of money-related constraints |
-| Background jobs | Redis, BullMQ | Bank transaction synchronization, recurring bill generation, and scheduled notifications |
+| Background jobs | In-process scheduler with PostgreSQL coordination; Redis/BullMQ planned | Recurring bill generation and inactive-group archiving run now; bank synchronization and notifications remain planned |
 | Live updates | Server-Sent Events (SSE) | Group expense and status updates when available |
 | Bank data | Plaid or Teller (selection pending) | Connect accounts and retrieve transactions with user consent |
 | Document processing | Azure Document Intelligence (`prebuilt-receipt`), heic-convert, sharp | Authenticated receipt parsing with PostgreSQL cache, usage limits, and editable review; requires server Azure credentials |

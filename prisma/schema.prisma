@@ -20,6 +20,7 @@ model User {
   photoUrl             String?           @db.Text
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+  createdRecurringBills RecurringBill[]
   createdExpenses      Expense[]         @relation("ExpenseCreator")
   paidExpenses         Expense[]         @relation("ExpensePayer")
   expenseShares        ExpenseShare[]
@@ -71,9 +72,15 @@ model Group {
   createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
   expenses    Expense[]
   memberships GroupMembership[]
+  recurringBills RecurringBill[]
+  archivedAt DateTime?
+  archiveReason String?
+  inactivityDays Int @default(60)
+  lastActivityAt DateTime @default(now())
   invitations GroupInvitation[]
 
   @@index([createdById])
+  @@index([archivedAt, lastActivityAt])
 }
 
 model GroupMembership {
@@ -82,6 +89,7 @@ model GroupMembership {
   userId   String
   role     GroupRole @default(MEMBER)
   joinedAt DateTime  @default(now())
+  lastAccessedAt DateTime?
   group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -110,6 +118,7 @@ model GroupInvitation {
 enum ExpenseSplitMode {
   EQUAL
   ITEMS
+  CUSTOM
 }
 
 model Expense {
@@ -133,10 +142,14 @@ model Expense {
   clientRequestId String
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  recurringBillId String?
+  recurringBill RecurringBill? @relation(fields: [recurringBillId], references: [id], onDelete: Restrict)
+  cycleDate DateTime? @db.Date
   receipt         ExpenseReceipt?
   items           ExpenseItem[]
   shares          ExpenseShare[]
 
+  @@unique([recurringBillId, cycleDate])
   @@unique([createdByUserId, clientRequestId])
   @@index([groupId, createdAt])
 }
@@ -230,4 +243,34 @@ model ExpenseReceipt {
   name String
   mimeType String
   data Bytes
+}
+
+model RecurringBill {
+  id String @id @default(cuid())
+  groupId String
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById String
+  creator User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  title String
+  amountCents Int
+  startDate DateTime @db.Date
+  intervalEvery Int
+  intervalUnit String
+  frequency String
+  defaultPlan Json
+  nextCycle Int @default(0)
+  paused Boolean @default(false)
+  error String?
+  createdAt DateTime @default(now())
+  cycles RecurringCycle[]
+  expenses Expense[]
+  @@index([groupId])
+}
+
+model RecurringCycle {
+  billId String
+  bill RecurringBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  index Int
+  plan Json
+  @@id([billId, index])
 }

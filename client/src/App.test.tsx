@@ -97,7 +97,7 @@ describe('App account integration', () => {
     await screen.findByRole('heading', { name: 'Good morning, there' });
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     expect(within(screen.getByLabelText('Balance overview')).getAllByText('$0.00')).toHaveLength(2);
-    expect(screen.queryAllByRole('group')).toHaveLength(0);
+    expect(document.querySelectorAll('.group-list-row')).toHaveLength(0);
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/friends'), expect.objectContaining({ credentials: 'include' })));
   });
 });

@@ -5,7 +5,7 @@ type Payment = { id: string; amountCents: number; status: 'SENT' | 'CONFIRMED' |
 export type ApiExpense = {
   receipt?: { name: string; mimeType: string } | null;
   id: string; version: number; title: string; expenseDate: string; createdByUserId: string; creator: { id: string; name: string };
-  paidByUserId: string; splitMode: 'EQUAL' | 'ITEMS'; totalCents: number; taxCents: number; tipCents: number; otherCents: number;
+  paidByUserId: string; recurringBillId?: string | null; splitMode: 'EQUAL' | 'ITEMS' | 'CUSTOM'; totalCents: number; taxCents: number; tipCents: number; otherCents: number;
   items: { id: string; name: string; quantity: number; unitPriceCents: number; assignments: { userId: string }[] }[];
   shares: { userId: string; user: { id: string; name: string }; baseCents: number; totalCents: number; payments: Payment[] }[];
 };
@@ -25,11 +25,12 @@ export function toExpenseInput(split: PreviewSplit, currentUserId: string) {
 export function fromApiExpense(expense: ApiExpense, currentUserId: string): PreviewSplit {
   const id = (value: string) => value === currentUserId ? 'you' : value;
   return {
+    recurring: !!expense.recurringBillId,
     receiptName: expense.receipt?.name, receiptMimeType: expense.receipt?.mimeType,
     expenseId: expense.id, version: expense.version, creatorId: id(expense.createdByUserId), creatorName: expense.creator.name,
     hasPaymentHistory: expense.shares.some(share => share.payments.length > 0),
     memberNames: Object.fromEntries(expense.shares.map(share => [id(share.userId), share.user.name])),
-    name: expense.title, date: expense.expenseDate, payerId: id(expense.paidByUserId), mode: expense.splitMode === 'EQUAL' ? 'equal' : 'items',
+    name: expense.title, date: expense.expenseDate, payerId: id(expense.paidByUserId), mode: expense.splitMode === 'ITEMS' ? 'items' : 'equal',
     items: expense.items.map((item, index) => ({ id: index, name: item.name, quantity: item.quantity, unitCents: item.unitPriceCents, cents: item.quantity * item.unitPriceCents })),
     assignments: Object.fromEntries(expense.items.map((item, index) => [index, item.assignments.map(assignment => id(assignment.userId))])),
     totalCents: expense.totalCents, feeCents: expense.taxCents + expense.tipCents + expense.otherCents,
