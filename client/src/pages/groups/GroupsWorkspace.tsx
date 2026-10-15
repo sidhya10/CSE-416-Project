@@ -366,8 +366,11 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     setAddingBill(false); setNewBill({ title: '', amount: '', startDate: '', frequency: 'Monthly', customEvery: '1', customUnit: 'months' });
     openBill(item.id);
   };
-  const realPlan = (plan: Allocation): CyclePlan => ({ payerId: plan.payerId === 'you' ? currentUser.id : plan.payerId,
-    shares: Object.fromEntries(Object.entries(plan.shares).map(([id, cents]) => [id === 'you' ? currentUser.id : id, cents])) });
+  const realPlan = (plan: Allocation): CyclePlan => ({
+    payerId: plan.payerId === 'you' || !members.some(member => member.id === plan.payerId) ? currentUser.id : plan.payerId,
+    // Removed members must not remain hidden in a repaired default/cycle plan.
+    shares: Object.fromEntries(members.map(member => [member.id === 'you' ? currentUser.id : member.id, plan.shares[member.id] ?? 0])),
+  });
   const saveAllocation = async (event: FormEvent) => {
     event.preventDefault();
     if (!active || !bill) return;

@@ -121,7 +121,7 @@ test('a recurring expense generates once and any member can archive and restore 
   try {
     const run = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
     const createUser = async (context: typeof ownerContext, label: string) => {
-      const response = await context.request.post('/api/auth/register', { data: { name: label, username: `${label.slice(0, 8)}_${run}`, email: `${label}_${run}@example.com`, password: 'password1' } });
+      const response = await context.request.post('/api/auth/register', { data: { name: label, username: `${label.slice(-6)}_${run}`, email: `${label}_${run}@example.com`, password: 'password1' } });
       expect(response.status()).toBe(201); return (await response.json()).user;
     };
     const owner = await createUser(ownerContext, 'scheduleowner');

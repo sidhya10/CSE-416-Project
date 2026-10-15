@@ -37,3 +37,23 @@ it('saves a recurring schedule with real payer IDs, reloads it and saves one cyc
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/recurring/bill-1/cycles/0'), expect.objectContaining({ method: 'PUT', body: JSON.stringify({ payerId: 'owner', shares: { owner: 3000 } }) })));
   expect(await screen.findByText('Payment plan saved for this cycle.')).toBeInTheDocument();
 });
+
+it('repairs a paused schedule without retaining hidden shares for a removed member', async () => {
+  const bill = { id: 'bill-repair', title: 'Rent', amountCents: 3000, startDate: '2030-01-01', frequency: 'Monthly' as const, intervalEvery: 1, intervalUnit: 'months' as const, defaultPlan: { payerId: 'removed', shares: { removed: 3000, owner: 0 } }, cycles: [], paused: true, error: 'Update the default payer and shares.', nextDate: '2030-01-01' };
+  const group: ApiGroup = { id: 'repair-home', name: 'Repair home', description: '', type: 'Recurring', color: 'green', photoUrl: null, startDate: '', endDate: '', createdById: user.id, createdBy: user, currentUserRole: 'OWNER', members: [{ ...user, role: 'OWNER', joinedAt: '2026-01-01' }], invitations: [], createdAt: '2026-01-01', updatedAt: '2026-01-01', recurringBills: [bill] };
+  const response = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith('/friends')) return response({ friends: [] });
+    if (url.endsWith('/groups')) return response({ groups: [group] });
+    if (url.endsWith('/groups/repair-home')) return response({ group });
+    if (url.endsWith('/expenses')) return response({ expenses: [] });
+    return response({ bill });
+  }));
+  render(<GroupsWorkspace currentUser={user} onRootChange={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Repair home.*members/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Rent.*Monthly/ }));
+  fireEvent.change(screen.getByLabelText('You'), { target: { value: '30' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Use plan as future default' }));
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/recurring/bill-repair'), expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ defaultPlan: { payerId: 'owner', shares: { owner: 3000 } } }) })));
+});

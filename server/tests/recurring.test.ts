@@ -1,3 +1,4 @@
+import { lockMaintenance } from '../src/utils/maintenance-lock.js';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -14,11 +15,15 @@ beforeAll(async () => {
   }
 });
 afterAll(async () => {
-  const expenses = await prisma.expense.findMany({ where: { groupId: { in: groups } }, select: { id: true } });
-  await prisma.expensePayment.deleteMany({ where: { expenseId: { in: expenses.map(x => x.id) } } });
-  await prisma.expense.deleteMany({ where: { groupId: { in: groups } } });
-  await prisma.group.deleteMany({ where: { id: { in: groups } } });
-  await prisma.user.deleteMany({ where: { id: { in: userIds } } }); await prisma.$disconnect();
+  await prisma.$transaction(async tx => {
+    await lockMaintenance(tx);
+    const expenses = await tx.expense.findMany({ where: { groupId: { in: groups } }, select: { id: true } });
+    await tx.expensePayment.deleteMany({ where: { expenseId: { in: expenses.map(x => x.id) } } });
+    await tx.expense.deleteMany({ where: { groupId: { in: groups } } });
+    await tx.group.deleteMany({ where: { id: { in: groups } } });
+    await tx.user.deleteMany({ where: { id: { in: userIds } } });
+  });
+  await prisma.$disconnect();
 });
 async function group() {
   const response = await owner.post('/api/groups').send({ name: 'Recurring bills', type: 'Recurring', memberIds: [userIds[1]] });
