@@ -65,7 +65,12 @@ ALTER TABLE "RecurringBill" ADD CONSTRAINT "RecurringBill_createdById_fkey" FORE
 ALTER TABLE "RecurringCycle" ADD CONSTRAINT "RecurringCycle_billId_fkey" FOREIGN KEY ("billId") REFERENCES "RecurringBill"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Preserve pre-migration activity rather than restarting the inactivity clock.
-UPDATE "Group" SET "lastActivityAt" = "updatedAt";
+UPDATE "Group" g SET "lastActivityAt" = GREATEST(
+  g."updatedAt",
+  COALESCE((SELECT MAX(e."updatedAt") FROM "Expense" e WHERE e."groupId" = g."id"), g."updatedAt"),
+  COALESCE((SELECT MAX(GREATEST(p."sentAt", p."resolvedAt")) FROM "ExpensePayment" p JOIN "Expense" e ON e."id" = p."expenseId" WHERE e."groupId" = g."id"), g."updatedAt"),
+  COALESCE((SELECT MAX(m."joinedAt") FROM "GroupMembership" m WHERE m."groupId" = g."id"), g."updatedAt")
+);
 ALTER TABLE "Group" ADD CONSTRAINT "Group_inactivityDays_check" CHECK ("inactivityDays" BETWEEN 1 AND 3650);
 ALTER TABLE "RecurringBill" ADD CONSTRAINT "RecurringBill_amount_check" CHECK ("amountCents" > 0 AND "amountCents" <= 100000000);
 ALTER TABLE "RecurringBill" ADD CONSTRAINT "RecurringBill_interval_check" CHECK ("intervalEvery" BETWEEN 1 AND 1000 AND "intervalUnit" IN ('days', 'weeks', 'months', 'years'));

@@ -349,7 +349,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   };
   const addBill = async (event: FormEvent) => {
     event.preventDefault();
-    if (!active || !newBill.startDate || Number(newBill.amount) <= 0 || Number(newBill.customEvery) < 1) return;
+    if (billBusy || !active || !newBill.startDate || Number(newBill.amount) <= 0 || Number(newBill.customEvery) < 1) return;
     const item: RecurringBill = { id: Date.now(), title: newBill.title.trim(), amount: Number(newBill.amount),
       startDate: newBill.startDate, frequency: newBill.frequency, customEvery: Number(newBill.customEvery), customUnit: newBill.customUnit, cycles: {} };
     if (!initialGroupsData) {

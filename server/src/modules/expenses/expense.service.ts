@@ -13,9 +13,17 @@ export const expenseInclude = {
   shares: { orderBy: { position: 'asc' }, include: { user: { select: { id: true, name: true } }, payments: { orderBy: { sentAt: 'asc' } } } },
 } satisfies Prisma.ExpenseInclude;
 
-// Conflicting financial writes roll back; clients reload before retrying an edit.
-export function transaction<T>(work: (tx: Transaction) => Promise<T>) {
-  return prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+// Maintenance and access tracking can conflict with otherwise valid financial writes.
+// Retry only serialization/deadlock failures; business/version checks run again inside
+// the transaction, so stale edits and overpayments still return a conflict.
+export async function transaction<T>(work: (tx: Transaction) => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }); }
+    catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2034' || attempt >= 4) throw error;
+      await new Promise(resolve => setTimeout(resolve, 10 * (attempt + 1)));
+    }
+  }
 }
 
 export async function requireMember(tx: Transaction, groupId: string, userId: string) {
