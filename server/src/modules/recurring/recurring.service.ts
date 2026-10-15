@@ -1,3 +1,4 @@
+import { lockMaintenance } from '../../utils/maintenance-lock.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../config/database.js';
@@ -22,7 +23,7 @@ export async function writeCycleShares(tx: Transaction, expenseId: string, plan:
 // is a second guard against duplicates. A failed transaction never advances a schedule.
 export async function runMaintenance(now = new Date(), groupId: string | null = null) {
   return prisma.$transaction(async tx => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(416, 20261015)`;
+    await lockMaintenance(tx);
     // Archive before generating: a dormant schedule cannot keep an inactive group alive.
     await tx.$executeRaw`UPDATE "Group" SET "archivedAt" = (${now}::timestamptz AT TIME ZONE 'UTC'), "archiveReason" = 'INACTIVE' WHERE (${groupId}::text IS NULL OR "id" = ${groupId}) AND "archivedAt" IS NULL AND "lastActivityAt" <= (${now}::timestamptz AT TIME ZONE 'UTC') - "inactivityDays" * INTERVAL '1 day'`;
     const bills = await tx.recurringBill.findMany({ where: { ...(groupId ? { groupId } : {}), paused: false, group: { archivedAt: null } }, include: { cycles: true }, orderBy: { id: 'asc' } });

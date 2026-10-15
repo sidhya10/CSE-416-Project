@@ -1,3 +1,4 @@
+import { lockMaintenance } from '../../utils/maintenance-lock.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../config/database.js';
@@ -22,6 +23,7 @@ recurringRouter.get('/groups/:groupId/recurring', async (req, res) => {
 recurringRouter.post('/groups/:groupId/recurring', async (req, res) => {
   const value = input.parse(req.body);
   const bill = await transaction(async tx => {
+    await lockMaintenance(tx);
     await requireMember(tx, req.params.groupId, req.userId!);
     const group = await tx.group.findUniqueOrThrow({ where: { id: req.params.groupId } });
     if (group.archivedAt) throw new ExpenseError(409, 'Restore the group before adding a schedule');
@@ -40,6 +42,7 @@ recurringRouter.post('/groups/:groupId/recurring', async (req, res) => {
 recurringRouter.patch('/recurring/:id', async (req, res) => {
   const value = z.object({ defaultPlan: planSchema.optional(), paused: z.boolean().optional() }).strict().parse(req.body);
   const bill = await transaction(async tx => {
+    await lockMaintenance(tx);
     const bill = await tx.recurringBill.findUnique({ where: { id: req.params.id } });
     if (!bill) throw new ExpenseError(404, 'Schedule not found');
     await requireMember(tx, bill.groupId, req.userId!);
@@ -54,6 +57,7 @@ recurringRouter.put('/recurring/:id/cycles/:index', async (req, res) => {
   const index = z.coerce.number().int().min(0).max(100_000).parse(req.params.index);
   const plan = planSchema.parse(req.body);
   await transaction(async tx => {
+    await lockMaintenance(tx);
     const bill = await tx.recurringBill.findUnique({ where: { id: req.params.id } });
     if (!bill) throw new ExpenseError(404, 'Schedule not found');
     await requireMember(tx, bill.groupId, req.userId!);

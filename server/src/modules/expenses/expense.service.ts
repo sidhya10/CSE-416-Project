@@ -18,7 +18,7 @@ export const expenseInclude = {
 // the transaction, so stale edits and overpayments still return a conflict.
 export async function transaction<T>(work: (tx: Transaction) => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
-    try { return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }); }
+    try { return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 }); }
     catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2034' || attempt >= 4) throw error;
       await new Promise(resolve => setTimeout(resolve, 10 * (attempt + 1)));

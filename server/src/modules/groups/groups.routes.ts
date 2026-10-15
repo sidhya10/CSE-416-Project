@@ -1,3 +1,4 @@
+import { lockMaintenance } from '../../utils/maintenance-lock.js';
 import { runMaintenance } from '../recurring/recurring.service.js';
 import { filterGroups, groupFilters } from './group-list.js';
 import { ExpenseError, transaction } from '../expenses/expense.service.js';
@@ -146,10 +147,14 @@ groupsRouter.patch('/:groupId', async (request, response, next) => {
 groupsRouter.post('/:groupId/archive', async (request, response, next) => {
   try {
     const { archived } = z.object({ archived: z.boolean() }).strict().parse(request.body);
-    if (!(await requireMember(request.params.groupId, request.userId!))) return response.status(404).json({ error: 'Group not found' });
-    await prisma.group.update({ where: { id: request.params.groupId }, data: archived
-      ? { archivedAt: new Date(), archiveReason: 'MANUAL' }
-      : { archivedAt: null, archiveReason: null, lastActivityAt: new Date() } });
+    await transaction(async tx => {
+      await lockMaintenance(tx);
+      const member = await tx.groupMembership.findUnique({ where: { groupId_userId: { groupId: request.params.groupId, userId: request.userId! } } });
+      if (!member) throw new ExpenseError(404, 'Group not found');
+      await tx.group.update({ where: { id: request.params.groupId }, data: archived
+        ? { archivedAt: new Date(), archiveReason: 'MANUAL' }
+        : { archivedAt: null, archiveReason: null, lastActivityAt: new Date() } });
+    });
     return response.json({ group: await groupResponse(request.params.groupId, request.userId!) });
   } catch (error) { next(error); }
 });
@@ -195,6 +200,7 @@ groupsRouter.delete('/:groupId/members/:userId', async (request, response, next)
     if (!leavingSelf && actor.role === GroupRole.MEMBER) return response.status(403).json({ error: 'Only group owners and admins can remove members' });
     if (!leavingSelf && target.role === GroupRole.ADMIN && actor.role !== GroupRole.OWNER) return response.status(403).json({ error: 'Only the group owner can remove an admin' });
     await transaction(async tx => {
+      await lockMaintenance(tx);
       const expenses = await tx.expense.findMany({ where: { groupId: request.params.groupId }, include: { shares: { include: { payments: true } } } });
       const targetId = request.params.userId;
       for (const expense of expenses) {
