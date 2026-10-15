@@ -12,15 +12,19 @@ Archived groups suspend generation. Restoring resumes overdue, ungenerated cycle
 
 ## Shared archives
 
-Groups cannot be deleted through the UI or API. Any member can archive or restore a group for everyone. Archives retain memberships, expenses, receipts and payment history. The bottom **Archived groups** button opens a separate archive view; manual and inactivity archives have distinct tags. Other open clients refresh every 15 seconds or when the tab becomes visible, without requiring a reload.
+Groups cannot be deleted through the UI or API. Any member can archive or restore a group for everyone. Archives retain memberships, expenses, receipts and payment history. The bottom **Archived groups** button opens a separate archive view; manual and inactivity archives have distinct tags. The archive has a compact back header, muted background and dashed group cards, with no search, filters, creation actions or balance overview. Active-page filters do not hide archived groups. Other open clients refresh every 15 seconds or when the tab becomes visible, without requiring a reload.
 
 Groups default to auto-archiving after 60 days without activity. Owners/admins can set 1–3650 days in Group settings and save group details. Activity includes group/membership changes, expense edits/creation, payment reports/confirmations and schedule/plan changes. Access dates are tracked per member and do not reset inactivity. Restoring resets the activity clock.
 
 ## Search, filtering and sorting
 
-Both active and archived groups support name/description search, type, a selected friend, unresolved/settled/owe/owed status, inclusive creation and access date ranges, and minimum/maximum dollar amounts. Amount filtering uses the selected owe/owed direction (or that amount sort), otherwise the larger of the two amounts. Amounts are outstanding gross amounts, not a net balance. Unresolved splits remain first, including sent payments awaiting confirmation and debts that cancel to a zero net balance. Within each priority tier, the default order is most recently active; creation, personal access, owed and owing sorts are also available.
+The active Groups page supports name/description search, type, a selected friend, unresolved/settled/owe/owed status, inclusive creation and access date ranges, and minimum/maximum dollar amounts. Amount filtering uses the selected owe/owed direction (or that amount sort), otherwise the larger of the two amounts. Amounts are outstanding gross amounts, not a net balance. Unresolved splits remain first, including sent payments awaiting confirmation and debts that cancel to a zero net balance. Within each priority tier, the default order is most recently active; creation, personal access, owed and owing sorts are also available.
 
-User search automatically searches full name, username (including `@`), email and phone. Matching is case-insensitive and phone punctuation is ignored. Optional field restrictions and name/username/email sorting are available. Friendships continue to be listed first. Existing users added to groups have access immediately; there is no acceptance workflow.
+User search automatically searches full name, username (including `@`), email and phone. Matching is case-insensitive and phone punctuation is ignored. The UI always searches all fields automatically, with name/username/email sorting. Optional field restrictions remain supported by the API. Friendships continue to be listed first. Existing users added to groups have access immediately; there is no acceptance workflow.
+
+## Group creation
+
+The frontend requires at least one friend before proceeding to Customize group. Edit members and the customization back button reopen the selection step with a saved selection snapshot. Cancel discards member-selection edits and returns to the existing customization draft, preserving its name, description, purpose, dates and photo. Next commits the revised selection.
 
 ## API
 

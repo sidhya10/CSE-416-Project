@@ -85,4 +85,32 @@ authRouter.get('/me', requireAuth, async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
+const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1).max(1024),
+  newPassword: z.string().min(8, 'Use at least 8 characters').max(72)
+    .regex(/[0-9]/, 'Password must contain a number')
+    .refine(value => Buffer.byteLength(value, 'utf8') <= 72, 'Password must be at most 72 bytes'),
+  confirmPassword: z.string().min(1).max(72),
+}).strict().refine(value => value.newPassword === value.confirmPassword, 'New passwords do not match')
+  .refine(value => value.newPassword !== value.currentPassword, 'Choose a different new password');
+
+authRouter.post('/password', requireAuth, async (request, response, next) => {
+  const parsed = passwordChangeSchema.safeParse(request.body);
+  if (!parsed.success) return response.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid password change' });
+  try {
+    const user = await prisma.user.findUnique({ where: { id: request.userId! } });
+    if (!user) { clearSession(response); return response.status(401).json({ error: 'Account no longer exists' }); }
+    if (!user.passwordHash) return response.status(400).json({ error: 'This account uses Google sign-in. Manage your password through Google.' });
+    if (!(await verifyPassword(parsed.data.currentPassword, user.passwordHash))) return response.status(403).json({ error: 'Current password is incorrect' });
+    // Compare-and-swap prevents two simultaneous requests from replacing a newer password.
+    const updated = await prisma.user.updateMany({
+      where: { id: user.id, passwordHash: user.passwordHash },
+      data: { passwordHash: await hashPassword(parsed.data.newPassword) },
+    });
+    if (!updated.count) return response.status(409).json({ error: 'Password was changed by another request. Sign in again and retry.' });
+    setSession(response, user.id);
+    return response.status(204).end();
+  } catch (error) { next(error); }
+});
+
 authRouter.post('/logout', (_request, response) => { clearSession(response); response.status(204).end(); });

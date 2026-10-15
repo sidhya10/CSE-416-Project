@@ -16,7 +16,7 @@ function CategorySlider({ label, current, value, onChange, onReset }: {
       <button type="button" className="sim-reset" disabled={value === current} onClick={onReset}>↺ Reset</button></div>
     <div className="sim-category-values"><span>{formatCents(current)}</span><span aria-hidden="true">→</span><b>{formatCents(value)}</b></div>
     <input className="sim-slider" type="range" min={0} max={current} step={SLIDER_STEP_CENTS} value={value}
-      style={{ background: `linear-gradient(to right, #1f6e52 ${pct}%, #eeeee5 ${pct}%)` }}
+      style={{ background: `linear-gradient(to right, var(--accent) ${pct}%, var(--track) ${pct}%)` }}
       aria-label={`${label} scenario limit, currently ${formatCents(value)}`} onChange={event => onChange(Number(event.target.value))} />
   </div>;
 }
