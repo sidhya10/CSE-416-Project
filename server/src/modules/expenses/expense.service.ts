@@ -71,6 +71,7 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
     }
     await validateMembers(tx, groupId, input);
     const expense = await tx.expense.create({ data: { groupId, createdByUserId: userId, clientRequestId, ...expenseFields(input) } });
+    await tx.group.update({ where: { id: groupId }, data: { lastActivityAt: new Date() } });
     await writeItemsAndShares(tx, expense.id, input);
     await writeReceipt(tx, expense.id, input);
     return readExpense(tx, expense.id, userId);
@@ -80,9 +81,11 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
 export function editExpense(id: string, userId: string, version: number, input: ExpenseInput) {
   return transaction(async tx => {
     const previous = await readExpense(tx, id, userId);
+    if (previous.recurringBillId) throw new ExpenseError(409, 'Edit the payer and shares from this recurring cycle instead');
     if (previous.createdByUserId !== userId && previous.paidByUserId !== userId) throw new ExpenseError(403, 'Only the creator or payer can edit this expense');
     if (previous.version !== version) throw new ExpenseError(409, 'Expense changed; reload before editing');
     if (previous.shares.some(share => share.payments.length)) throw new ExpenseError(409, 'Expenses with payment history cannot be edited yet');
+    await tx.group.update({ where: { id: previous.groupId }, data: { lastActivityAt: new Date() } });
     await validateMembers(tx, previous.groupId, input);
     await tx.expense.update({ where: { id }, data: { ...expenseFields(input), version: { increment: 1 } } });
     await tx.expenseItem.deleteMany({ where: { expenseId: id } });
@@ -106,6 +109,7 @@ export function sendPayment(expenseId: string, userId: string, amountCents: numb
     }
     const committed = share.payments.filter(payment => payment.status !== 'ISSUE').reduce((sum, payment) => sum + payment.amountCents, 0);
     if (amountCents > share.totalCents - committed) throw new ExpenseError(409, 'Payment exceeds the remaining unreported amount');
+    await tx.group.update({ where: { id: expense.groupId }, data: { lastActivityAt: new Date() } });
     return tx.expensePayment.create({ data: { expenseId, senderUserId: userId, amountCents, clientRequestId } });
   });
 }
@@ -118,6 +122,7 @@ export function resolvePayment(expenseId: string, paymentId: string, userId: str
     if (!payment) throw new ExpenseError(404, 'Payment not found');
     if (payment.status === status) return payment;
     if (payment.status !== 'SENT') throw new ExpenseError(409, 'Payment has already been resolved');
+    await tx.group.update({ where: { id: expense.groupId }, data: { lastActivityAt: new Date() } });
     return tx.expensePayment.update({ where: { id: paymentId }, data: { status, resolvedAt: new Date() } });
   });
 }

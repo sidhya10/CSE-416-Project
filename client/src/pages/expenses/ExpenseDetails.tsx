@@ -23,7 +23,7 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
   const name = (id: string) => id === 'you' ? 'You' : split?.memberNames?.[id] ?? members.find(member => member.id === id)?.name ?? 'Member';
   const ownPayment = split ? paymentFor(split, 'you') : undefined;
   const payer = split?.payerId === 'you';
-  const editLocked = !!split?.expenseId && (split.hasPaymentHistory || (split.creatorId !== 'you' && !payer));
+  const editLocked = !!split?.expenseId && (split.recurring || split.hasPaymentHistory || (split.creatorId !== 'you' && !payer));
   const changeTab = (open: boolean) => { setPaymentsOpen(open); setNotice(''); onPaymentViewChange(open); };
   const paymentNotice = () => split ? changeTab(true) : setNotice('Payment records are unavailable for this sample.');
   return <main className="expense-screen expense-details-screen">
@@ -57,10 +57,10 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
         {split && <p className="details-avatar-hint">Tap an avatar to view their share</p>}
         {split ? <>
           {split.items.map(item => {
-            const contributors = split.shares.filter(share => split.mode === 'equal' || split.assignments[item.id]?.includes(share.memberId));
+            const contributors = split.recurring ? [] : split.shares.filter(share => split.mode === 'equal' || split.assignments[item.id]?.includes(share.memberId));
             return <section className="details-item" key={item.id} aria-label={`Contributors for ${item.name}`}>
               <div className="details-row"><strong>{item.name}{(item.quantity ?? 1) > 1 && ` × ${item.quantity}`}</strong><strong>{formatCents(item.cents)}</strong></div>
-              <div className="details-item-sharing"><p>{split.mode === 'equal' ? 'Shared equally by everyone' : `Shared by ${contributors.length}`}</p>
+              <div className="details-item-sharing"><p>{split.recurring ? 'Cycle allocation · See shares below' : split.mode === 'equal' ? 'Shared equally by everyone' : `Shared by ${contributors.length}`}</p>
               <div className="details-contributors">{contributors.map(share => {
                 const active = selectedContributor?.itemId === item.id && selectedContributor.memberId === share.memberId;
                 const memberIndex = members.findIndex(person => person.id === share.memberId);
@@ -72,7 +72,7 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
                 const amount = Math.floor(item.cents / contributors.length) + (index < item.cents % contributors.length ? 1 : 0);
                 return <div className="details-contributor-info" role="status" key={share.memberId}><span>{name(share.memberId)}{share.memberId === split.payerId ? ' · Payer' : ''}</span><strong>{split.mode === 'items' ? `${formatCents(amount)} before fees` : 'Equal share · See totals below'}</strong></div>;
               })}
-              {!contributors.length && <p>No participants assigned.</p>}
+              {!contributors.length && !split.recurring && <p>No participants assigned.</p>}
             </section>;
           })}
           {split.feeBreakdown ? Object.entries(split.feeBreakdown).map(([key, value]) => <div className="details-row" key={key}><span>{{ tax: 'Tax', tip: 'Tip', other: 'Other fees' }[key]}</span><span>{formatCents(value)}</span></div>) : <div className="details-row"><span>Tax, tip &amp; fees</span><span>{formatCents(split.feeCents)}</span></div>}
@@ -81,12 +81,12 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
         </> : <><div className="details-row"><span>Listed amount</span><strong>{expense.amount}</strong></div><p>Sample transaction · This is the amount shown in the group list. Item breakdowns are unavailable.</p></>}
       </section>
       <section className="details-card" aria-label="Split shares">
-        <h2>{split ? `${split.mode === 'equal' ? 'Equal split' : 'Split by item'} · ${split.shares.length} people` : 'Split summary'}</h2>
+        <h2>{split ? `${split.recurring ? 'Recurring cycle shares' : split.mode === 'equal' ? 'Equal split' : 'Split by item'} · ${split.shares.length} people` : 'Split summary'}</h2>
         {split ? split.shares.map(share => <div className="details-row" key={share.memberId}><span>{name(share.memberId)}{share.memberId === split.payerId ? ' · Payer' : ''}</span><span>{formatCents(share.totalCents)}</span></div>) : <p>Split details are unavailable for this sample.</p>}
       </section>
       </>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
-      {split && !paymentsOpen && <p className="details-preview">{split.expenseId ? (editLocked ? split.hasPaymentHistory ? 'Editing is locked because this expense has payment history.' : 'Only the expense creator or payer can edit.' : 'Saved to your group.') : 'Session-only preview. Live balances are not connected.'}</p>}
+      {split && !paymentsOpen && <p className="details-preview">{split.expenseId ? (editLocked ? split.recurring ? 'Edit this cycle’s payer and shares from its recurring schedule.' : split.hasPaymentHistory ? 'Editing is locked because this expense has payment history.' : 'Only the expense creator or payer can edit.' : 'Saved to your group.') : 'Session-only preview. Live balances are not connected.'}</p>}
     </div>
     {!paymentsOpen && <footer className="expense-footer"><button type="button" className="expense-outline" disabled={editLocked} onClick={() => split ? onEdit() : setNotice('This sample has no item or split records to edit. Create an expense to try the editing flow.')}>Edit expense</button></footer>}
   </main>;

@@ -1,3 +1,5 @@
+import { runMaintenance } from '../recurring/recurring.service.js';
+import { filterGroups, groupFilters } from './group-list.js';
 import { ExpenseError, transaction } from '../expenses/expense.service.js';
 import { GroupRole, Prisma } from '@prisma/client';
 import { Router } from 'express';
@@ -27,6 +29,7 @@ const createSchema = z.object({
   }
 });
 const updateSchema = z.object({
+  inactivityDays: z.number().int().min(1).max(3650).optional(),
   name: z.string().trim().min(1).max(70).optional(),
   description: z.string().trim().max(180).optional(),
   type: groupType.optional(),
@@ -59,12 +62,14 @@ async function requireMember(groupId: string, userId: string) {
 
 groupsRouter.get('/', async (request, response, next) => {
   try {
+    const filters = groupFilters.parse(request.query);
+    await runMaintenance();
     const groups = await prisma.group.findMany({
       where: { memberships: { some: { userId: request.userId! } } },
       include: groupInclude,
       orderBy: { updatedAt: 'desc' },
     });
-    response.json({ groups: groups.map(group => presentGroup(group, request.userId!)) });
+    response.json({ groups: filterGroups(groups.map(group => presentGroup(group, request.userId!)), filters) });
   } catch (error) { next(error); }
 });
 
@@ -87,7 +92,7 @@ groupsRouter.post('/', async (request, response, next) => {
         endDate: toDate(parsed.data.endDate),
         createdById: creatorId,
         memberships: { create: [
-          { userId: creatorId, role: GroupRole.OWNER },
+          { userId: creatorId, role: GroupRole.OWNER, lastAccessedAt: new Date() },
           ...memberIds.map(userId => ({ userId, role: GroupRole.MEMBER })),
         ] },
         invitations: { create: memberIds.map(invitedUserId => ({
@@ -107,6 +112,7 @@ groupsRouter.post('/', async (request, response, next) => {
 groupsRouter.get('/:groupId', async (request, response, next) => {
   try {
     if (!(await requireMember(request.params.groupId, request.userId!))) return response.status(404).json({ error: 'Group not found' });
+    await prisma.groupMembership.update({ where: { groupId_userId: { groupId: request.params.groupId, userId: request.userId! } }, data: { lastAccessedAt: new Date() } });
     const group = await groupResponse(request.params.groupId, request.userId!);
     if (!group) return response.status(404).json({ error: 'Group not found' });
     return response.json({ group });
@@ -128,6 +134,7 @@ groupsRouter.patch('/:groupId', async (request, response, next) => {
     if (resultingType === 'Trip' && (!startDate || !endDate || endDate < startDate)) return response.status(400).json({ error: 'Trip groups require valid start and end dates' });
     await prisma.group.update({ where: { id: current.id }, data: {
       ...parsed.data,
+      lastActivityAt: new Date(),
       startDate: toDate(parsed.data.startDate),
       endDate: toDate(parsed.data.endDate),
     } });
@@ -135,14 +142,15 @@ groupsRouter.patch('/:groupId', async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-groupsRouter.delete('/:groupId', async (request, response, next) => {
+// Archiving is shared by all members; groups and financial history are retained.
+groupsRouter.post('/:groupId/archive', async (request, response, next) => {
   try {
-    const member = await requireMember(request.params.groupId, request.userId!);
-    if (!member) return response.status(404).json({ error: 'Group not found' });
-    if (member.role !== GroupRole.OWNER) return response.status(403).json({ error: 'Only the group owner can delete this group' });
-    if (await prisma.expense.count({ where: { groupId: request.params.groupId } })) return response.status(409).json({ error: 'Groups with expense history cannot be deleted' });
-    await prisma.group.delete({ where: { id: request.params.groupId } });
-    return response.status(204).end();
+    const { archived } = z.object({ archived: z.boolean() }).strict().parse(request.body);
+    if (!(await requireMember(request.params.groupId, request.userId!))) return response.status(404).json({ error: 'Group not found' });
+    await prisma.group.update({ where: { id: request.params.groupId }, data: archived
+      ? { archivedAt: new Date(), archiveReason: 'MANUAL' }
+      : { archivedAt: null, archiveReason: null, lastActivityAt: new Date() } });
+    return response.json({ group: await groupResponse(request.params.groupId, request.userId!) });
   } catch (error) { next(error); }
 });
 
@@ -170,7 +178,7 @@ groupsRouter.post('/:groupId/invitations', async (request, response, next) => {
         create: { groupId: group.id, invitedUserId, invitedById: request.userId!, role: parsed.data.role, status: 'ACCEPTED', acceptedAt: new Date() },
         update: { invitedById: request.userId!, role: parsed.data.role, status: 'ACCEPTED', acceptedAt: new Date() },
       })),
-      prisma.group.update({ where: { id: group.id }, data: { updatedAt: new Date() } }),
+      prisma.group.update({ where: { id: group.id }, data: { updatedAt: new Date(), lastActivityAt: new Date() } }),
     ]);
     return response.status(201).json({ group: await groupResponse(group.id, request.userId!) });
   } catch (error) { next(error); }
@@ -197,7 +205,7 @@ groupsRouter.delete('/:groupId/members/:userId', async (request, response, next)
       }
       await tx.groupMembership.delete({ where: { groupId_userId: { groupId: request.params.groupId, userId: targetId } } });
       await tx.groupInvitation.updateMany({ where: { groupId: request.params.groupId, invitedUserId: targetId }, data: { status: 'REVOKED', acceptedAt: null } });
-      await tx.group.update({ where: { id: request.params.groupId }, data: { updatedAt: new Date() } });
+      await tx.group.update({ where: { id: request.params.groupId }, data: { updatedAt: new Date(), lastActivityAt: new Date() } });
     });
     return response.status(204).end();
   } catch (error) { next(error); }

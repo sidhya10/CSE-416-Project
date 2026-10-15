@@ -16,5 +16,9 @@ export type ApiGroup = {
   id: string; name: string; description: string; type: 'General' | 'Trip' | 'Recurring'; color: string;
   photoUrl: string | null; startDate: string; endDate: string; createdById: string; createdBy: AppUser;
   currentUserRole: GroupRole; members: GroupMember[]; invitations: GroupInvitation[];
+  archivedAt?: string | null; archiveReason?: string | null; inactivityDays?: number;
+  lastActivityAt?: string; lastAccessedAt?: string | null;
+  amountOwedCents?: number; amountOwesCents?: number; hasUnresolved?: boolean;
+  recurringBills?: import('./recurring.api').ApiRecurringBill[];
   createdAt: string; updatedAt: string;
 };

@@ -157,7 +157,7 @@ describe('persisted expenses and settlements', () => {
     groupIds.push(id);
     const created = await owner.post(`/api/groups/${id}/expenses`).send({ expense: input(), clientRequestId: randomUUID() }).expect(201);
     const expenseId = created.body.expense.id;
-    await owner.delete(`/api/groups/${id}`).expect(409);
+    await owner.delete(`/api/groups/${id}`).expect(404);
     await owner.delete('/api/users/me').expect(409);
     await owner.delete(`/api/groups/${id}/members/${memberId}`).expect(409);
     await member.delete(`/api/groups/${id}/members/${memberId}`).expect(409);

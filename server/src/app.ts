@@ -1,3 +1,4 @@
+import { recurringRouter } from './modules/recurring/recurring.routes.js';
 import { receiptsRouter } from './modules/receipts/receipt.routes.js';
 import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
@@ -32,6 +33,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/friends', friendsRouter);
 app.use('/api/groups', groupsRouter);
 app.use('/api', expensesRouter);
+app.use('/api', recurringRouter);
 
 app.use((_request, response) => {
   response.status(404).json({ error: 'Not found' });

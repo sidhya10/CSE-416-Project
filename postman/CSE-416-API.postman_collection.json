@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b32f71c8-fc4d-4f66-b8c4-c3f6e4160001",
     "name": "CSE 416 API",
-    "description": "End-to-end HTTP tests for health, email authentication, users, friends, groups, roles, invitations, membership authorization, and group deletion. Google credential verification is covered by the server Vitest suite because CI cannot mint a real Google ID token.",
+    "description": "End-to-end HTTP tests for health, email authentication, users, friends, groups, roles, invitations, membership authorization, and shared group archiving. Google credential verification is covered by the server Vitest suite because CI cannot mint a real Google ID token.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -104,9 +104,22 @@
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Invited member has access', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().group.currentUserRole).to.eql('MEMBER'); });"], "type": "text/javascript" } }]
     },
     {
-      "name": "Member cannot delete group",
-      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
-      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Member deletion is forbidden', () => pm.response.to.have.status(403));"], "type": "text/javascript" } }]
+      "name": "Group deletion endpoint is unavailable",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/groups/{{groupId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Group deletion is unavailable', () => pm.response.to.have.status(404));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
     },
     {
       "name": "Login admin",
@@ -129,9 +142,32 @@
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('New member sees saved group', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().groups.some(group => group.id === pm.collectionVariables.get('groupId'))).to.be.true; });"], "type": "text/javascript" } }]
     },
     {
-      "name": "Login owner for deletion",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{ownerEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
-      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner session restored', () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
+      "name": "Login owner for archive",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{ownerEmail}}\",\"password\":\"{{password}}\"}"
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Owner session restored', () => pm.response.to.have.status(200));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
     },
     {
       "name": "Update group as owner",
@@ -139,14 +175,50 @@
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner can update group', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().group.name).to.eql('Updated API Group'); });"], "type": "text/javascript" } }]
     },
     {
-      "name": "Delete group as owner",
-      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
-      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner deletes group', () => pm.response.to.have.status(204));"], "type": "text/javascript" } }]
+      "name": "Archive group for all members",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/groups/{{groupId}}/archive",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"archived\":true}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Shared group archived', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().group.archiveReason).to.eql('MANUAL'); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
     },
     {
-      "name": "Deleted group is gone",
-      "request": { "method": "GET", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
-      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Deleted group cannot be read', () => pm.response.to.have.status(404));"], "type": "text/javascript" } }]
+      "name": "Archive preserves group and history",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/groups/{{groupId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Archived group still exists', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().group.archivedAt).not.to.eql(null); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
     },
     {
       "name": "Remove friend",

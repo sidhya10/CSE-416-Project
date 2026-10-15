@@ -114,3 +114,55 @@ test('item splits and two-sided payments persist for different signed-in members
     await Promise.allSettled([ownerContext.close(), memberContext.close()]);
   }
 });
+
+test('a recurring expense generates once and any member can archive and restore the shared group', async ({ browser }) => {
+  const ownerContext = await browser.newContext({ baseURL: 'http://127.0.0.1:5173' });
+  const memberContext = await browser.newContext({ baseURL: 'http://127.0.0.1:5173' });
+  try {
+    const run = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
+    const createUser = async (context: typeof ownerContext, label: string) => {
+      const response = await context.request.post('/api/auth/register', { data: { name: label, username: `${label}_${run}`, email: `${label}_${run}@example.com`, password: 'password1' } });
+      expect(response.status()).toBe(201); return (await response.json()).user;
+    };
+    const owner = await createUser(ownerContext, 'scheduleowner');
+    const member = await createUser(memberContext, 'schedulemember');
+    const created = await ownerContext.request.post('/api/groups', { data: { name: `Recurring home ${run}`, type: 'Recurring', memberIds: [member.id] } });
+    expect(created.status()).toBe(201); const group = (await created.json()).group;
+    const payerPage = await ownerContext.newPage(), memberPage = await memberContext.newPage();
+    await payerPage.goto('/'); await payerPage.getByRole('button', { name: 'Groups', exact: true }).click();
+    await payerPage.getByRole('group', { name: group.name }).getByRole('button', { name: new RegExp(`${group.name}.*members`) }).click();
+    await payerPage.getByRole('button', { name: '+ Add recurring' }).click();
+    await payerPage.getByLabel('Name', { exact: true }).fill('Utilities');
+    await payerPage.getByLabel('Amount per cycle').fill('12');
+    await payerPage.getByLabel('Recurring from').fill(new Date().toISOString().slice(0, 10));
+    await payerPage.getByRole('button', { name: 'Save recurring cost' }).click();
+    await expect(payerPage.getByRole('button', { name: /Utilities.*View payments/ })).toBeVisible();
+    const expenses = await ownerContext.request.get(`/api/groups/${group.id}/expenses`);
+    expect((await expenses.json()).expenses).toHaveLength(1);
+    await payerPage.getByRole('button', { name: /Utilities.*Monthly/ }).click();
+    await payerPage.getByLabel('You', { exact: true }).fill('4');
+    await payerPage.getByLabel('schedulemember', { exact: true }).fill('8');
+    await payerPage.getByRole('button', { name: 'Save this cycle' }).click();
+    await expect(payerPage.getByText('Payment plan saved for this cycle.')).toBeVisible();
+    const balances = await ownerContext.request.get(`/api/groups/${group.id}/balances`);
+    expect((await balances.json()).balances).toEqual(expect.arrayContaining([expect.objectContaining({ userId: owner.id, balanceCents: 800 })]));
+    await memberPage.goto('/'); await memberPage.getByRole('button', { name: 'Groups', exact: true }).click();
+    await expect(memberPage.getByRole('group', { name: group.name })).toBeVisible();
+    await payerPage.getByRole('button', { name: 'Back', exact: true }).click();
+    await payerPage.getByRole('button', { name: 'Group settings' }).click();
+    await expect(payerPage.getByRole('button', { name: 'Delete group' })).toHaveCount(0);
+    await payerPage.getByRole('button', { name: 'Archive group' }).click();
+    await expect(payerPage.getByRole('heading', { name: 'Archived groups' })).toBeVisible();
+    await memberPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(memberPage.getByRole('group', { name: group.name })).toHaveCount(0);
+    await memberPage.getByRole('button', { name: 'Archived groups (1)' }).click();
+    await memberPage.getByRole('button', { name: `Restore ${group.name}` }).click();
+    await memberPage.getByRole('button', { name: 'Back to active groups' }).click();
+    await expect(memberPage.getByRole('group', { name: group.name })).toBeVisible();
+    await payerPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await payerPage.getByRole('button', { name: 'Back to active groups' }).click();
+    await expect(payerPage.getByRole('group', { name: group.name })).toBeVisible();
+    const restoredExpenses = await memberContext.request.get(`/api/groups/${group.id}/expenses`);
+    expect((await restoredExpenses.json()).expenses).toHaveLength(1);
+  } finally { await Promise.allSettled([ownerContext.close(), memberContext.close()]); }
+});

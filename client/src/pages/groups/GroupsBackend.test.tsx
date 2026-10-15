@@ -37,12 +37,16 @@ describe('group backend integration', () => {
         return response({ group }, 201);
       }
       if (url.endsWith('/groups') && !init?.method) return response({ groups });
-      if (url.endsWith('/groups/group-1') && init?.method === 'DELETE') { groups = []; return response(null, 204); }
+      if (url.endsWith('/groups/group-1/archive')) {
+        const { archived } = JSON.parse(String(init?.body));
+        groups = groups.map(group => ({ ...group, archivedAt: archived ? '2026-10-15T00:00:00Z' : null, archiveReason: archived ? 'MANUAL' : null }));
+        return response({ group: groups[0] });
+      }
       return response({ error: 'Not found' }, 404);
     }));
   });
 
-  it('creates a persisted group and removes it from the screen immediately after backend deletion', async () => {
+  it('creates a persisted group and moves it to the shared archive and restores it', async () => {
     render(<App initialUser={owner} />);
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     await screen.findByRole('button', { name: /new group/i });
@@ -56,10 +60,17 @@ describe('group backend integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Group settings' }));
     expect(screen.getByText('Created by you')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete group' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Groups' })).toBeInTheDocument());
-    expect(screen.queryByText('Persistent Team')).not.toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/groups/group-1'), expect.objectContaining({ method: 'DELETE' }));
+    expect(screen.queryByRole('button', { name: 'Delete group' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Archive group' }));
+    await screen.findByRole('heading', { name: 'Archived groups' });
+    expect(screen.getByText('Archived', { exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to active groups' }));
+    expect(screen.queryByRole('group', { name: 'Persistent Team' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Archived groups (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Persistent Team' }));
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Persistent Team' })).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Back to active groups' }));
+    expect(screen.getByRole('group', { name: 'Persistent Team' })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/groups/group-1/archive'), expect.objectContaining({ method: 'POST', body: JSON.stringify({ archived: false }) }));
   });
 });
