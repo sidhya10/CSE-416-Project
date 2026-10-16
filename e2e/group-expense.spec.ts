@@ -11,8 +11,18 @@ test('an expense persists across reload, edits in place, and updates the group o
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByRole('button', { name: 'Groups' }).click();
 
+  const companion = await page.request.post('/api/auth/register', { data: {
+    name: 'Flow Friend', username: `flow_friend_${run}`, email: `flow-friend-${run}@example.com`, password: 'password1',
+  } });
+  const { user: companionUser } = await companion.json();
+  await page.request.post('/api/auth/login', { data: { email: `flow-owner-${run}@example.com`, password: 'password1' } });
+  await page.request.post(`/api/friends/${companionUser.id}`);
+  await page.reload();
+  await page.getByRole('button', { name: 'Groups', exact: true }).click();
   await page.getByRole('button', { name: /new group/i }).click();
   await expect(page.getByRole('heading', { name: 'SELECTED · 0' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /next: customize group/i })).toBeDisabled();
+  await page.getByRole('button', { name: /Flow Friend.*@flow_friend/ }).click();
   await page.getByRole('button', { name: /next: customize group/i }).click();
   await page.getByRole('textbox', { name: 'GROUP NAME' }).fill('Project Team');
   await page.getByRole('button', { name: 'Create group' }).click();
@@ -26,7 +36,7 @@ test('an expense persists across reload, edits in place, and updates the group o
   await page.getByRole('button', { name: 'Back to group' }).last().click();
 
   await expect(page.getByRole('heading', { name: 'Project Team' })).toBeVisible();
-  await expect(page.getByText('$30.00')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Shared supplies.*30.00/ })).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: 'Groups', exact: true }).click();
   await page.getByRole('group', { name: 'Project Team' }).getByRole('button', { name: /Project Team.*members/ }).click();
@@ -45,7 +55,8 @@ test('an expense persists across reload, edits in place, and updates the group o
   await page.getByRole('button', { name: 'Back to Groups' }).click();
 
   const overview = page.getByLabel('Balance overview');
-  await expect(overview.getByText('$0.00')).toHaveCount(2);
+  await expect(overview.getByText('$20.00')).toHaveCount(1);
+  await expect(overview.getByText('$0.00')).toHaveCount(1);
   await expect(page.getByRole('group', { name: 'Project Team' })).toContainText('Project Team');
 });
 
@@ -157,12 +168,52 @@ test('a recurring expense generates once and any member can archive and restore 
     await expect(memberPage.getByRole('group', { name: group.name })).toHaveCount(0);
     await memberPage.getByRole('button', { name: 'Archived groups (1)' }).click();
     await memberPage.getByRole('button', { name: `Restore ${group.name}` }).click();
-    await memberPage.getByRole('button', { name: 'Back to active groups' }).click();
+    await memberPage.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(memberPage.getByRole('group', { name: group.name })).toBeVisible();
     await payerPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-    await payerPage.getByRole('button', { name: 'Back to active groups' }).click();
+    await payerPage.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(payerPage.getByRole('group', { name: group.name })).toBeVisible();
     const restoredExpenses = await memberContext.request.get(`/api/groups/${group.id}/expenses`);
     expect((await restoredExpenses.json()).expenses).toHaveLength(1);
   } finally { await Promise.allSettled([ownerContext.close(), memberContext.close()]); }
+});
+
+test('appearance persists and password changes work through settings and a new login', async ({ page }) => {
+  const run = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+  const email = `settings-${run}@example.com`;
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create an account' }).click();
+  await page.getByRole('textbox', { name: 'NAME', exact: true }).fill('Settings User');
+  await page.getByRole('textbox', { name: 'USERNAME' }).fill(`settings_${run}`.slice(0, 30));
+  await page.getByRole('textbox', { name: 'EMAIL' }).fill(email);
+  await page.getByLabel('PASSWORD').fill('original1');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: /Appearance/ }).click();
+  await page.getByLabel('Dark', { exact: true }).check();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: /Appearance/ }).click();
+  await expect(page.getByLabel('Dark', { exact: true })).toBeChecked();
+  await page.getByLabel('Light', { exact: true }).check();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByRole('button', { name: 'Back to Settings', exact: true }).click();
+  await page.getByRole('button', { name: /Account settings/ }).click();
+  await page.getByRole('button', { name: /^Password / }).click();
+  await page.getByLabel('Current password', { exact: true }).fill('original1');
+  await page.getByLabel('New password', { exact: true }).fill('replacement2');
+  await page.getByLabel('Confirm new password', { exact: true }).fill('replacement2');
+  await page.getByRole('button', { name: 'Update password' }).click();
+  await expect(page.getByText('Password changed successfully.')).toBeVisible();
+  await page.getByRole('button', { name: 'Back to Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Log out' }).click();
+  await page.getByRole('textbox', { name: 'EMAIL' }).fill(email);
+  await page.getByLabel('PASSWORD', { exact: true }).fill('original1');
+  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await expect(page.getByText('Email or password is incorrect')).toBeVisible();
+  await page.getByLabel('PASSWORD', { exact: true }).fill('replacement2');
+  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Good morning, there' })).toBeVisible();
 });

@@ -2,15 +2,21 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import App from './App';
+import { applyAppearance, readAppearance, useApplyAppearance } from './appearance';
 import ConnectedAccounts from './pages/banking/ConnectedAccounts';
 import WhatIfSimulator from './pages/budgets/WhatIfSimulator';
 import { clearRoute, previewRoutes, useHashRoute } from './router';
+import './theme.css';
 import './styles.css';
+
+applyAppearance(readAppearance());
 
 // Preview-only routing: visit #/preview/simulator or #/preview/banking directly in
 // the URL bar to open a standalone page before it's wired into the tab flow.
 // No links point here yet — this is manual-access only.
+
 function Root() {
+  useApplyAppearance();
   const route = useHashRoute();
   if (route === previewRoutes.simulator) return <div className="device"><WhatIfSimulator onBack={clearRoute} /></div>;
   if (route === previewRoutes.banking) return <div className="device"><ConnectedAccounts onBack={clearRoute} /></div>;

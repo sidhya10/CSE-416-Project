@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useAppearance } from '../../appearance';
+import { authApi } from '../../api/auth.api';
 import { ApiError } from '../../api/client';
 import type { AppUser } from '../../api/types';
 import { usersApi } from '../../api/users.api';
@@ -6,7 +8,7 @@ import ConnectedAccounts from '../banking/ConnectedAccounts';
 
 type Profile = Pick<AppUser, 'name' | 'username' | 'birthday' | 'bio' | 'photoUrl'>;
 
-type Screen = 'settings' | 'edit' | 'account' | 'banking' | 'notifications' | 'appearance' | 'privacy' | 'help';
+type Screen = 'settings' | 'password' | 'edit' | 'account' | 'banking' | 'notifications' | 'appearance' | 'privacy' | 'help';
 
 function SettingsRow({ title, subtitle, action, onClick }: {
   title: string;
@@ -32,12 +34,13 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
   const [draft, setDraft] = useState<Profile>(profile);
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
-  const [theme, setTheme] = useState('System');
+  const [theme, setTheme] = useAppearance();
+  const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
   const [reminders, setReminders] = useState(true);
   const photoInput = useRef<HTMLInputElement>(null);
   useEffect(() => setDraft(profile), [user.name, user.username, user.birthday, user.bio, user.photoUrl]);
 
-  const open = (next: Screen) => { setMessage(''); setScreen(next); onRootChange(next === 'settings'); };
+  const open = (next: Screen) => { setMessage(''); setPasswords({ current: '', next: '', confirm: '' }); setScreen(next); onRootChange(next === 'settings'); };
   const edit = () => { setDraft(profile); open('edit'); };
   const back = () => open('settings');
   const update = (field: keyof Pick<Profile, 'name' | 'username' | 'birthday' | 'bio'>, value: string) =>
@@ -85,7 +88,7 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       <SettingsRow title="Bank connections" subtitle="Linked banks, balances, and transaction sync" onClick={() => open('banking')} />
       <h2 className="settings-section-heading preferences-heading">Preferences</h2>
       <SettingsRow title="Notifications" subtitle="Budgets, settlements, and reminders" onClick={() => open('notifications')} />
-      <SettingsRow title="Appearance" subtitle="System theme" action={theme} onClick={() => open('appearance')} />
+      <SettingsRow title="Appearance" subtitle={theme === 'System' ? 'Follow your device appearance' : `${theme} theme`} action={theme} onClick={() => open('appearance')} />
       <SettingsRow title="Privacy & security" subtitle="Permissions and connected data" onClick={() => open('privacy')} />
       <SettingsRow title="Help & legal" subtitle="Support, privacy policy, and terms" onClick={() => open('help')} />
       <button className="logout-button" type="button" onClick={onLogout}>Log out</button>
@@ -113,6 +116,30 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       <p className="bio-note">Your bio is visible to friends and group members.</p>
       <p className="profile-footnote">Email and phone number are locked after registration.</p>
     </>}
+    {screen === 'password' && <>
+      <header className="subscreen-heading"><button type="button" onClick={() => open('account')} aria-label="Back to Account settings">‹</button><h1>Change password</h1></header>
+      {user.hasPassword ? <form className="profile-form password-form" onSubmit={async event => {
+        event.preventDefault();
+        if (saving) return;
+        if (passwords.next !== passwords.confirm) { setMessage('New passwords do not match.'); return; }
+        if (passwords.current === passwords.next) { setMessage('Choose a different new password.'); return; }
+        if (new TextEncoder().encode(passwords.next).length > 72) { setMessage('New password must be at most 72 bytes.'); return; }
+        setSaving(true); setMessage('');
+        try {
+          await authApi.changePassword(passwords.current, passwords.next, passwords.confirm);
+          open('account'); setMessage('Password changed successfully.');
+        } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not change your password. Try again.'); }
+        finally { setSaving(false); }
+      }}>
+        <label>Current password<input type="password" autoComplete="current-password" required disabled={saving} value={passwords.current} onChange={event => setPasswords({ ...passwords, current: event.target.value })} /></label>
+        <label>New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={72} pattern=".*[0-9].*" title="Use at least 8 characters, including a number" disabled={saving} value={passwords.next} onChange={event => setPasswords({ ...passwords, next: event.target.value })} /></label>
+        <label>Confirm new password<input type="password" autoComplete="new-password" required disabled={saving} value={passwords.confirm} onChange={event => setPasswords({ ...passwords, confirm: event.target.value })} /></label>
+        <p className="setting-info">Use at least 8 characters, including a number.</p>
+        <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Updating…' : 'Update password'}</button>
+        <button className="password-cancel" type="button" disabled={saving} onClick={() => open('account')}>Cancel</button>
+      </form> : <p className="setting-info">This account uses Google sign-in and has no password to change. Manage your Google password through your Google account.</p>}
+      {message && <p className="setting-notice" role="status">{message}</p>}
+    </>}
     {screen === 'account' && <>
       <header className="subscreen-heading"><button type="button" onClick={back} aria-label="Back to Settings">‹</button>
         <h1>Account settings</h1><p>Login methods and account recovery</p></header>
@@ -123,7 +150,7 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       <div className="connected-card"><span className="connected-icon">G</span><span className="setting-row-copy"><strong>Google</strong><small>{user.hasGoogle ? 'Connected login method' : 'Not connected'}</small></span><span>{user.hasGoogle ? 'Connected' : 'Not connected'}</span></div>
       {!user.hasGoogle && <button className="connect-google" type="button" onClick={() => setMessage('Sign out, then choose Continue with Google using this same email to connect it.')}>+&nbsp; Connect Google account</button>}
       <h2 className="settings-overline spaced">SECURITY</h2>
-      <SettingsRow title="Password" subtitle={user.hasPassword ? 'Password login enabled' : 'Google sign-in only'} onClick={() => setMessage('Password changes are not implemented yet.')} />
+      <SettingsRow title="Password" subtitle={user.hasPassword ? 'Password login enabled' : 'Google sign-in only'} onClick={() => open('password')} />
       <SettingsRow title="Two-step verification" subtitle="Not enabled" onClick={() => setMessage('Two-step verification requires an account.')} />
       <button className="delete-account" type="button" onClick={() => {
         if (!window.confirm('Delete your account and friendships permanently?')) return;
@@ -137,9 +164,9 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       {screen === 'notifications' && <label className="setting-row preference-control"><span className="setting-row-copy"><strong>Reminders</strong><small>Preview preference for budgets and settlements</small></span>
         <input type="checkbox" checked={reminders} onChange={event => setReminders(event.target.checked)} /></label>}
       {screen === 'appearance' && <fieldset className="appearance-options"><legend>Theme preference</legend>
-        {['System', 'Light', 'Dark'].map(option => <label key={option}><input type="radio" name="theme" value={option} checked={theme === option}
+        {(['System', 'Light', 'Dark'] as const).map(option => <label key={option}><input type="radio" name="theme" value={option} checked={theme === option}
           onChange={() => setTheme(option)} />{option}</label>)}
-        <p>Theme selection is a preview preference; app-wide themes are not connected yet.</p>
+        <p>System follows your device. Your choice is saved on this browser.</p>
       </fieldset>}
       {screen === 'privacy' && <p className="setting-info">Permissions and connected data will appear here when account and bank connections are available.</p>}
       {screen === 'help' && <p className="setting-info">Support and legal documents will be linked here when they are available.</p>}

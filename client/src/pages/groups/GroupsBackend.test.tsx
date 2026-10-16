@@ -64,12 +64,12 @@ describe('group backend integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Archive group' }));
     await screen.findByRole('heading', { name: 'Archived groups' });
     expect(screen.getByText('Archived', { exact: true })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to active groups' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.queryByRole('group', { name: 'Persistent Team' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Archived groups (1)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Restore Persistent Team' }));
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Persistent Team' })).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Back to active groups' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('group', { name: 'Persistent Team' })).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/groups/group-1/archive'), expect.objectContaining({ method: 'POST', body: JSON.stringify({ archived: false }) }));
   });

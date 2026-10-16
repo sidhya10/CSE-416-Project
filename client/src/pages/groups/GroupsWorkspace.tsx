@@ -131,7 +131,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const [allocationDraft, setAllocationDraft] = useState<Allocation | null>(null);
   const [openActionsId, setOpenActionsId] = useState<number | string | null>(null);
   const [filters, setFilters] = useState(defaultFilters);
-  const [friendField, setFriendField] = useState('all');
+  const [editingMembers, setEditingMembers] = useState(false);
+  const [memberSelectionSnapshot, setMemberSelectionSnapshot] = useState<string[]>([]);
   const [friendSort, setFriendSort] = useState('name');
   const [billBusy, setBillBusy] = useState(false);
   const swipeStart = useRef<{ id: number | string; x: number; y: number } | null>(null);
@@ -218,10 +219,10 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     setPeopleLoading(true);
     let cancelled = false;
     const timeout = window.setTimeout(() => {
-      usersApi.search(query, friendField, friendSort).then(result => { if (!cancelled) setSearchResults(result.users.map(toFriend)); }).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not search users.')).finally(() => { if (!cancelled) setPeopleLoading(false); });
+      usersApi.search(query, 'all', friendSort).then(result => { if (!cancelled) setSearchResults(result.users.map(toFriend)); }).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not search users.')).finally(() => { if (!cancelled) setPeopleLoading(false); });
     }, 200);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [screen, query, friendField, friendSort]);
+  }, [screen, query, friendSort]);
 
   useEffect(() => {
     if (activeId !== null && !active && !expensesLoading) {
@@ -265,9 +266,10 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   };
   const openBill = (id: number | string, index = 0) => { setBillId(id); setCycleIndex(index); setAllocationDraft(null); go('bill'); };
   const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
-  const startCreate = () => { setDraft(initialDraft()); setSelected([]); setEditing(false); go('select'); };
+  const startCreate = () => { setDraft(initialDraft()); setSelected([]); setEditing(false); setEditingMembers(false); go('select'); };
   const createGroup = async (event: FormEvent) => {
     event.preventDefault();
+    if (!selected.length) { setMessage('Select at least one friend to create a group.'); return; }
     if (draft.type === 'Trip' && (!draft.startDate || !draft.endDate || draft.endDate < draft.startDate)) {
       setMessage('Choose valid trip start and end dates.'); return;
     }
@@ -473,11 +475,12 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     setViewedExpense({ ...viewedExpense, split });
   }} onEdit={() => go('edit-expense')} expense={viewedExpense} groupName={active.name} members={expenseMembers} onBack={() => go('detail')} />;
 
-  const displayedGroups = selectGroups(groups, { ...filters, query }, screen === 'archive');
-  return <main className="groups-workspace">
+  const displayedGroups = selectGroups(groups, screen === 'archive' ? { ...defaultFilters, query: '' } : { ...filters, query }, screen === 'archive');
+  return <main className={`groups-workspace${screen === 'archive' ? ' archive-workspace' : ''}`}>
     {expensesLoading && <p role="status">Loading saved expenses…</p>}
     {(screen === 'list' || screen === 'archive') && <>
-      <Header title={screen === 'archive' ? 'Archived groups' : 'Groups'} subtitle="Split, plan, and settle with people you trust" />
+      {screen === 'archive' ? <Header title="Archived groups" back={() => go('list')} /> : <>
+      <Header title="Groups" subtitle="Split, plan, and settle with people you trust" />
       <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search groups" aria-label="Search groups" /></label>
       <div className="group-actions"><button type="button" onClick={() => go('friends')}>+&nbsp; Find friends</button><button type="button" onClick={startCreate}>+&nbsp; New group</button></div>
       <section className="group-balance" aria-label="Balance overview">
@@ -503,7 +506,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         <label>Maximum amount ($)<input type="number" min="0" step="0.01" value={filters.maxAmount} onChange={event => setFilters({ ...filters, maxAmount: event.target.value })} /></label>
         <button type="button" onClick={() => { setFilters(defaultFilters); setQuery(''); }}>Clear filters</button>
       </div><small>Unresolved splits stay first. Amount filters use your selected owed/owing direction, or the larger amount when viewing both.</small></details>
-      <h2 className="group-section-title">{screen === 'archive' ? 'Archive' : 'Your groups'}</h2>
+      <h2 className="group-section-title">Your groups</h2>
+      </>}
       {message && <p className="group-notice" role="status">{message}</p>}
       <div className="group-list">{displayedGroups.map(group =>
         <div className={`group-list-row${openActionsId === group.id ? ' is-open' : ''}`} key={group.id} role="group" aria-label={group.name}
@@ -528,13 +532,13 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
               <button className="group-card-menu" type="button" aria-label="Group actions" aria-expanded={openActionsId === group.id}
                 onClick={() => setOpenActionsId(openActionsId === group.id ? null : group.id)}>›</button>}</div>
         </div>)}</div>
-      {!displayedGroups.length && <p className="group-caption">No matching groups.</p>}
-      <button type="button" className="archive-tab" onClick={() => go(screen === 'archive' ? 'list' : 'archive')}>{screen === 'archive' ? 'Back to active groups' : `Archived groups (${groups.filter(group => group.archived).length})`}</button>
+      {!displayedGroups.length && <p className="group-caption">{screen === 'archive' ? 'No archived groups.' : 'No matching groups.'}</p>}
+      {screen === 'list' && <button type="button" className="archive-tab" onClick={() => go('archive')}>{`Archived groups (${groups.filter(group => group.archived).length})`}</button>}
     </>}
     {screen === 'friends' && <>
       <Header title="Find friends" subtitle="Search by full name, username, email, or phone number" back={() => go('list')} />
       <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, @username, email, or phone" aria-label="Search friends" /></label>
-      <div className="group-form filter-grid"><label>Search field<select value={friendField} onChange={event => setFriendField(event.target.value)}><option value="all">All fields (automatic)</option><option value="name">Name</option><option value="username">Username</option><option value="email">Email</option><option value="phone">Phone</option></select></label>
+      <div className="group-form filter-grid">
       <label>Sort people by<select value={friendSort} onChange={event => setFriendSort(event.target.value)}><option value="name">Name</option><option value="username">Username</option><option value="email">Email</option></select></label></div>
       <h2 className="group-overline">{query ? 'SEARCH RESULTS' : `ALL PEOPLE · FRIENDS FIRST`}</h2>
       {peopleLoading && <p className="group-caption" role="status">Searching accounts…</p>}
@@ -563,19 +567,20 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       {message && <p className="group-notice" role="status">{message}</p>}
     </>}
     {screen === 'select' && <>
-      <header className="group-centered-header"><button type="button" onClick={() => go('list')}>Cancel</button><h1>Select friends</h1></header>
+      <header className="group-centered-header"><button type="button" onClick={() => { if (editingMembers) setSelected(memberSelectionSnapshot); go(editingMembers ? 'customize' : 'list'); }}>Cancel</button><h1>Select friends</h1></header>
       <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search your friends" aria-label="Search your friends" /></label>
       <h2 className="group-overline">SELECTED · {selected.length}</h2>
       <div className="selected-friends">{selected.map(id => { const friend = friends.find(item => item.id === id); return friend &&
         <div key={id}><Avatar name={friend.name} color={friend.color} /><small>{friend.name.split(' ')[0]}</small></div>; })}</div>
       <h2 className="group-overline">ALL FRIENDS</h2>
+      <p className="group-caption">Select at least one friend to continue.</p>
       {listFriends.map(friend => <button type="button" className="friend-card select-friend" key={friend.id} onClick={() => toggle(friend.id)}>
         <Avatar name={friend.name} color={friend.color} /><span><strong>{friend.name}</strong><small>{friend.handle}</small></span>
         <span className={selected.includes(friend.id) ? 'selection checked' : 'selection'}>{selected.includes(friend.id) ? '✓' : ''}</span></button>)}
-      <button className="group-primary group-bottom-action" type="button" onClick={() => { setDraft(previous => ({ ...previous, members: selected })); go('customize'); }}>Next: customize group</button>
+      <button className="group-primary group-bottom-action" type="button" disabled={!selected.length} onClick={() => { if (!selected.length) return; setDraft(previous => ({ ...previous, members: selected })); go('customize'); }}>Next: customize group</button>
     </>}
     {screen === 'customize' && <>
-      <Header title="Customize group" subtitle="You can change these settings later." back={() => go('select')} />
+      <Header title="Customize group" subtitle="You can change these settings later." back={() => { setMemberSelectionSnapshot([...selected]); setEditingMembers(true); go('select'); }} />
       <div className="group-photo-editor"><button type="button" onClick={() => photoInput.current?.click()} aria-label="Add group photo">
         <Avatar name={draft.name || 'B'} color={draft.color} photo={draft.photo} size="large" /><span>+</span></button>
         <button type="button" onClick={() => photoInput.current?.click()}>Add group photo</button></div>
@@ -593,13 +598,13 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
             <label>End<input type="date" required min={draft.startDate} value={draft.endDate} onChange={event => updateGroup({ endDate: event.target.value })} /></label></div></div>}
         <div className="member-preview"><span className="group-field-label">MEMBERS · {selected.length + 1}</span><div className="member-preview-card">
           {groupMembers({ ...draft, members: selected }).slice(0, 4).map(member => <div key={member.id}><Avatar name={member.name} color={member.color} /><small>{member.name.split(' ')[0]}</small></div>)}
-          <button type="button" onClick={() => go('select')}>Edit members</button></div></div>
+          <button type="button" onClick={() => { setMemberSelectionSnapshot([...selected]); setEditingMembers(true); go('select'); }}>Edit members</button></div></div>
       </form>
       {message && <p className="group-notice" role="status">{message}</p>}
       <button className="group-primary" type="submit" form="create-group">Create group</button>
     </>}
     {screen === 'detail' && active && <>
-      <div className="group-detail-header"><button type="button" className="group-back" onClick={() => go('list')} aria-label="Back to Groups">‹</button>
+      <div className="group-detail-header"><button type="button" className="group-back" onClick={() => go(active.archived ? 'archive' : 'list')} aria-label="Back to Groups">‹</button>
         <Avatar name={active.name} color={active.color} photo={active.photo} /><span><h1>{active.name}</h1><small>{active.type}{active.type === 'Trip' && active.startDate ? ` · ${dateLabel(active.startDate)}–${dateLabel(active.endDate)}` : ''} · {active.members.length + 1} members</small></span>
         <button type="button" className="group-more" onClick={() => { setEditing(true); go('settings'); }} aria-label="Group settings">•••</button></div>
       {active.type === 'Recurring' ? <>
