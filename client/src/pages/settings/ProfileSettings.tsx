@@ -4,6 +4,7 @@ import { authApi } from '../../api/auth.api';
 import { ApiError } from '../../api/client';
 import type { AppUser } from '../../api/types';
 import { usersApi } from '../../api/users.api';
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 import ConnectedAccounts from '../banking/ConnectedAccounts';
 
 type Profile = Pick<AppUser, 'name' | 'username' | 'birthday' | 'bio' | 'photoUrl'>;
@@ -148,7 +149,7 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       <SettingsRow title="Phone number" subtitle={user.phone ?? 'Not added at registration'} action="Locked" />
       <h2 className="settings-overline spaced">CONNECTED ACCOUNTS</h2>
       <div className="connected-card"><span className="connected-icon">G</span><span className="setting-row-copy"><strong>Google</strong><small>{user.hasGoogle ? 'Connected login method' : 'Not connected'}</small></span><span>{user.hasGoogle ? 'Connected' : 'Not connected'}</span></div>
-      {!user.hasGoogle && <button className="connect-google" type="button" onClick={() => setMessage('Sign out, then choose Continue with Google using this same email to connect it.')}>+&nbsp; Connect Google account</button>}
+      {!user.hasGoogle && <GoogleSignInButton intent="link" onSuccess={updated => { onUserChange(updated); setMessage('Google account connected. You can sign in with Google or your existing password.'); }} />}
       <h2 className="settings-overline spaced">SECURITY</h2>
       <SettingsRow title="Password" subtitle={user.hasPassword ? 'Password login enabled' : 'Google sign-in only'} onClick={() => open('password')} />
       <SettingsRow title="Two-step verification" subtitle="Not enabled" onClick={() => setMessage('Two-step verification requires an account.')} />

@@ -1,3 +1,4 @@
+import { clearGoogleAttempt, currentSession, readGoogleAttempt, startGoogleAttempt } from './google-attempt.js';
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
@@ -18,7 +19,7 @@ const accountSchema = z.object({
   phone: z.string().trim().min(7).max(24).optional().or(z.literal('')).transform(value => value || undefined),
 });
 const loginSchema = z.object({ email: z.email().transform(value => value.toLowerCase()), password: z.string().min(1) });
-const googleSchema = z.object({ credential: z.string().min(1) });
+const googleSchema = z.object({ credential: z.string().min(1).max(20000), state: z.string().length(64) });
 
 const validationError = (issues: { message: string }[]) => ({ error: 'Invalid request', details: issues.map(issue => issue.message) });
 const conflictMessage = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -50,32 +51,68 @@ authRouter.post('/login', async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-authRouter.post('/google', async (request, response, next) => {
-  if (!env.GOOGLE_CLIENT_ID) return response.status(503).json({ error: 'Google sign-in is not configured yet' });
-  const parsed = googleSchema.safeParse(request.body);
+authRouter.post('/google/start', (request, response) => {
+  if (!env.GOOGLE_CLIENT_ID) return response.status(503).json({ error: 'Google sign-in is not configured on the server. Set GOOGLE_CLIENT_ID and restart the app.' });
+  const parsed = z.object({ nonce: z.string().min(32).max(128).regex(/^[A-Za-z0-9_-]+$/), intent: z.enum(['signin', 'link']) }).safeParse(request.body);
   if (!parsed.success) return response.status(400).json(validationError(parsed.error.issues));
-  try {
-    const ticket = await new OAuth2Client(env.GOOGLE_CLIENT_ID).verifyIdToken({ idToken: parsed.data.credential, audience: env.GOOGLE_CLIENT_ID });
-    const payload = ticket.getPayload();
-    if (!payload?.sub || !payload.email || payload.email_verified !== true) return response.status(401).json({ error: 'Google could not verify this account' });
-    const email = payload.email.toLowerCase();
-    let user = await prisma.user.findFirst({ where: { OR: [{ googleSubject: payload.sub }, { email }] } });
-    if (user) {
-      if (user.googleSubject && user.googleSubject !== payload.sub) return response.status(409).json({ error: 'That email belongs to another Google account' });
-      if (!user.googleSubject) user = await prisma.user.update({ where: { id: user.id }, data: { googleSubject: payload.sub, photoUrl: user.photoUrl ?? payload.picture } });
-    } else {
-      const base = (email.split('@')[0] ?? 'user').replace(/[^A-Za-z0-9_]/g, '').slice(0, 24).toLowerCase() || 'user';
-      let username = base;
-      for (let suffix = 1; await prisma.user.findUnique({ where: { username } }); suffix += 1) username = `${base.slice(0, 24)}${suffix}`;
-      user = await prisma.user.create({ data: { email, username, name: payload.name?.trim() || username, googleSubject: payload.sub, photoUrl: payload.picture } });
-    }
-    setSession(response, user.id);
-    return response.json({ user: presentUser(user) });
-  } catch (error) {
-    if (error instanceof Error && /token|audience|issuer|signature/i.test(error.message)) return response.status(401).json({ error: 'Google sign-in token is invalid or expired' });
-    next(error);
-  }
+  const userId = currentSession(request);
+  if (parsed.data.intent === 'link' && !userId) return response.status(401).json({ error: 'Sign in before connecting a Google account' });
+  return response.json(startGoogleAttempt(response, parsed.data.nonce, parsed.data.intent, userId));
 });
+
+// The same verified identity supports new accounts, returning users, and explicit linking.
+// Linking always targets the authenticated user, never whichever email Google returns.
+for (const intent of ['signin', 'link'] as const) {
+  authRouter.post(intent === 'link' ? '/google/link' : '/google', async (request, response, next) => {
+    if (!env.GOOGLE_CLIENT_ID) return response.status(503).json({ error: 'Google sign-in is not configured on the server' });
+    if (intent === 'link' && !currentSession(request)) return response.status(401).json({ error: 'Sign in before connecting a Google account' });
+    const parsed = googleSchema.safeParse(request.body);
+    if (!parsed.success) return response.status(400).json(validationError(parsed.error.issues));
+    const attempt = readGoogleAttempt(request, parsed.data.state, intent);
+    if (!attempt) return response.status(401).json({ error: 'Google sign-in expired or your session changed. Try again.' });
+    try {
+      let payload;
+      try {
+        const ticket = await new OAuth2Client(env.GOOGLE_CLIENT_ID).verifyIdToken({ idToken: parsed.data.credential, audience: env.GOOGLE_CLIENT_ID });
+        payload = ticket.getPayload();
+      } catch { return response.status(401).json({ error: 'Google sign-in token is invalid or expired. Try again.' }); }
+      if (!payload?.sub || !payload.email || payload.email_verified !== true || payload.nonce !== attempt.nonce) return response.status(401).json({ error: 'Google could not verify this sign-in. Try again.' });
+      const email = payload.email.toLowerCase();
+      const [bySubject, byEmail] = await Promise.all([
+        prisma.user.findUnique({ where: { googleSubject: payload.sub } }),
+        prisma.user.findUnique({ where: { email } }),
+      ]);
+      let user;
+      if (intent === 'link') {
+        user = await prisma.user.findUnique({ where: { id: attempt.userId! } });
+        if (!user) { clearSession(response); return response.status(401).json({ error: 'Account no longer exists' }); }
+        if (bySubject && bySubject.id !== user.id || byEmail && byEmail.id !== user.id) return response.status(409).json({ error: 'That Google account is already associated with another account. Sign in to that account instead.' });
+        if (user.googleSubject && user.googleSubject !== payload.sub) return response.status(409).json({ error: 'A different Google account is already connected' });
+      } else {
+        user = bySubject ?? byEmail;
+        if (user?.googleSubject && user.googleSubject !== payload.sub) return response.status(409).json({ error: 'That email belongs to another Google account' });
+        // Google is authoritative for Gmail and Workspace emails, not third-party email ownership.
+        if (user && !user.googleSubject && !email.endsWith('@gmail.com') && !payload.hd) return response.status(409).json({ error: 'Sign in with your password first, then connect Google in Account settings.' });
+      }
+      if (user && !user.googleSubject) {
+        const updated = await prisma.user.updateMany({ where: { id: user.id, googleSubject: null }, data: { googleSubject: payload.sub, photoUrl: user.photoUrl ?? payload.picture } });
+        if (!updated.count) return response.status(409).json({ error: 'Account connection changed. Refresh and try again.' });
+        user = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+      } else if (!user) {
+        const base = (email.split('@')[0] ?? 'user').replace(/[^A-Za-z0-9_]/g, '').slice(0, 24).toLowerCase() || 'user';
+        let username = base;
+        for (let suffix = 1; await prisma.user.findUnique({ where: { username } }); suffix += 1) username = `${base}${suffix}`;
+        user = await prisma.user.create({ data: { email, username, name: payload.name?.trim() || username, googleSubject: payload.sub, photoUrl: payload.picture } });
+      }
+      clearGoogleAttempt(response);
+      setSession(response, user.id);
+      return response.json({ user: presentUser(user) });
+    } catch (error) {
+      if (conflictMessage(error)) return response.status(409).json({ error: 'That Google account is already connected or the account was just created. Try signing in again.' });
+      next(error);
+    }
+  });
+}
 
 authRouter.get('/me', requireAuth, async (request, response, next) => {
   try {

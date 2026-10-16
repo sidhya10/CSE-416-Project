@@ -124,7 +124,7 @@ npm run prisma:migrate
 npm run dev
 ```
 
-Open the URL printed by Vite (normally http://localhost:5173), create an account, and sign in. To enable Google sign-in, set both `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth web client ID and add the frontend origin to that client's authorized JavaScript origins.
+Open the URL printed by Vite (normally http://localhost:5173), create an account, and sign in. To enable Google popup sign-in, set `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` in the root `.env` to the same OAuth Web client ID, authorize `http://localhost` and `http://localhost:5173` in Google, and restart both processes. Vite reads the root `.env`. See [Google setup and account linking](docs/google-auth.md) for popup, Profile connection, native-mobile scope and troubleshooting. Email/password authentication remains available independently.
 
 After pulling changes, stop the dev servers and run `npm ci`, `npm run prisma:generate`, and `npx prisma migrate deploy` before restarting `npm run dev`. This installs the pulled dependencies, refreshes Prisma Client, and applies committed database migrations without resetting local data. Keep the Prisma CLI and `@prisma/client` on compatible version 6 releases for the current schema.
 

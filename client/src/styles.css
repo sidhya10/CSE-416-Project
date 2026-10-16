@@ -54,3 +54,9 @@ form input::placeholder{color:var(--muted);opacity:1}
 button:disabled { cursor: not-allowed; }
 .primary-button:disabled { opacity: .6; }
 .group-avatar.gold:not(.large), .sim-avatar.tone-1, .payment-avatar.tone-3, .payer-avatar.tone-3 { color: #1a2421; }
+
+.google-auth-control { flex: none; width: 100%; min-width: 0; }
+.google-button-target { width: 100%; min-height: 44px; }
+.google-button-target[hidden] { display: none; }
+.google-connect-label { margin: 14px 0 10px; color: var(--accent); font-size: 13px; font-weight: 600; }
+.google-retry { margin: 8px 0; padding: 8px 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
