@@ -1,0 +1,94 @@
+import { prisma } from '../../config/database.js';
+import { groupBalances } from '../expenses/expense.service.js';
+import { CATEGORY_KEYS, categorize, monthWindow, type CategoryKey } from './budget.categories.js';
+
+export class BudgetError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
+const isoDate = (value: Date) => value.toISOString().slice(0, 10);
+
+type CategoryTransaction = { id: string; merchant: string; date: string; amountCents: number; pending: boolean };
+
+/** This month's personal budget: category limits plus spending from the user's visible bank accounts. */
+export async function personalBudget(userId: string, now = new Date()) {
+  const window = monthWindow(now);
+  const [limits, rows, connections] = await Promise.all([
+    prisma.categoryLimit.findMany({ where: { userId } }),
+    // Plaid reports money leaving an account as a positive amount; refunds and deposits are negative.
+    prisma.bankTransaction.findMany({
+      where: { amountCents: { gt: 0 }, date: { gte: window.start, lt: window.end }, account: { hidden: false, connection: { userId } } },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    }),
+    prisma.bankConnection.findMany({ where: { userId }, select: { lastSyncedAt: true } }),
+  ]);
+  const transactions = Object.fromEntries(CATEGORY_KEYS.map(key => [key, [] as CategoryTransaction[]])) as Record<CategoryKey, CategoryTransaction[]>;
+  const spent = Object.fromEntries(CATEGORY_KEYS.map(key => [key, 0])) as Record<CategoryKey, number>;
+  for (const row of rows) {
+    const key = categorize(row);
+    if (!key) continue;
+    transactions[key].push({ id: row.id, merchant: row.merchant ?? row.name, date: isoDate(row.date), amountCents: row.amountCents, pending: row.pending });
+    spent[key] += row.amountCents;
+  }
+  const limitFor = new Map(limits.map(limit => [limit.category, limit.limitCents]));
+  const synced = connections.flatMap(connection => connection.lastSyncedAt ? [connection.lastSyncedAt.getTime()] : []);
+  return {
+    month: window.month, daysInMonth: window.daysInMonth, daysLeft: window.daysLeft,
+    hasBankConnection: connections.length > 0, lastSyncedAt: synced.length ? Math.max(...synced) : null,
+    categories: CATEGORY_KEYS.map(key => ({ key, plannedCents: limitFor.get(key) ?? 0, spentCents: spent[key] })),
+    transactions,
+  };
+}
+
+export async function saveLimits(userId: string, limits: Partial<Record<CategoryKey, number>>) {
+  await prisma.$transaction(Object.entries(limits).map(([category, limitCents]) =>
+    prisma.categoryLimit.upsert({ where: { userId_category: { userId, category } }, create: { userId, category, limitCents }, update: { limitCents } })));
+  return personalBudget(userId);
+}
+
+/**
+ * This month's budget for each active group the user belongs to. Spending is the group's expense totals for the month.
+ * Who owes whom comes from the shared expense ledger (shares minus confirmed payments), across all months.
+ */
+export async function groupBudgets(userId: string, now = new Date()) {
+  const window = monthWindow(now);
+  const groups = await prisma.group.findMany({
+    where: { archivedAt: null, memberships: { some: { userId } } },
+    include: { memberships: { orderBy: { joinedAt: 'asc' } }, budgetPlan: true },
+    orderBy: { updatedAt: 'desc' },
+  });
+  if (!groups.length) return [];
+  const groupIds = groups.map(group => group.id);
+  const [expenses, balances] = await Promise.all([
+    prisma.expense.findMany({ where: { groupId: { in: groupIds }, expenseDate: { gte: window.start, lt: window.end } }, select: { groupId: true, paidByUserId: true, totalCents: true } }),
+    Promise.all(groups.map(group => groupBalances(group.id, userId))),
+  ]);
+  const people = await prisma.user.findMany({ where: { id: { in: [...new Set(balances.flat().map(balance => balance.userId))] } }, select: { id: true, name: true } });
+  const nameOf = new Map(people.map(person => [person.id, person.name]));
+  return groups.map((group, index) => {
+    const monthly = expenses.filter(expense => expense.groupId === group.id);
+    const memberships = group.memberships;
+    const role = memberships.find(member => member.userId === userId)?.role;
+    const members = (balances[index] ?? [])
+      .filter(balance => balance.balanceCents !== 0 || memberships.some(member => member.userId === balance.userId))
+      .map(balance => ({
+        id: balance.userId, name: nameOf.get(balance.userId) ?? 'Former member', isYou: balance.userId === userId,
+        paidCents: monthly.filter(expense => expense.paidByUserId === balance.userId).reduce((sum, expense) => sum + expense.totalCents, 0),
+        owesCents: Math.max(0, -balance.balanceCents), owedCents: Math.max(0, balance.balanceCents),
+      }))
+      .sort((a, b) => Number(b.isYou) - Number(a.isYou) || a.name.localeCompare(b.name));
+    return {
+      id: group.id, name: group.name, color: group.color, type: group.type, memberCount: memberships.length,
+      spentCents: monthly.reduce((sum, expense) => sum + expense.totalCents, 0), plannedCents: group.budgetPlan?.plannedCents ?? 0,
+      daysLeft: window.daysLeft, canEditPlan: role === 'OWNER' || role === 'ADMIN', members,
+    };
+  });
+}
+
+export async function saveGroupPlan(userId: string, groupId: string, plannedCents: number) {
+  const member = await prisma.groupMembership.findUnique({ where: { groupId_userId: { groupId, userId } } });
+  if (!member) throw new BudgetError(404, 'Group not found');
+  if (member.role === 'MEMBER') throw new BudgetError(403, 'Only group owners and admins can set the shared plan');
+  await prisma.groupBudgetPlan.upsert({ where: { groupId }, create: { groupId, plannedCents }, update: { plannedCents } });
+  return groupBudgets(userId);
+}

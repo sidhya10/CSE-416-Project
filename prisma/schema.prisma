@@ -22,6 +22,7 @@ model User {
   updatedAt            DateTime          @updatedAt
   createdRecurringBills RecurringBill[]
   bankConnections      BankConnection[]
+  categoryLimits       CategoryLimit[]
   createdExpenses      Expense[]         @relation("ExpenseCreator")
   paidExpenses         Expense[]         @relation("ExpensePayer")
   expenseShares        ExpenseShare[]
@@ -74,6 +75,7 @@ model Group {
   expenses    Expense[]
   memberships GroupMembership[]
   recurringBills RecurringBill[]
+  budgetPlan GroupBudgetPlan?
   archivedAt DateTime?
   archiveReason String?
   inactivityDays Int @default(60)
@@ -318,4 +320,25 @@ model BankTransaction {
   category           String?
   pending            Boolean     @default(false)
   @@index([accountId, date])
+}
+
+// Per-user monthly limit for one of the fixed budget categories (see budget.categories.ts).
+// A missing row, or a limit of 0, means no limit is set for that category.
+model CategoryLimit {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   String
+  limitCents Int
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, category])
+}
+
+// Shared monthly plan for a group, set by an owner or admin. No row means no plan is set.
+model GroupBudgetPlan {
+  groupId      String   @id
+  group        Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  plannedCents Int
+  updatedAt    DateTime @updatedAt
 }

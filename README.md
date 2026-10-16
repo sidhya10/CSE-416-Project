@@ -28,7 +28,7 @@ The app records settlements but does not move real money. Version 1 is USD-only 
 
 The mobile app opens on the Log in screen. Users can create an account with name, username, email, optional phone number, and a password of at least eight characters including a number. Email/password authentication and signed httpOnly sessions are implemented. Google Identity Services sign-in is implemented and activates when the Google client ID is configured. After authentication, a persistent bottom navigation bar has four destinations: **Home**, **Budget**, **Groups**, and **Profile**. Profile data is loaded from PostgreSQL; profile photo, username, name, birthday, and bio are editable, while email and phone number are read-only.
 
-Account registration, login, logout, current-session lookup, profile updates, and account deletion call the Express API. Friend discovery searches every registered account by name, username, email, or phone, and friendships persist in PostgreSQL. Groups, memberships, expenses, split assignments, and payment confirmations now persist through the API. Budget and bank-connection persistence remain work in progress. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own.
+Account registration, login, logout, current-session lookup, profile updates, and account deletion call the Express API. Friend discovery searches every registered account by name, username, email, or phone, and friendships persist in PostgreSQL. Groups, memberships, expenses, split assignments, and payment confirmations now persist through the API. Category budget limits, group shared plans, and budget spending persist through the API; see [Category budgets API](docs/budget-backend.md). Bank-connection persistence remains work in progress. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own.
 
 ### Group types and flows
 
@@ -126,7 +126,7 @@ npm run dev
 
 Open the URL printed by Vite (normally http://localhost:5173), create an account, and sign in. To enable Google sign-in, set both `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth web client ID and add the frontend origin to that client's authorized JavaScript origins.
 
-Users, profiles, friendships, groups, expenses, and payment records are persisted. After adding a General/Trip expense, refresh and reopen the group to see it retained. Budget/bank persistence is not connected. Receipt scanning is integrated with Azure and requires server credentials; see [receipt parsing setup and cache behavior](docs/receipt-parsing.md). Additional backend development notes are in [docs/development.md](docs/development.md).
+Users, profiles, friendships, groups, expenses, and payment records are persisted. After adding a General/Trip expense, refresh and reopen the group to see it retained. Category budgets are connected (see [Category budgets API](docs/budget-backend.md)); the Home dashboard and what-if simulator still use sample data. Receipt scanning is integrated with Azure and requires server credentials; see [receipt parsing setup and cache behavior](docs/receipt-parsing.md). Additional backend development notes are in [docs/development.md](docs/development.md).
 
 ### Receipt scanning setup
 
