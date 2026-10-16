@@ -13,9 +13,9 @@
 .home-hero-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .home-hero-top strong{font-size:26px;font-weight:700}
 .home-hero-top span{color:#dbf0e3;font-size:12px;font-weight:600}
-.home-hero-sub{margin:2px 0 0;color:var(--pale-sage);font-size:11px}
+.home-hero-sub{margin:2px 0 0;color:#c6e3d3;font-size:11px}
 .home-hero-bar{position:relative;height:8px;margin-top:14px;border-radius:6px;background:#3d8a6e;overflow:hidden}
-.home-hero-bar>div{height:100%;border-radius:6px;background:var(--surface);transition:width .15s ease}
+.home-hero-bar>div{height:100%;border-radius:6px;background:#fff;transition:width .15s ease}
 
 .home-card{padding:16px;margin-top:16px;border-radius:18px;background:var(--surface)}
 .home-card h2{margin:0;font-size:15px;font-weight:700}

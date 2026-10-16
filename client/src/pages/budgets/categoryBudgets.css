@@ -20,9 +20,9 @@
 
 .cb-hero{padding:16px;margin-top:16px;border-radius:20px;background:var(--primary);color:#fff}
 .cb-hero-amount{display:block;font-size:24px;font-weight:700}
-.cb-hero-sub{margin:2px 0 0;color:var(--pale-sage);font-size:11px}
+.cb-hero-sub{margin:2px 0 0;color:#c6e3d3;font-size:11px}
 .cb-hero-bar{position:relative;height:8px;margin-top:14px;border-radius:6px;background:#3d8a6e;overflow:hidden}
-.cb-hero-bar>div{height:100%;border-radius:6px;background:var(--surface);transition:width .15s ease}
+.cb-hero-bar>div{height:100%;border-radius:6px;background:#fff;transition:width .15s ease}
 .cb-hero-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;color:#dbf0e3;font-size:11px}
 .cb-hero-meta button{border:0;background:none;padding:0;color:#fff;font-size:11px;font-weight:600}
 
