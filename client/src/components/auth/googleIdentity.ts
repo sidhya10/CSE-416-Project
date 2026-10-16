@@ -53,9 +53,19 @@ export function renderGoogleButton(id: GoogleIdClient, element: HTMLElement, inp
     initialized = { id, clientId: input.clientId };
   } else if (initialized.clientId !== input.clientId) throw new Error('Google client configuration changed. Reload the app.');
   handlers.set(input.state, input.onCredential);
-  try { id.renderButton(element, { type: 'standard', theme: input.dark ? 'filled_black' : 'outline', size: 'large',
-    text: input.signup ? 'signup_with' : 'continue_with', shape: 'pill', width: Math.max(200, Math.min(400, element.clientWidth || 320)), state: input.state }); } catch (error) { handlers.delete(input.state); throw error; }
-  return () => { handlers.delete(input.state); element.replaceChildren(); };
+  let width = 0;
+  const paint = () => {
+    const nextWidth = Math.max(200, Math.min(400, element.parentElement?.clientWidth || 320));
+    if (nextWidth === width) return;
+    width = nextWidth;
+    element.replaceChildren();
+    id.renderButton(element, { type: 'standard', theme: input.dark ? 'filled_black' : 'outline', size: 'large',
+      text: input.signup ? 'signup_with' : 'continue_with', shape: 'pill', width, state: input.state });
+  };
+  try { paint(); } catch (error) { handlers.delete(input.state); throw error; }
+  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(paint);
+  if (element.parentElement) observer?.observe(element.parentElement);
+  return () => { observer?.disconnect(); handlers.delete(input.state); element.replaceChildren(); };
 }
 
 export function disableGoogleAutoSelect() {

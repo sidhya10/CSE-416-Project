@@ -53,6 +53,12 @@ describe('Google popup entry points', () => {
     await renderedGoogle();
     expect(id.initialize).toHaveBeenCalledWith(expect.objectContaining({ client_id: 'test-client' }));
   });
+  it('sizes the Google button to the available mobile width even while its host is hidden', async () => {
+    render(<GoogleSignInButton onSuccess={() => {}} />);
+    Object.defineProperty(screen.getByRole('region', { name: 'Continue with Google' }), 'clientWidth', { value: 272 });
+    await renderedGoogle();
+    expect(id.renderButton).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({ width: 272 }));
+  });
   it('connects Google from profile without signing out or changing the app account', async () => {
     const onUserChange = vi.fn(); const onLogout = vi.fn();
     render(<ProfileSettings user={account} onUserChange={onUserChange} onLogout={onLogout} onRootChange={() => {}} />);
