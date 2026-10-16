@@ -14,6 +14,11 @@ const envSchema = z.object({
   RECEIPT_MONTHLY_PAGE_LIMIT: z.coerce.number().int().min(0).max(500).default(450),
   RECEIPT_DAILY_USER_LIMIT: z.coerce.number().int().min(0).max(100).default(20),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  PLAID_CLIENT_ID: z.preprocess(value => value || undefined, z.string().min(1).optional()),
+  PLAID_SECRET: z.preprocess(value => value || undefined, z.string().min(1).optional()),
+  PLAID_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  // Optional dedicated key for encrypting Plaid access tokens; falls back to a key derived from JWT_SECRET.
+  BANK_TOKEN_KEY: z.preprocess(value => value || undefined, z.string().min(32).optional()),
 });
 
 const parsed = envSchema.safeParse(process.env);

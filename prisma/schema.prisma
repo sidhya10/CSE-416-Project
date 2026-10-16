@@ -21,6 +21,7 @@ model User {
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   createdRecurringBills RecurringBill[]
+  bankConnections      BankConnection[]
   createdExpenses      Expense[]         @relation("ExpenseCreator")
   paidExpenses         Expense[]         @relation("ExpensePayer")
   expenseShares        ExpenseShare[]
@@ -273,4 +274,48 @@ model RecurringCycle {
   index Int
   plan Json
   @@id([billId, index])
+}
+
+model BankConnection {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidItemId     String        @unique
+  institutionName String
+  accessTokenEnc  String
+  syncCursor      String?
+  status          String        @default("ACTIVE")
+  statusDetail    String?
+  lastSyncedAt    DateTime?
+  createdAt       DateTime      @default(now())
+  accounts        BankAccount[]
+  @@index([userId])
+}
+
+model BankAccount {
+  id             String            @id @default(cuid())
+  connectionId   String
+  connection     BankConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  plaidAccountId String            @unique
+  name           String
+  nickname       String?
+  mask           String            @default("")
+  balanceCents   Int               @default(0)
+  hidden         Boolean           @default(false)
+  transactions   BankTransaction[]
+  @@index([connectionId])
+}
+
+model BankTransaction {
+  id                 String      @id @default(cuid())
+  accountId          String
+  account            BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  plaidTransactionId String      @unique
+  amountCents        Int
+  date               DateTime    @db.Date
+  name               String
+  merchant           String?
+  category           String?
+  pending            Boolean     @default(false)
+  @@index([accountId, date])
 }

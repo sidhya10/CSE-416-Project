@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { ApiError } from '../../api/client';
+import { bankingApi, openPlaidLink } from '../../api/banking.api';
 import { formatCents } from '../expenses/split';
 import { relativeTime } from '../../utils/dates';
-import { LAST_SYNC_NEW_TRANSACTIONS, MENU_ACTIONS, initialAccounts, institutionInitial, type Account, type MenuAction } from './banking';
+import { MENU_ACTIONS, institutionInitial, type Account, type MenuAction } from './banking';
 import './banking.css';
 
 function RenameDialog({ initialName, onCancel, onSave }: { initialName: string; onCancel: () => void; onSave: (name: string) => void }) {
@@ -20,58 +22,77 @@ function DisconnectDialog({ account, onCancel, onConfirm }: { account: Account; 
   return <div className="bank-dialog-backdrop" onKeyDown={event => { if (event.key === 'Escape') onCancel(); }}>
     <div className="bank-dialog danger" role="alertdialog" aria-modal="true" aria-labelledby="disconnect-title" aria-describedby="disconnect-description">
       <h2 id="disconnect-title">Disconnect {account.nickname}?</h2>
-      <p id="disconnect-description">This removes the account and its cached balance from this preview. You can reconnect it later.</p>
+      <p id="disconnect-description">This revokes access at your bank and removes every account linked through this connection, along with its cached balance and imported transactions. You can reconnect it later.</p>
       <div><button type="button" autoFocus onClick={onCancel}>Cancel</button>
         <button type="button" onClick={onConfirm}>Disconnect</button></div>
     </div>
   </div>;
 }
 
+const message = (error: unknown) => error instanceof ApiError && error.status === 401 ? 'Sign in to manage bank connections.' : error instanceof Error ? error.message : 'Something went wrong';
+
 export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
-  const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [pendingDisconnect, setPendingDisconnect] = useState<Account | null>(null);
   const [autoSync, setAutoSync] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [lastAdded, setLastAdded] = useState<number | null>(null);
 
   const renamingAccount = accounts.find(account => account.id === renamingId);
   const canSyncNow = accounts.some(account => account.status === 'synced' && !account.hidden);
-  const hasRecentSync = accounts.some(account => account.status === 'synced' && account.syncedAt);
+  const hasRecentSync = lastAdded !== null && accounts.some(account => account.status === 'synced' && account.syncedAt);
 
-  const syncNow = () => {
-    if (!canSyncNow || syncing) return;
-    setSyncing(true);
-    setNotice('');
-    window.setTimeout(() => {
-      setAccounts(previous => previous.map(account => account.status === 'synced' ? { ...account, syncedAt: Date.now() } : account));
-      setSyncing(false);
-      setNotice('Synced connected accounts.');
-    }, 600);
+  useEffect(() => {
+    let active = true;
+    bankingApi.accounts()
+      .then(result => { if (active) setAccounts(result.accounts); })
+      .catch(error => { if (active) setNotice(message(error)); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  // Runs an API action with a shared busy flag; failures surface as a notice.
+  const run = async (action: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true); setNotice('');
+    try { await action(); } catch (error) { setNotice(message(error)); } finally { setBusy(false); }
   };
 
-  const reauthenticate = (id: string) => {
-    const target = accounts.find(account => account.id === id);
-    setAccounts(previous => previous.map(account => account.id === id
-      ? { ...account, status: 'synced', statusDetail: undefined, syncedAt: Date.now() } : account));
-    setExpandedId(null);
-    setNotice(`${target?.nickname ?? 'Account'} reconnected.`);
-  };
+  const syncNow = () => run(async () => {
+    if (!canSyncNow) return;
+    const result = await bankingApi.sync();
+    setAccounts(result.accounts); setLastAdded(result.added); setNotice('Synced connected accounts.');
+  });
 
-  const toggleHide = (id: string) => {
-    setAccounts(previous => previous.map(account => account.id === id ? { ...account, hidden: !account.hidden } : account));
-    setExpandedId(null);
-  };
+  const reauthenticate = (account: Account) => { setExpandedId(null); return run(async () => {
+    const { linkToken } = await bankingApi.linkToken(account.connectionId);
+    if (!await openPlaidLink(linkToken)) return;
+    setAccounts((await bankingApi.reauthenticated(account.connectionId)).accounts);
+    setNotice(`${account.nickname} reconnected.`);
+  }); };
+
+  const toggleHide = (account: Account) => { setExpandedId(null); return run(async () => {
+    setAccounts((await bankingApi.update(account.id, { hidden: !account.hidden })).accounts);
+  }); };
 
   const runMenuAction = (account: Account, action: MenuAction) => {
-    if (action === 'reauthenticate') { reauthenticate(account.id); return; }
+    if (action === 'reauthenticate') { void reauthenticate(account); return; }
     if (action === 'rename') { setRenamingId(account.id); setExpandedId(null); return; }
-    if (action === 'hide') { toggleHide(account.id); return; }
+    if (action === 'hide') { void toggleHide(account); return; }
     setPendingDisconnect(account); setExpandedId(null);
   };
 
-  const connectAccount = () => setNotice('Connecting a new account opens Plaid Link in a modal/webview. This preview does not call Plaid yet.');
+  const connectAccount = () => run(async () => {
+    const { linkToken } = await bankingApi.linkToken();
+    const publicToken = await openPlaidLink(linkToken);
+    if (!publicToken) return;
+    setAccounts((await bankingApi.exchange(publicToken)).accounts);
+    setNotice('Account connected.');
+  });
 
   return <main className="banking-workspace">
     <header className="bank-header"><button type="button" aria-label="Back" onClick={onBack}>‹</button>
@@ -80,6 +101,8 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
     <section className="bank-banner"><strong>Bank credentials stay with Plaid</strong>
       <small>The app stores encrypted connection tokens only.</small></section>
 
+    {loading && <p className="bank-caption">Loading accounts…</p>}
+    {!loading && accounts.length === 0 && <p className="bank-caption">No accounts connected yet.</p>}
     {accounts.map(account => {
       const attention = account.status === 'needs-attention';
       const expanded = expandedId === account.id;
@@ -100,7 +123,7 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
         {attention && <>
           <span className="bank-status-badge">Needs attention</span>
           <div className="bank-status-line"><small>{account.statusDetail}</small>
-            <button type="button" className="bank-fix-button" onClick={() => reauthenticate(account.id)}>
+            <button type="button" className="bank-fix-button" onClick={() => void reauthenticate(account)}>
               <span aria-hidden="true">↻</span> Fix connection</button></div>
         </>}
         {account.hidden && <span className="bank-hidden-badge">Hidden from budget</span>}
@@ -118,8 +141,8 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
     <section className="bank-sync-card">
       <h2>Transaction sync</h2><p>Pull new transactions and refresh matches.</p>
       <div className="bank-sync-row">
-        <button type="button" className="bank-sync-button" disabled={!canSyncNow || syncing} onClick={syncNow}>
-          <span aria-hidden="true">↻</span>{syncing ? 'Syncing…' : 'Sync now'}</button>
+        <button type="button" className="bank-sync-button" disabled={!canSyncNow || busy} onClick={() => void syncNow()}>
+          <span aria-hidden="true">↻</span>{busy ? 'Working…' : 'Sync now'}</button>
         <label className="bank-auto-sync"><span>Automatic sync<small>{autoSync ? 'On' : 'Off'}</small></span>
           <span className="bank-switch"><input type="checkbox" checked={autoSync} onChange={event => setAutoSync(event.target.checked)} aria-label="Automatic sync" />
             <span className="bank-switch-track" aria-hidden="true" /></span>
@@ -127,18 +150,20 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
       </div>
     </section>
 
-    <button type="button" className="bank-connect-button" onClick={connectAccount}>+ Connect another account</button>
+    <button type="button" className="bank-connect-button" disabled={busy} onClick={() => void connectAccount()}>+ Connect another account</button>
 
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    {hasRecentSync && <p className="bank-caption">Last sync imported {LAST_SYNC_NEW_TRANSACTIONS} new transactions</p>}
-    <p className="bank-caption">Connect another account opens Plaid Link in a modal/webview for implementation handoff.</p>
+    {hasRecentSync && <p className="bank-caption">Last sync imported {lastAdded} new transactions</p>}
 
     {renamingAccount && <RenameDialog initialName={renamingAccount.nickname} onCancel={() => setRenamingId(null)}
-      onSave={name => { setAccounts(previous => previous.map(account => account.id === renamingAccount.id ? { ...account, nickname: name } : account)); setRenamingId(null); }} />}
+      onSave={name => { setRenamingId(null); void run(async () => { setAccounts((await bankingApi.update(renamingAccount.id, { nickname: name })).accounts); }); }} />}
     {pendingDisconnect && <DisconnectDialog account={pendingDisconnect} onCancel={() => setPendingDisconnect(null)} onConfirm={() => {
-      setAccounts(previous => previous.filter(account => account.id !== pendingDisconnect.id));
-      setNotice(`${pendingDisconnect.nickname} disconnected.`);
-      setPendingDisconnect(null);
+      const target = pendingDisconnect; setPendingDisconnect(null);
+      void run(async () => {
+        await bankingApi.disconnect(target.connectionId);
+        setAccounts(previous => previous.filter(account => account.connectionId !== target.connectionId));
+        setNotice(`${target.institution} disconnected.`);
+      });
     }} />}
   </main>;
 }
