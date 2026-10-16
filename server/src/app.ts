@@ -1,4 +1,5 @@
 import { bankingRouter } from './modules/banking/bank.routes.js';
+import { budgetsRouter } from './modules/budgets/budget.routes.js';
 import { BankingError } from './modules/banking/plaid.client.js';
 import { recurringRouter } from './modules/recurring/recurring.routes.js';
 import { receiptsRouter } from './modules/receipts/receipt.routes.js';
@@ -35,6 +36,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/friends', friendsRouter);
 app.use('/api/groups', groupsRouter);
 app.use('/api/banking', bankingRouter);
+app.use('/api/budgets', budgetsRouter);
 app.use('/api', expensesRouter);
 app.use('/api', recurringRouter);
 

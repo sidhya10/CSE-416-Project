@@ -1,114 +1,70 @@
+import type { ApiGroupBudget } from '../../api/budgets.api';
+
 export type GroupMemberShare = {
   id: string;
   name: string;
   avatarColor: string;
   barColor: string;
   pct: number;
-  // Exactly one of paidCents / oweCents is set: paid = contributed toward the
-  // group total, owe = still owes their share back to the group.
-  paidCents?: number;
-  oweCents?: number;
+  // oweCents: still owes the group (net of confirmed payments); creditCents: is still owed money back.
+  // paidCents: fronted for this month's expenses. A member who owes is shown by oweCents, everyone else by paidCents.
+  paidCents: number;
+  oweCents: number;
+  creditCents: number;
 };
 
 export type GroupBudget = {
-  id: number;
+  id: string;
   name: string;
   color: string;
   memberInfo: string;
   spentCents: number;
   plannedCents: number;
   daysLeft: number;
+  canEditPlan: boolean;
   members: GroupMemberShare[];
-  settleUp: { title: string; body: string };
 };
 
-// Generic sample fixtures matching the three preset groups in
-// GroupsWorkspace.tsx (same names, members, and per-group member counts). Not wired to a backend yet — mirrors the pattern used by
-// categoryPlan.ts's CATEGORY_BUDGETS until group budgets have a real data source.
-export const GROUP_BUDGETS: GroupBudget[] = [
-  {
-    id: 1,
-    name: 'Weekend Trip',
-    color: 'gold',
-    memberInfo: '4 members · Trip expenses',
-    spentCents: 68420,
-    plannedCents: 90000,
-    daysLeft: 6,
-    members: [
-      { id: 'you', name: 'You', avatarColor: 'green', barColor: '#1f6e52', pct: 32, paidCents: 22000 },
-      { id: 'alex', name: 'Alex', avatarColor: 'mint', barColor: '#3f9d72', pct: 41, paidCents: 28370 },
-      { id: 'taylor', name: 'Taylor', avatarColor: 'blue-solid', barColor: '#4a7fc4', pct: 26, paidCents: 18050 },
-      { id: 'jordan', name: 'Jordan', avatarColor: 'peach', barColor: '#e86e57', pct: 6, oweCents: 3820 },
-    ],
-    settleUp: {
-      title: '$38.20 left to settle',
-      body: "Jordan still owes for this trip — settle up whenever you're ready.",
-    },
-  },
-  {
-    id: 2,
-    name: 'Shared Apartment',
-    color: 'green',
-    memberInfo: '3 members · Shared apartment costs',
-    spentCents: 124000,
-    plannedCents: 150000,
-    daysLeft: 9,
-    members: [
-      { id: 'you', name: 'You', avatarColor: 'green', barColor: '#1f6e52', pct: 50, paidCents: 62000 },
-      { id: 'alex', name: 'Alex', avatarColor: 'mint', barColor: '#3f9d72', pct: 33, paidCents: 41500 },
-      { id: 'jordan', name: 'Jordan', avatarColor: 'peach', barColor: '#e86e57', pct: 17, oweCents: 20500 },
-    ],
-    settleUp: {
-      title: '$205.00 left to settle',
-      body: "Jordan still owes for groceries and utilities — settle up whenever you're ready.",
-    },
-  },
-  {
-    id: 3,
-    name: 'Community Event',
-    color: 'blue',
-    memberInfo: '7 members · Event costs',
-    spentCents: 61200,
-    plannedCents: 80000,
-    daysLeft: 14,
-    members: [
-      { id: 'you', name: 'You', avatarColor: 'green', barColor: '#1f6e52', pct: 33, paidCents: 20000 },
-      { id: 'alex', name: 'Alex', avatarColor: 'mint', barColor: '#3f9d72', pct: 25, paidCents: 15000 },
-      { id: 'taylor', name: 'Taylor', avatarColor: 'blue-solid', barColor: '#4a7fc4', pct: 15, paidCents: 9000 },
-      { id: 'jordan', name: 'Jordan', avatarColor: 'peach', barColor: '#5b8fa8', pct: 13, paidCents: 8000 },
-      { id: 'morgan', name: 'Morgan', avatarColor: 'sand', barColor: '#e86e57', pct: 8, oweCents: 5000 },
-      { id: 'casey', name: 'Casey', avatarColor: 'mint', barColor: '#e86e57', pct: 4, oweCents: 2500 },
-      { id: 'riley', name: 'Riley', avatarColor: 'sand', barColor: '#e86e57', pct: 3, oweCents: 1700 },
-    ],
-    settleUp: {
-      title: '$92.00 left to settle',
-      body: 'Morgan and Casey still owe their share of event costs.',
-    },
-  },
-];
+const AVATARS = ['green', 'mint', 'blue-solid', 'peach', 'sand'];
+const BAR_COLORS = ['#1f6e52', '#3f9d72', '#4a7fc4', '#5b8fa8', '#f6bd4d'];
+const OWE_COLOR = '#e86e57';
 
-// GROUP_BUDGETS is a non-empty literal, so this index access is always
-// defined; asserted once here (with noUncheckedIndexedAccess on) instead of
-// at every call site that needs a guaranteed fallback.
-export const DEFAULT_GROUP_BUDGET = GROUP_BUDGETS[0] as GroupBudget;
+export function toGroupBudget(group: ApiGroupBudget): GroupBudget {
+  const members = group.members.map((member, index): GroupMemberShare => {
+    const share = member.owesCents > 0 ? member.owesCents : member.paidCents;
+    return {
+      id: member.id, name: member.isYou ? 'You' : member.name,
+      avatarColor: AVATARS[index % AVATARS.length] ?? 'mint',
+      barColor: member.owesCents > 0 ? OWE_COLOR : BAR_COLORS[index % BAR_COLORS.length] ?? '#3f9d72',
+      pct: group.spentCents ? Math.min(100, Math.max(0, (share / group.spentCents) * 100)) : 0,
+      paidCents: member.paidCents, oweCents: member.owesCents, creditCents: member.owedCents,
+    };
+  });
+  return {
+    id: group.id, name: group.name, color: group.color,
+    memberInfo: `${group.memberCount} ${group.memberCount === 1 ? 'member' : 'members'} · ${group.type} expenses`,
+    spentCents: group.spentCents, plannedCents: group.plannedCents, daysLeft: group.daysLeft, canEditPlan: group.canEditPlan, members,
+  };
+}
 
 export const groupBudgetPct = (budget: GroupBudget) =>
   budget.plannedCents ? Math.min(100, Math.max(0, (budget.spentCents / budget.plannedCents) * 100)) : 0;
 
 export type Settlement = { fromId: string; fromName: string; toId: string; toName: string; cents: number };
 
-// Each debtor repays the members who paid, in proportion to how much each paid.
-// Remainder cents go to the largest payers first so the total always matches.
+// Each debtor repays the members who are owed, in proportion to how much each is owed.
+// Remainder cents go to the largest creditors first so the total always matches.
 export function settlementsFor(budget: GroupBudget): Settlement[] {
-  const payers = budget.members.filter(m => (m.paidCents ?? 0) > 0);
-  const paidTotal = payers.reduce((sum, m) => sum + (m.paidCents ?? 0), 0);
-  const sorted = [...payers].sort((a, b) => (b.paidCents ?? 0) - (a.paidCents ?? 0));
+  const creditors = budget.members.filter(m => m.creditCents > 0);
+  const creditTotal = creditors.reduce((sum, m) => sum + m.creditCents, 0);
+  if (creditTotal <= 0) return [];
+  const sorted = [...creditors].sort((a, b) => b.creditCents - a.creditCents);
   const result: Settlement[] = [];
-  for (const debtor of budget.members.filter(m => (m.oweCents ?? 0) > 0)) {
-    const owed = debtor.oweCents ?? 0;
-    const shares = sorted.map(p => Math.floor((owed * (p.paidCents ?? 0)) / paidTotal));
+  for (const debtor of budget.members.filter(m => m.oweCents > 0)) {
+    const owed = debtor.oweCents;
+    const shares = sorted.map(p => Math.floor((owed * p.creditCents) / creditTotal));
     let remainder = owed - shares.reduce((a, b) => a + b, 0);
-    for (let i = 0; remainder > 0 && sorted.length; i = (i + 1) % sorted.length, remainder--) shares[i] = (shares[i] ?? 0) + 1;
+    for (let i = 0; remainder > 0; i = (i + 1) % sorted.length, remainder--) shares[i] = (shares[i] ?? 0) + 1;
     sorted.forEach((p, i) => {
       const cents = shares[i] ?? 0;
       if (cents > 0) result.push({ fromId: debtor.id, fromName: debtor.name, toId: p.id, toName: p.name, cents });
@@ -117,12 +73,13 @@ export function settlementsFor(budget: GroupBudget): Settlement[] {
   return result;
 }
 
-export const totalOwedCents = (budget: GroupBudget) => budget.members.reduce((sum, m) => sum + (m.oweCents ?? 0), 0);
+export const totalOwedCents = (budget: GroupBudget) => budget.members.reduce((sum, m) => sum + m.oweCents, 0);
 
-export const settlementKey = (s: Settlement) => `${s.fromId}-${s.toId}`;
+const joinNames = (names: string[]) =>
+  names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 
-// Amount still owed after the given settlements are marked settled; optionally for one debtor.
-export const remainingOwedCents = (budget: GroupBudget, settledKeys: string[], debtorId?: string) =>
-  settlementsFor(budget)
-    .filter(s => !settledKeys.includes(settlementKey(s)) && (!debtorId || s.fromId === debtorId))
-    .reduce((sum, s) => sum + s.cents, 0);
+// "Jordan still owes ..." / "You and Alex still owe ..."
+export function settleUpBody(budget: GroupBudget): string {
+  const debtors = budget.members.filter(m => m.oweCents > 0).map(m => m.name);
+  return `${joinNames(debtors)} still ${debtors.length === 1 && debtors[0] !== 'You' ? 'owes' : 'owe'} for shared expenses — settle up whenever you're ready.`;
+}
