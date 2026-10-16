@@ -126,6 +126,10 @@ npm run dev
 
 Open the URL printed by Vite (normally http://localhost:5173), create an account, and sign in. To enable Google sign-in, set both `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth web client ID and add the frontend origin to that client's authorized JavaScript origins.
 
+After pulling changes, stop the dev servers and run `npm ci`, `npm run prisma:generate`, and `npx prisma migrate deploy` before restarting `npm run dev`. This installs the pulled dependencies, refreshes Prisma Client, and applies committed database migrations without resetting local data. Keep the Prisma CLI and `@prisma/client` on compatible version 6 releases for the current schema.
+
+If Vite reports a missing `@rollup/rollup-darwin-arm64` module on an Apple Silicon Mac, run `npm ci --include=optional` using the committed lockfile. Rollup requires this native optional dependency. For PostgreSQL, ensure the port in `.env`'s `DATABASE_URL` matches the host port in `docker-compose.yml` (currently 5433 for the included container).
+
 Users, profiles, friendships, groups, expenses, and payment records are persisted. After adding a General/Trip expense, refresh and reopen the group to see it retained. Category budgets are connected (see [Category budgets API](docs/budget-backend.md)); the Home dashboard and what-if simulator still use sample data. Receipt scanning is integrated with Azure and requires server credentials; see [receipt parsing setup and cache behavior](docs/receipt-parsing.md). Additional backend development notes are in [docs/development.md](docs/development.md).
 
 ### Receipt scanning setup

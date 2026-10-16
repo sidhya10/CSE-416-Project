@@ -22,6 +22,7 @@
     "heic-convert": "^2.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "newman": "4.6.1",
     "plaid": "^48.0.0",
     "sharp": "^0.35.5",
     "zod": "^4.1.5"
