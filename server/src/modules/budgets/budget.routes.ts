@@ -2,7 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { CATEGORY_KEYS, MAX_LIMIT_CENTS, type CategoryKey } from './budget.categories.js';
-import { BudgetError, groupBudgets, personalBudget, saveGroupPlan, saveLimits } from './budget.service.js';
+import { BudgetError, groupBudgets, homeSummary, personalBudget, saveGroupPlan, saveLimits } from './budget.service.js';
 
 export const budgetsRouter = Router();
 budgetsRouter.use(requireAuth);
@@ -21,6 +21,10 @@ budgetsRouter.get('/personal', async (request, response) => {
 budgetsRouter.put('/personal/limits', async (request, response) => {
   const { limits } = limitsBody.parse(request.body);
   response.json(await saveLimits(request.userId!, limits));
+});
+
+budgetsRouter.get('/home', async (request, response) => {
+  response.json(await homeSummary(request.userId!));
 });
 
 budgetsRouter.get('/groups', async (request, response) => {

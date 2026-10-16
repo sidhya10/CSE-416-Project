@@ -12,15 +12,6 @@ export const CATEGORY_META: Record<CategoryKey, { label: string; color: string }
   other: { label: 'Other', color: '#465366' },
 };
 
-// Sample fixture used only by the Home dashboard preview (pages/dashboard), which is not wired to the budgets API.
-export const CATEGORY_BUDGETS: CategoryBudget[] = [
-  { key: 'dining', label: 'Dining', spentCents: 24800, plannedCents: 36500, color: '#e86e57' },
-  { key: 'groceries', label: 'Groceries', spentCents: 18600, plannedCents: 35000, color: '#1f6e52' },
-  { key: 'transit', label: 'Transit', spentCents: 9200, plannedCents: 20000, color: '#4a7fc4' },
-  { key: 'shopping', label: 'Shopping', spentCents: 30100, plannedCents: 32500, color: '#f6bd4d' },
-  { key: 'other', label: 'Other', spentCents: 23050, plannedCents: 66000, color: '#465366' },
-];
-
 // Mirrors the server's MAX_LIMIT_CENTS ($1,000,000).
 export const MAX_LIMIT_CENTS = 100_000_000;
 

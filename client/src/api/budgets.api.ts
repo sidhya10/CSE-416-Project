@@ -15,10 +15,17 @@ export type ApiGroupBudget = {
   spentCents: number; plannedCents: number; daysLeft: number; canEditPlan: boolean; members: ApiGroupBudgetMember[];
 };
 
+export type ApiHomeSummary = {
+  history: { month: string; spendingCents: number; incomeCents: number }[];
+  pendingPayments: { count: number; cents: number };
+  latestExpense: { title: string; groupName: string; creatorName: string; isYou: boolean; totalCents: number; createdAt: string } | null;
+};
+
 export const budgetsApi = {
   personal: () => apiRequest<ApiPersonalBudget>('/budgets/personal'),
   saveLimits: (limits: Partial<Record<CategoryKey, number>>) =>
     apiRequest<ApiPersonalBudget>('/budgets/personal/limits', { method: 'PUT', body: JSON.stringify({ limits }) }),
+  home: () => apiRequest<ApiHomeSummary>('/budgets/home'),
   groups: () => apiRequest<{ groups: ApiGroupBudget[] }>('/budgets/groups'),
   saveGroupPlan: (groupId: string, plannedCents: number) =>
     apiRequest<{ groups: ApiGroupBudget[] }>(`/budgets/groups/${groupId}/plan`, { method: 'PUT', body: JSON.stringify({ plannedCents }) }),

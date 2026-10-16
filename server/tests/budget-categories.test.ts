@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categorize, monthWindow } from '../src/modules/budgets/budget.categories.js';
+import { categorize, monthWindow, recentMonths } from '../src/modules/budgets/budget.categories.js';
 
 const tx = (category: string | null, name = 'Store', merchant: string | null = null) => ({ category, name, merchant });
 
@@ -36,5 +36,13 @@ describe('monthWindow', () => {
     expect(monthWindow(new Date('2028-02-10T00:00:00Z'))).toMatchObject({ month: '2028-02', daysInMonth: 29, daysLeft: 19 });
     const december = monthWindow(new Date('2026-12-05T00:00:00Z'));
     expect(december.end.toISOString()).toBe('2027-01-01T00:00:00.000Z');
+  });
+});
+
+describe('recentMonths', () => {
+  it('lists the last months oldest first, across a year boundary', () => {
+    const { keys, start } = recentMonths(new Date('2027-02-15T00:00:00Z'), 4);
+    expect(keys).toEqual(['2026-11', '2026-12', '2027-01', '2027-02']);
+    expect(start.toISOString()).toBe('2026-11-01T00:00:00.000Z');
   });
 });
