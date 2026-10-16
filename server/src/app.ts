@@ -1,3 +1,5 @@
+import { bankingRouter } from './modules/banking/bank.routes.js';
+import { BankingError } from './modules/banking/plaid.client.js';
 import { recurringRouter } from './modules/recurring/recurring.routes.js';
 import { receiptsRouter } from './modules/receipts/receipt.routes.js';
 import { Prisma } from '@prisma/client';
@@ -32,6 +34,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/friends', friendsRouter);
 app.use('/api/groups', groupsRouter);
+app.use('/api/banking', bankingRouter);
 app.use('/api', expensesRouter);
 app.use('/api', recurringRouter);
 
@@ -42,6 +45,7 @@ app.use((_request, response) => {
 app.use((error: unknown, _request: express.Request, response: express.Response, next: express.NextFunction) => {
   void next;
   if (error && typeof error === 'object' && 'type' in error && error.type === 'entity.too.large') { response.status(413).json({ error: 'Upload too large. HEIC/HEIF supports up to 12 MB; other receipts support up to 4 MB.' }); return; }
+  if (error instanceof BankingError) { response.status(error.status).json({ error: error.message }); return; }
   if (error instanceof ExpenseError) { response.status(error.status).json({ error: error.message }); return; }
   if (error instanceof ZodError) { response.status(400).json({ error: 'Invalid request', details: error.issues.map(issue => issue.message) }); return; }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
