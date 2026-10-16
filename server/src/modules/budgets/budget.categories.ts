@@ -35,3 +35,12 @@ export function monthWindow(now: Date): MonthWindow {
     daysLeft: new Date(Date.UTC(year, index + 1, 0)).getUTCDate() - now.getUTCDate(),
   };
 }
+
+/** The `count` UTC calendar months ending with the one containing `now`, oldest first, as `YYYY-MM` keys. */
+export function recentMonths(now: Date, count: number): { keys: string[]; start: Date } {
+  const keys = Array.from({ length: count }, (_, index) => {
+    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (count - 1 - index), 1));
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+  });
+  return { keys, start: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (count - 1), 1)) };
+}

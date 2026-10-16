@@ -11,6 +11,8 @@ const account: AppUser = {
 const friend = { ...account, id: 'friend-1', email: 'friend@example.com', username: 'friend', name: 'Existing Friend', phone: '+1 555 0101', isFriend: true };
 const stranger = { ...account, id: 'user-2', email: 'person@example.com', username: 'newperson', name: 'New Person', phone: null, isFriend: false };
 
+// The Home heading greets the signed-in user's first name by time of day.
+const homeGreeting = /^Good (morning|afternoon|evening), Account$/;
 const response = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), {
   status, headers: { 'Content-Type': 'application/json' },
 });
@@ -45,7 +47,7 @@ describe('App account integration', () => {
       fireEvent.change(screen.getByRole('textbox', { name: 'EMAIL' }), { target: { value: account.email } });
       fireEvent.change(screen.getByLabelText('PASSWORD'), { target: { value: 'password1' } });
       fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
-      expect(await screen.findByRole('heading', { name: 'Good morning, there' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: homeGreeting })).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
       expect(await screen.findByRole('button', { name: /new group/i })).toBeInTheDocument();
     } finally { vi.unstubAllGlobals(); }
@@ -61,12 +63,12 @@ describe('App account integration', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'EMAIL' }), { target: { value: 'owner@example.com' } });
     fireEvent.change(screen.getByLabelText('PASSWORD'), { target: { value: 'password1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    expect(await screen.findByRole('heading', { name: 'Good morning, there' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: homeGreeting })).toBeInTheDocument();
   });
 
   it('shows backend profile data and persists editable fields', async () => {
     render(<App />);
-    await screen.findByRole('heading', { name: 'Good morning, there' });
+    await screen.findByRole('heading', { name: homeGreeting });
     fireEvent.click(screen.getByRole('button', { name: 'Profile' }));
     expect(screen.getByText('Account Owner')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^edit profile\s*›$/i }));
@@ -80,7 +82,7 @@ describe('App account integration', () => {
 
   it('loads all accounts, keeps friends visible by default, and opens friend details', async () => {
     render(<App />);
-    await screen.findByRole('heading', { name: 'Good morning, there' });
+    await screen.findByRole('heading', { name: homeGreeting });
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     fireEvent.click(screen.getByRole('button', { name: /find friends/i }));
     const existing = await screen.findByText('Existing Friend');
@@ -94,7 +96,7 @@ describe('App account integration', () => {
 
   it('starts groups empty instead of rendering placeholder records', async () => {
     render(<App />);
-    await screen.findByRole('heading', { name: 'Good morning, there' });
+    await screen.findByRole('heading', { name: homeGreeting });
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     expect(within(screen.getByLabelText('Balance overview')).getAllByText('$0.00')).toHaveLength(2);
     expect(document.querySelectorAll('.group-list-row')).toHaveLength(0);

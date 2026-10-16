@@ -1,54 +1,77 @@
-import { useState } from 'react';
-import { CATEGORY_BUDGETS, categoryPct, totalPlannedCents, totalSpentCents } from '../budgets/categoryPlan';
+import { budgetsApi } from '../../api/budgets.api';
+import { relativeTime } from '../../utils/dates';
+import { budgetPeriod, categoryPct, toCategoryBudgets, totalPlannedCents, totalSpentCents } from '../budgets/categoryPlan';
 import { formatCents } from '../expenses/split';
-import {
-  GREETING_MONTH, GREETING_NAME, GROUP_UPDATES_COUNT, MONTHS, RECENT_ACTIVITY, SYNCED_LABEL, TODOS,
-  barHeightPct, maxMonthCents,
-} from './dashboard';
+import { barHeightPct, buildTodos, firstName, greetingFor, maxMonthCents, toMonthPoints, type TodoTarget } from './dashboard';
+import { useLiveData } from './useLiveData';
 import './dashboard.css';
 
-export default function HomeDashboard() {
-  const [notice, setNotice] = useState('');
+// `active` is false while the tab is hidden: nothing is fetched or refreshed until the user opens Home.
+export default function HomeDashboard({ userName, onNavigate, active = true }: {
+  userName: string; onNavigate: (target: TodoTarget | 'Profile') => void; active?: boolean;
+}) {
+  const personal = useLiveData(budgetsApi.personal, active);
+  const groups = useLiveData(budgetsApi.groups, active);
+  const home = useLiveData(budgetsApi.home, active);
+  const retry = () => { void personal.refresh(); void groups.refresh(); void home.refresh(); };
 
-  const spent = totalSpentCents(CATEGORY_BUDGETS);
-  const planned = totalPlannedCents(CATEGORY_BUDGETS);
+  const budgets = personal.data ? toCategoryBudgets(personal.data.categories) : [];
+  const spent = totalSpentCents(budgets);
+  const planned = totalPlannedCents(budgets);
   const left = planned - spent;
   const pct = planned ? Math.min(100, Math.max(0, (spent / planned) * 100)) : 0;
-  const topCategories = CATEGORY_BUDGETS.slice(0, 3);
-  const chartMax = maxMonthCents(MONTHS);
+  const topCategories = [...budgets].filter(item => item.spentCents > 0).sort((a, b) => b.spentCents - a.spentCents).slice(0, 3);
+  const months = home.data ? toMonthPoints(home.data.history) : [];
+  const chartMax = maxMonthCents(months);
+  const todos = buildTodos(groups.data?.groups ?? [], home.data, budgets);
+  const loaded = !!personal.data && !!groups.data && !!home.data;
+  const failed = [personal, groups, home].some(source => !source.data && source.error);
+  const monthLabel = personal.data ? budgetPeriod(personal.data).monthLabel : new Date().toLocaleDateString('en-US', { month: 'long' });
+  const latest = home.data?.latestExpense;
 
   return <main className="home-screen">
     <header className="home-header">
       <div>
-        <h1>Good morning, {GREETING_NAME}</h1>
-        <p>{GREETING_MONTH}</p>
+        <h1>{greetingFor(new Date().getHours())}, {firstName(userName)}</h1>
+        <p>{monthLabel}</p>
       </div>
-      <button type="button" className="home-gear" aria-label="Settings" onClick={() => setNotice('Use the Profile tab to reach settings.')}>⚙</button>
+      <button type="button" className="home-gear" aria-label="Settings" onClick={() => onNavigate('Profile')}>⚙</button>
     </header>
-    <span className="home-synced-badge">↻ {SYNCED_LABEL}</span>
+    {personal.data && <span className="home-synced-badge">{personal.data.lastSyncedAt ? `↻ Synced ${relativeTime(personal.data.lastSyncedAt)}` : '↻ No bank synced yet'}</span>}
 
-    <section className="home-hero" aria-label="Budget summary">
-      <div className="home-hero-top">
-        <strong>{formatCents(spent)}</strong>
-        <span>{formatCents(left)} left</span>
-      </div>
-      <p className="home-hero-sub">spent of {formatCents(planned)} budget</p>
-      <div className="home-hero-bar" role="presentation"><div style={{ width: `${pct}%` }} /></div>
-    </section>
+    {failed && <div className="home-notice home-error" role="alert">
+      <p>{personal.error || groups.error || home.error}</p><button type="button" className="home-retry" onClick={retry}>Retry</button>
+    </div>}
+    {!failed && !loaded && <p className="home-notice" role="status">Loading your dashboard…</p>}
 
-    <section className="home-card">
-      <h2>Spending by category</h2>
-      {topCategories.map(item => <div key={item.key} className="home-category-row">
-        <div className="home-category-head"><strong>{item.label}</strong><span>{Math.round(categoryPct(item))}%</span></div>
-        <div className="home-category-bar" role="presentation"><div style={{ width: `${categoryPct(item)}%`, background: item.color }} /></div>
-      </div>)}
-    </section>
+    {personal.data && <>
+      <section className="home-hero" aria-label="Budget summary">
+        <div className="home-hero-top">
+          <strong>{formatCents(spent)}</strong>
+          <span>{planned ? (left >= 0 ? `${formatCents(left)} left` : `${formatCents(-left)} over`) : 'No limits set'}</span>
+        </div>
+        <p className="home-hero-sub">{planned ? `spent of ${formatCents(planned)} budget` : 'spent this month'}</p>
+        <div className="home-hero-bar" role="presentation"><div style={{ width: `${pct}%` }} /></div>
+      </section>
 
-    <section className="home-card">
-      <div className="home-chart-head"><h2>Spending & income</h2><small>Last 4 months</small></div>
+      <section className="home-card">
+        <h2>Spending by category</h2>
+        {topCategories.length === 0 && <p className="home-empty">{personal.data.hasBankConnection ? 'No spending yet this month.' : 'Connect a bank account in Profile to see your spending.'}</p>}
+        {topCategories.map(item => {
+          const share = item.plannedCents ? categoryPct(item) : spent ? (item.spentCents / spent) * 100 : 0;
+          return <div key={item.key} className="home-category-row">
+            <div className="home-category-head"><strong>{item.label}</strong><span>{item.plannedCents ? `${Math.round(share)}%` : formatCents(item.spentCents)}</span></div>
+            <div className="home-category-bar" role="presentation"><div style={{ width: `${share}%`, background: item.color }} /></div>
+          </div>;
+        })}
+      </section>
+    </>}
+
+    {home.data && <section className="home-card">
+      <div className="home-chart-head"><h2>Spending & income</h2><small>Last {months.length} months</small></div>
       <div className="home-chart-legend"><span><i className="spending" />Spending</span><span><i className="income" />Income</span></div>
       <div className="home-chart">
-        {MONTHS.map(month => <div key={month.label} className="home-chart-col">
+        {months.map(month => <div key={month.label} className="home-chart-col">
           <div className="home-chart-bars">
             <div className="bar spending" style={{ height: `${barHeightPct(month.spendingCents, chartMax)}%` }} />
             <div className="bar income" style={{ height: `${barHeightPct(month.incomeCents, chartMax)}%` }} />
@@ -56,23 +79,20 @@ export default function HomeDashboard() {
           <span>{month.label}</span>
         </div>)}
       </div>
-    </section>
+      {chartMax === 0 && <p className="home-empty">No bank transactions in these months yet.</p>}
+    </section>}
 
-    <section className="home-card">
+    {loaded && <section className="home-card">
       <div className="home-todos-head">
-        <div><h2>Your to-dos</h2><small>{TODOS.length} items need attention</small></div>
-        <span className="home-pill">{GROUP_UPDATES_COUNT} group updates</span>
+        <div><h2>Your to-dos</h2><small>{todos.length ? `${todos.length} ${todos.length === 1 ? 'item needs' : 'items need'} attention` : 'Nothing needs attention'}</small></div>
       </div>
-      {TODOS.map(todo => <div key={todo.id} className="home-todo-row">
+      {todos.length === 0 && <p className="home-empty">You're all caught up.</p>}
+      {todos.map(todo => <div key={todo.id} className="home-todo-row">
         <span>{todo.label}</span>
-        {todo.interactive
-          ? <button type="button" onClick={() => setNotice(`"${todo.label}" isn't connected yet.`)}>{todo.trailing}</button>
-          : <b>{todo.trailing}</b>}
+        <button type="button" onClick={() => onNavigate(todo.target)}>{todo.trailing}</button>
       </div>)}
-    </section>
+    </section>}
 
-    <p className="home-recent">Recent: {RECENT_ACTIVITY}</p>
-
-    {notice && <p className="home-notice" role="status">{notice}</p>}
+    {latest && <p className="home-recent">Latest: {latest.isYou ? 'You' : latest.creatorName} added {latest.title} in {latest.groupName} · {formatCents(latest.totalCents)}</p>}
   </main>;
 }

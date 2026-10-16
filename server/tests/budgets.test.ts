@@ -179,3 +179,38 @@ describe('group budgets', () => {
     expect((await owner.get('/api/budgets/groups').expect(200)).body.groups.map((group: { id: string }) => group.id)).toContain(groupId);
   });
 });
+
+describe('home summary', () => {
+  const monthKey = (offset: number) => day(offset, 1).toISOString().slice(0, 7);
+
+  it('requires a session', async () => {
+    await request(app).get('/api/budgets/home').expect(401);
+  });
+
+  it('reports four months of spending and income from visible bank accounts', async () => {
+    const { body } = await owner.get('/api/budgets/home').expect(200);
+    expect(body.history.map((month: { month: string }) => month.month)).toEqual([monthKey(-3), monthKey(-2), monthKey(-1), monthKey(0)]);
+    // Seeded earlier: spending excludes the transfer, refund, hidden account and next month; income is only the INCOME deposit.
+    expect(body.history[3]).toEqual({ month: monthKey(0), spendingCents: 7300, incomeCents: 5000 });
+    expect(body.history[2]).toEqual({ month: monthKey(-1), spendingCents: 9999, incomeCents: 0 });
+    expect(body.history[0]).toEqual({ month: monthKey(-3), spendingCents: 0, incomeCents: 0 });
+    const other = await outsider.get('/api/budgets/home').expect(200);
+    expect(other.body.history.every((month: { spendingCents: number; incomeCents: number }) => month.spendingCents === 0 && month.incomeCents === 0)).toBe(true);
+  });
+
+  it('counts payments waiting for the payer to confirm and reports the latest group expense', async () => {
+    const before = await owner.get('/api/budgets/home').expect(200);
+    expect(before.body.pendingPayments).toEqual({ count: 0, cents: 0 });
+    const expenses = await owner.get(`/api/groups/${groupId}/expenses`).expect(200);
+    // The member's share of Cabin is already fully paid; Old still has an unpaid $10 share.
+    const old = expenses.body.expenses.find((expense: { title: string }) => expense.title === 'Old');
+    await member.post(`/api/expenses/${old.id}/payments`).send({ amountCents: 1000, clientRequestId: randomUUID() }).expect(201);
+    const owed = await owner.get('/api/budgets/home').expect(200);
+    expect(owed.body.pendingPayments).toEqual({ count: 1, cents: 1000 });
+    expect(owed.body.latestExpense).toMatchObject({ title: 'Old', groupName: 'Budget test group', creatorName: 'Budget Test 0', isYou: true, totalCents: 2000 });
+    const sender = await member.get('/api/budgets/home').expect(200);
+    expect(sender.body.pendingPayments).toEqual({ count: 0, cents: 0 });
+    expect(sender.body.latestExpense).toMatchObject({ isYou: false });
+    expect((await outsider.get('/api/budgets/home').expect(200)).body.latestExpense).toBeNull();
+  });
+});

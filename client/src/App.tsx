@@ -93,7 +93,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
 
   return <div className="device">
     {user ? <>
-      <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard /></div>
+      <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} /></div>
       <div hidden={tab !== 'Budget' || simulatorOpen} className="profile-content"><CategoryBudgets active={tab === 'Budget'} onOpenSimulator={() => { setSimulatorVisited(true); setSimulatorOpen(true); }} /></div>
       <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator active={tab === 'Budget' && simulatorOpen} onBack={() => setSimulatorOpen(false)} />}</div>
       <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>

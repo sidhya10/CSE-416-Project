@@ -1,6 +1,6 @@
 import { prisma } from '../../config/database.js';
 import { groupBalances } from '../expenses/expense.service.js';
-import { CATEGORY_KEYS, categorize, monthWindow, type CategoryKey } from './budget.categories.js';
+import { CATEGORY_KEYS, categorize, monthWindow, recentMonths, type CategoryKey } from './budget.categories.js';
 
 export class BudgetError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -91,4 +91,35 @@ export async function saveGroupPlan(userId: string, groupId: string, plannedCent
   if (member.role === 'MEMBER') throw new BudgetError(403, 'Only group owners and admins can set the shared plan');
   await prisma.groupBudgetPlan.upsert({ where: { groupId }, create: { groupId, plannedCents }, update: { plannedCents } });
   return groupBudgets(userId);
+}
+
+/** What the Home tab needs beyond the budgets: monthly spending and income, payments awaiting confirmation, and the latest group expense. */
+export async function homeSummary(userId: string, now = new Date()) {
+  const window = monthWindow(now);
+  const { keys, start } = recentMonths(now, 4);
+  const inGroup = { memberships: { some: { userId } }, archivedAt: null };
+  const [rows, pending, latest] = await Promise.all([
+    prisma.bankTransaction.findMany({
+      where: { date: { gte: start, lt: window.end }, account: { hidden: false, connection: { userId } } },
+      select: { date: true, amountCents: true, category: true, name: true, merchant: true },
+    }),
+    prisma.expensePayment.findMany({ where: { status: 'SENT', share: { expense: { paidByUserId: userId, group: inGroup } } }, select: { amountCents: true } }),
+    prisma.expense.findFirst({
+      where: { group: inGroup }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { title: true, totalCents: true, createdAt: true, creator: { select: { id: true, name: true } }, group: { select: { name: true } } },
+    }),
+  ]);
+  const months = new Map(keys.map(key => [key, { month: key, spendingCents: 0, incomeCents: 0 }]));
+  for (const row of rows) {
+    const month = months.get(row.date.toISOString().slice(0, 7));
+    if (!month) continue;
+    // Money leaving an account is a positive Plaid amount; only deposits categorized as income count as income.
+    if (row.amountCents > 0) { if (categorize(row)) month.spendingCents += row.amountCents; }
+    else if (row.category === 'INCOME') month.incomeCents += -row.amountCents;
+  }
+  return {
+    history: keys.map(key => months.get(key)!),
+    pendingPayments: { count: pending.length, cents: pending.reduce((sum, payment) => sum + payment.amountCents, 0) },
+    latestExpense: latest && { title: latest.title, groupName: latest.group.name, creatorName: latest.creator.name, isYou: latest.creator.id === userId, totalCents: latest.totalCents, createdAt: latest.createdAt.toISOString() },
+  };
 }
