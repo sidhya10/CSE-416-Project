@@ -23,7 +23,7 @@ describe('group and friend filter controls', () => {
     expect(screen.getByRole('heading', { name: 'Archived groups' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
   });
-  it('sends automatic searches for names, usernames, emails and phones and optional field/sort choices', async () => {
+  it('sends automatic searches for names, usernames, emails and phones and sorting without a field selector', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => response({ users: [] })));
     render(<GroupsWorkspace currentUser={currentUser} onRootChange={() => {}} initialFriendsData={[]} initialGroupsData={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /find friends/i }));
@@ -31,8 +31,8 @@ describe('group and friend filter controls', () => {
       fireEvent.change(screen.getByLabelText('Search friends'), { target: { value: query } });
       await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining(`query=${encodeURIComponent(query)}&field=all&sort=name`), expect.anything()));
     }
-    fireEvent.change(screen.getByLabelText('Search field'), { target: { value: 'email' } });
+    expect(screen.queryByLabelText('Search field')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Sort people by'), { target: { value: 'username' } });
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('&field=email&sort=username'), expect.anything()));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('&field=all&sort=username'), expect.anything()));
   });
 });

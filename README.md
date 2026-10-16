@@ -157,3 +157,9 @@ npm run test:e2e
 Playwright starts the frontend and API automatically. The flows exercise expense persistence/editing and item splits with two-sided payments. Use a dedicated database with migrations applied: these tests create real accounts, groups, and expenses. When reusing already-running dev servers, those servers determine which database is used.
 
 [GitHub Actions CI](.github/workflows/ci.yml) runs on pushes and pull requests. It installs with `npm ci`, validates Prisma, generates the client, deploys and checks migrations against PostgreSQL, then runs lint, type checks, client and API tests, production builds, and the Chromium group-expense flow. Failed browser runs upload the Playwright report.
+
+## Appearance and password settings
+
+Profile → Appearance supports System, Light and Dark throughout the app. Light preserves the original palette; Dark uses green accents and warm dark surfaces. The preference is saved per browser and synchronized between tabs. System responds to device appearance changes.
+
+Profile → Account settings → Password verifies the current password, requires a new password of at least eight characters including a number (maximum 72 UTF-8 bytes), and checks confirmation. Password changes are hashed with bcrypt and keep the current session signed in. Google-only accounts manage passwords through Google. `POST /api/auth/password` accepts `currentPassword`, `newPassword` and `confirmPassword`; it requires an authenticated session. No additional environment variables or database migrations are required for these settings.

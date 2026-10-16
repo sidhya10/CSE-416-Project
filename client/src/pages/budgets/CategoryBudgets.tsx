@@ -165,7 +165,7 @@ export default function CategoryBudgets({ onOpenSimulator, active = true }: { on
           <strong>{item.label}</strong>
           <span>{formatCents(item.spentCents)} / {formatCents(item.plannedCents)}</span>
         </div>
-        <div className="cb-category-bar" role="presentation"><div style={{ width: `${categoryPct(item)}%`, background: isOverLimit(item) ? '#b04a37' : item.color }} /></div>
+        <div className="cb-category-bar" role="presentation"><div style={{ width: `${categoryPct(item)}%`, background: isOverLimit(item) ? 'var(--danger)' : item.color }} /></div>
       </button>)}
 
     </>)}
