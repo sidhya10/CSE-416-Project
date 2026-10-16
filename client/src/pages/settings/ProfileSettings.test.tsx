@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ProfileSettings from './ProfileSettings';
 import { appearanceKey, useApplyAppearance } from '../../appearance';
 import type { AppUser } from '../../api/types';
+vi.mock('../../components/auth/GoogleSignInButton', () => ({ default: () => null }));
 const user: AppUser = { id: 'owner', name: 'Owner', username: 'owner', email: 'owner@example.com', phone: null, birthday: '', bio: '', photoUrl: null, hasGoogle: false, hasPassword: true, createdAt: '2026-01-01' };
 const renderSettings = (account = user) => render(<ProfileSettings user={account} onUserChange={() => {}} onLogout={() => {}} onRootChange={() => {}} />);
 const openPassword = () => {

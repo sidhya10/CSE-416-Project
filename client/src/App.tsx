@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import GoogleSignInButton from './components/auth/GoogleSignInButton';
+import { disableGoogleAutoSelect } from './components/auth/googleIdentity';
 import receiptLogo from './assets/receipt-split-logo.png';
 import { authApi } from './api/auth.api';
 import { ApiError } from './api/client';
@@ -17,12 +19,6 @@ const tabs: { label: Tab; glyph: string }[] = [
   { label: 'Groups', glyph: '◎' }, { label: 'Profile', glyph: '●' },
 ];
 
-declare global {
-  interface Window {
-    google?: { accounts: { id: { initialize: (options: { client_id: string; callback: (result: { credential: string }) => void }) => void; prompt: () => void } } };
-  }
-}
-
 export default function App({ initialUser, groupFixtures, friendFixtures }: {
   initialUser?: AppUser;
   groupFixtures?: GroupFixture[];
@@ -32,27 +28,18 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   const [user, setUser] = useState<AppUser | null>(initialUser ?? null);
   const [loading, setLoading] = useState(!initialUser);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [tab, setTab] = useState<Tab>('Home');
   const [notice, setNotice] = useState('');
   const [profileAtRoot, setProfileAtRoot] = useState(true);
   const [groupsAtRoot, setGroupsAtRoot] = useState(true);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [simulatorVisited, setSimulatorVisited] = useState(false);
-  const googleReady = useRef(false);
 
   useEffect(() => {
     if (initialUser) return;
     authApi.me().then(result => setUser(result.user)).catch(() => undefined).finally(() => setLoading(false));
   }, [initialUser]);
-  useEffect(() => {
-    if (!import.meta.env.VITE_GOOGLE_CLIENT_ID || document.querySelector('script[data-google-identity]')) return;
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.dataset.googleIdentity = 'true';
-    document.head.appendChild(script);
-  }, []);
-
   const changeView = (next: AuthView) => { setNotice(''); setView(next); };
   const handleError = (error: unknown) => setNotice(error instanceof ApiError ? error.message : 'Unable to reach the server. Try again.');
   const authenticate = async (work: () => Promise<{ user: AppUser }>) => {
@@ -63,29 +50,21 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   };
   const login = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (googleSubmitting) return;
     const values = new FormData(event.currentTarget);
     void authenticate(() => authApi.login(String(values.get('email')), String(values.get('password'))));
   };
   const register = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (googleSubmitting) return;
     const values = new FormData(event.currentTarget);
     void authenticate(() => authApi.register({
       name: String(values.get('name')), username: String(values.get('username')), email: String(values.get('email')),
       phone: String(values.get('phone') || '') || undefined, password: String(values.get('password')),
     }));
   };
-  const googleLogin = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) { setNotice('Google sign-in needs VITE_GOOGLE_CLIENT_ID. Email login is ready now.'); return; }
-    if (!window.google) { setNotice('Google sign-in is still loading. Try again in a moment.'); return; }
-    if (!googleReady.current) {
-      window.google.accounts.id.initialize({ client_id: clientId, callback: result => void authenticate(() => authApi.google(result.credential)) });
-      googleReady.current = true;
-    }
-    window.google.accounts.id.prompt();
-  };
   const logout = async () => {
-    try { await authApi.logout(); }
+    try { disableGoogleAutoSelect(); await authApi.logout(); }
     finally { setUser(null); setTab('Home'); setProfileAtRoot(true); setNotice(''); }
   };
 
@@ -107,16 +86,16 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
         <label>EMAIL<input type="email" name="email" autoComplete="email" required placeholder="you@example.com" /></label>
         <label>PASSWORD<input type="password" name="password" autoComplete="current-password" required placeholder="••••••••" /></label>
         <button type="button" className="forgot-link" onClick={() => setNotice('Password reset is not implemented yet.')}>Forgot password?</button>
-        <button type="submit" className="primary-button" disabled={submitting}>{submitting ? 'Logging in…' : 'Log in'}</button>
+        <button type="submit" className="primary-button" disabled={submitting || googleSubmitting}>{submitting ? 'Logging in…' : 'Log in'}</button>
       </form>
       <div className="divider"><span>or</span></div>
-      <button type="button" className="google-button" onClick={googleLogin}><span className="google-badge" aria-hidden="true">G</span>Continue with Google</button>
+      <GoogleSignInButton onBusyChange={setGoogleSubmitting} disabled={submitting} onSuccess={account => { setUser(account); setTab('Home'); setNotice(''); }} />
       <p className="switch-auth">New here? <button type="button" onClick={() => changeView('signup')}>Create an account</button></p>
       <p className="terms">By continuing, you agree to the Terms and Privacy Policy.</p>
       {notice && <p className="form-notice" role="status">{notice}</p>}
     </main> : <main className="signup-screen">
       <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Create your account</h1><p>Start budgeting alone or with friends.</p></header>
-      <button type="button" className="google-button" onClick={googleLogin}><span className="google-badge" aria-hidden="true">G</span>Sign up with Google</button>
+      <GoogleSignInButton signup onBusyChange={setGoogleSubmitting} disabled={submitting} onSuccess={account => { setUser(account); setTab('Home'); setNotice(''); }} />
       <p className="manual-divider">or register manually</p>
       <form className="signup-form" onSubmit={register}>
         <label>NAME<input name="name" autoComplete="name" required placeholder="Your name" /></label>
@@ -125,7 +104,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
         <label>PHONE · OPTIONAL<input type="tel" name="phone" autoComplete="tel" placeholder="+1 555 010 0000" /></label>
         <label>PASSWORD<input type="password" name="password" autoComplete="new-password" minLength={8} pattern="(?=.*[0-9]).{8,}" required title="Use at least 8 characters with a number" placeholder="••••••••" /></label>
         <p className="password-hint">Use at least 8 characters with a number.</p>
-        <button type="submit" className="primary-button" disabled={submitting}>{submitting ? 'Creating account…' : 'Create account'}</button>
+        <button type="submit" className="primary-button" disabled={submitting || googleSubmitting}>{submitting ? 'Creating account…' : 'Create account'}</button>
       </form>
       <p className="switch-auth">Already have an account? <button type="button" onClick={() => changeView('login')}>Log in</button></p>
       {notice && <p className="form-notice" role="status">{notice}</p>}

@@ -18,7 +18,7 @@
 
 The frontend runs at http://localhost:5173. The API runs at http://localhost:3000, and its health endpoint is http://localhost:3000/api/health.
 
-Email/password authentication works with the required variables above. For Google sign-in, create a Google OAuth 2.0 web client, add `http://localhost:5173` as an authorized JavaScript origin, and set both `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to that client ID. A Google client secret is not required for the current ID-token flow.
+Email/password authentication works with the required variables above. For Google sign-in, create a Google OAuth 2.0 web client, add `http://localhost:5173` as an authorized JavaScript origin, and set both `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to that client ID. A Google client secret is not required for the current ID-token flow. Vite loads the repository-root `.env`; restart both processes after changes. See [Google popup setup and linking](google-auth.md) for exact origins, account behavior and troubleshooting.
 
 ## Quality checks
 

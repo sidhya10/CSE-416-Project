@@ -13,7 +13,7 @@ const envSchema = z.object({
   AZURE_DOCUMENT_INTELLIGENCE_KEY: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   RECEIPT_MONTHLY_PAGE_LIMIT: z.coerce.number().int().min(0).max(500).default(450),
   RECEIPT_DAILY_USER_LIMIT: z.coerce.number().int().min(0).max(100).default(20),
-  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_ID: z.preprocess(value => value || process.env.VITE_GOOGLE_CLIENT_ID || undefined, z.string().trim().min(1).optional()),
   PLAID_CLIENT_ID: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   PLAID_SECRET: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   PLAID_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
