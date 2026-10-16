@@ -95,7 +95,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
     {user ? <>
       <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard /></div>
       <div hidden={tab !== 'Budget' || simulatorOpen} className="profile-content"><CategoryBudgets active={tab === 'Budget'} onOpenSimulator={() => { setSimulatorVisited(true); setSimulatorOpen(true); }} /></div>
-      <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator onBack={() => setSimulatorOpen(false)} />}</div>
+      <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator active={tab === 'Budget' && simulatorOpen} onBack={() => setSimulatorOpen(false)} />}</div>
       <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>
       <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace currentUser={user} onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>
       {(tab === 'Home' || (tab === 'Budget' && !simulatorOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
