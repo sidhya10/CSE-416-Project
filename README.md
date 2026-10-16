@@ -22,13 +22,13 @@ What makes the product unique is its reconciliation between group and personal s
 - Recurring bills can be generated automatically for established groups, reducing repeated coordination among roommates and friends.
 - Receipt items, tax, and tip can be assigned fairly while the system verifies that all shares add up to the printed total.
 
-The app records settlements but does not move real money. Version 1 is USD-only and excludes native mobile apps, public social features, and cross-group debt netting. Bank transaction connections are planned through a provider such as Plaid or Teller; provider selection and production access remain to be confirmed.
+The app records settlements but does not move real money. Version 1 is USD-only and excludes native mobile apps, public social features, and cross-group debt netting. Bank transaction connections are done through Plaid, with encrypted action tokens.
 
 ### Navigation and account flow
 
 The mobile app opens on the Log in screen. Users can create an account with name, username, email, optional phone number, and a password of at least eight characters including a number. Email/password authentication and signed httpOnly sessions are implemented. Google Identity Services sign-in is implemented and activates when the Google client ID is configured. After authentication, a persistent bottom navigation bar has four destinations: **Home**, **Budget**, **Groups**, and **Profile**. Profile data is loaded from PostgreSQL; profile photo, username, name, birthday, and bio are editable, while email and phone number are read-only.
 
-Account registration, login, logout, current-session lookup, profile updates, and account deletion call the Express API. Friend discovery searches every registered account by name, username, email, or phone, and friendships persist in PostgreSQL. Groups, memberships, expenses, split assignments, and payment confirmations now persist through the API. Category budget limits, group shared plans, and budget spending persist through the API; see [Category budgets API](docs/budget-backend.md). Bank-connection persistence remains work in progress. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own.
+Account registration, login, logout, current-session lookup, profile updates, and account deletion call the Express API. Friend discovery searches every registered account by name, username, email, or phone, and friendships persist in PostgreSQL. Groups, memberships, expenses, split assignments, and payment confirmations now persist through the API. Category budget limits, group shared plans, and budget spending persist through the API; see [Category budgets API](docs/budget-backend.md). Bank-connection and synced transactions persist as well. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own.
 
 ### Group types and flows
 
@@ -67,9 +67,9 @@ The table includes the intended architecture as well as implemented services. Ta
 | Charts | Recharts | Category, monthly spending, and projection visualizations |
 | Backend | Node.js, Express, TypeScript | REST APIs, authentication, groups, expenses, budgets, and imports |
 | Database | PostgreSQL, Prisma | Relational financial data and enforcement of money-related constraints |
-| Background jobs | In-process scheduler with PostgreSQL coordination; Redis/BullMQ planned | Recurring bill generation and inactive-group archiving run now; bank synchronization and notifications remain planned |
+| Background jobs | In-process scheduler with PostgreSQL coordination; Redis/BullMQ planned | Recurring bill generation and inactive-group archiving run now |
 | Live updates | Server-Sent Events (SSE) | Group expense and status updates when available |
-| Bank data | Plaid or Teller (selection pending) | Connect accounts and retrieve transactions with user consent |
+| Bank data | Plaid | Connect accounts and retrieve transactions with user consent |
 | Document processing | Azure Document Intelligence (`prebuilt-receipt`), heic-convert, sharp | Authenticated receipt parsing with PostgreSQL cache, usage limits, and editable review; requires server Azure credentials |
 | File storage | PostgreSQL bytea via Prisma Bytes; external object storage planned | Saved receipt JPEGs (up to 1 MB) and PDFs (up to 4 MB), served through an authenticated API |
 | Security | bcrypt, signed httpOnly session cookies | Password hashing and authenticated sessions |
@@ -87,7 +87,7 @@ PostgreSQL is preferred over MongoDB because expenses, shares, memberships, and 
 | **F1 — Expense Splitting & Settlement** | Eva | Receipt upload, item assignment, equal and custom splitting, tax/tip reconciliation, share validation, owe/owed tracking, two-sided settlement confirmation, trip settlement, and the expense ledger |
 | **F2 — Accounts, Groups & Recurring Bills** | Vivian | Authentication, user profiles, friend discovery by username/phone/QR, group creation and types, membership validation, recurring bill generation, reminders, and notification delivery |
 | **F3 — Category Budgets & What-If** | Nicole | Creating and editing category limits, connecting budgets to transactions, over-limit warnings, category charts, and a sandbox for testing changes to budget limits |
-| **F4 — Bank Transactions & Projections** | Sidhya | Provider-based bank transaction connection (Plaid or Teller, subject to selection), duplicate and overlap handling, mandatory transaction review, personal dashboard layout, spending projections, and monthly charts |
+| **F4 — Bank Transactions & Projections** | Sidhya | Provider-based bank transaction connection (Plaid), duplicate and overlap handling, mandatory transaction review, personal dashboard layout, spending projections, and monthly charts |
 
 Each owner is responsible for their feature's screens, API routes, data model, and tests. The group and personal halves connect through four shared interfaces:
 
@@ -130,7 +130,7 @@ After pulling changes, stop the dev servers and run `npm ci`, `npm run prisma:ge
 
 If Vite reports a missing `@rollup/rollup-darwin-arm64` module on an Apple Silicon Mac, run `npm ci --include=optional` using the committed lockfile. Rollup requires this native optional dependency. For PostgreSQL, ensure the port in `.env`'s `DATABASE_URL` matches the host port in `docker-compose.yml` (currently 5433 for the included container).
 
-Users, profiles, friendships, groups, expenses, and payment records are persisted. After adding a General/Trip expense, refresh and reopen the group to see it retained. Category budgets are connected (see [Category budgets API](docs/budget-backend.md)); the Home dashboard and what-if simulator still use sample data. Receipt scanning is integrated with Azure and requires server credentials; see [receipt parsing setup and cache behavior](docs/receipt-parsing.md). Additional backend development notes are in [docs/development.md](docs/development.md).
+Users, profiles, friendships, groups, expenses, and payment records are persisted. After adding a General/Trip expense, refresh and reopen the group to see it retained. Category budgets are connected (see [Category budgets API](docs/budget-backend.md)); the Home dashboard and what-if simulator are also connected. Receipt scanning is integrated with Azure and requires server credentials; see [receipt parsing setup and cache behavior](docs/receipt-parsing.md). Additional backend development notes are in [docs/development.md](docs/development.md).
 
 ### Receipt scanning setup
 
