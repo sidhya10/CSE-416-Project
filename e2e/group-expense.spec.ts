@@ -215,5 +215,5 @@ test('appearance persists and password changes work through settings and a new l
   await expect(page.getByText('Email or password is incorrect')).toBeVisible();
   await page.getByLabel('PASSWORD', { exact: true }).fill('replacement2');
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Good morning, there' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), Settings$/ })).toBeVisible();
 });
