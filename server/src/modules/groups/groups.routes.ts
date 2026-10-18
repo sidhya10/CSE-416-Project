@@ -1,3 +1,4 @@
+import { groupHasOpenSplits } from './settlement.js';
 import { lockMaintenance } from '../../utils/maintenance-lock.js';
 import { runMaintenance } from '../recurring/recurring.service.js';
 import { filterGroups, groupFilters } from './group-list.js';
@@ -151,6 +152,7 @@ groupsRouter.post('/:groupId/archive', async (request, response, next) => {
       await lockMaintenance(tx);
       const member = await tx.groupMembership.findUnique({ where: { groupId_userId: { groupId: request.params.groupId, userId: request.userId! } } });
       if (!member) throw new ExpenseError(404, 'Group not found');
+      if (archived && await groupHasOpenSplits(tx, request.params.groupId)) throw new ExpenseError(409, 'Resolve all splits and confirm all payments before archiving this group');
       await tx.group.update({ where: { id: request.params.groupId }, data: archived
         ? { archivedAt: new Date(), archiveReason: 'MANUAL' }
         : { archivedAt: null, archiveReason: null, lastActivityAt: new Date() } });
@@ -214,5 +216,22 @@ groupsRouter.delete('/:groupId/members/:userId', async (request, response, next)
       await tx.group.update({ where: { id: request.params.groupId }, data: { updatedAt: new Date(), lastActivityAt: new Date() } });
     });
     return response.status(204).end();
+  } catch (error) { next(error); }
+});
+
+// Permanent deletion removes the group's entire shared ledger for every member.
+groupsRouter.delete('/:groupId', async (request, response, next) => {
+  try {
+    await transaction(async tx => {
+      await lockMaintenance(tx);
+      const member = await tx.groupMembership.findUnique({ where: { groupId_userId: { groupId: request.params.groupId, userId: request.userId! } } });
+      if (!member) throw new ExpenseError(404, 'Group not found');
+      if (member.role !== GroupRole.OWNER) throw new ExpenseError(403, 'Only the group owner can permanently delete this group');
+      await tx.expensePayment.deleteMany({ where: { share: { expense: { groupId: request.params.groupId } } } });
+      await tx.expense.deleteMany({ where: { groupId: request.params.groupId } });
+      await tx.recurringBill.deleteMany({ where: { groupId: request.params.groupId } });
+      await tx.group.delete({ where: { id: request.params.groupId } });
+    });
+    response.status(204).end();
   } catch (error) { next(error); }
 });

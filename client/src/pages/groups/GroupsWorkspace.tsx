@@ -1,3 +1,4 @@
+import ConfirmDeletion from '../../components/common/ConfirmDeletion';
 import { recurringApi, type CyclePlan } from '../../api/recurring.api';
 import { selectGroups, defaultFilters } from './groupFilters';
 import { createRequestId } from '../../utils/requestId';
@@ -30,7 +31,7 @@ type Group = {
   id: number | string; name: string; description: string; type: GroupType; members: string[];
   color: string; photo: string | null; startDate: string; endDate: string;
   balance: number; privateBudget: number | null; plans: PlannedExpense[]; bills: RecurringBill[]; archived?: boolean;
-  archivedAt?: string | null; archiveReason?: string | null; inactivityDays?: number; createdAt?: string;
+  canArchive?: boolean; archivedAt?: string | null; archiveReason?: string | null; inactivityDays?: number; createdAt?: string;
   lastActivityAt?: string; lastAccessedAt?: string | null; amountOwedCents?: number; amountOwesCents?: number; hasUnresolved?: boolean;
   createdById?: string; createdBy?: AppUser; currentUserRole?: GroupRole;
   memberRoles?: Record<string, GroupRole>; memberProfiles?: Friend[];
@@ -73,10 +74,6 @@ const occurrencesInMonth = (bill: RecurringBill, month: Date) => {
     if (date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth()) dates.push(isoDate(date));
   }
   return dates;
-};
-const findCycleIndex = (bill: RecurringBill, date: string) => {
-  for (let i = 0; i < 1500; i++) if (isoDate(occurrence(bill, i)) === date) return i;
-  return 0;
 };
 const defaultAllocation = (bill: RecurringBill, members: Member[]): Allocation => {
   const cents = Math.round(bill.amount * 100);
@@ -127,7 +124,6 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const [newBill, setNewBill] = useState({ title: '', amount: '', startDate: '', frequency: 'Monthly' as Frequency, customEvery: '1', customUnit: 'months' as IntervalUnit });
   const [newBillPlan, setNewBillPlan] = useState<Allocation | null>(null);
   const [addingBill, setAddingBill] = useState(false);
-  const [cycleIndex, setCycleIndex] = useState(0);
   const [allocationDraft, setAllocationDraft] = useState<Allocation | null>(null);
   const [openActionsId, setOpenActionsId] = useState<number | string | null>(null);
   const [filters, setFilters] = useState(defaultFilters);
@@ -135,6 +131,9 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const [memberSelectionSnapshot, setMemberSelectionSnapshot] = useState<string[]>([]);
   const [friendSort, setFriendSort] = useState('name');
   const [billBusy, setBillBusy] = useState(false);
+  const [deletion, setDeletion] = useState<{ kind: 'group' | 'bill'; id: number | string; groupId: number | string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const swipeStart = useRef<{ id: number | string; x: number; y: number } | null>(null);
   const suppressCardClick = useRef<number | string | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
@@ -144,9 +143,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const active = groups.find(group => group.id === activeId);
   const canManageActive = !active?.currentUserRole || active.currentUserRole === 'OWNER' || active.currentUserRole === 'ADMIN';
   const bill = active?.bills.find(item => item.id === billId);
-  const cycleDate = bill ? isoDate(occurrence(bill, cycleIndex)) : '';
   const members = active ? groupMembers(active) : [];
-  const allocation = bill ? bill.cycles[cycleDate] ?? bill.defaultPlan ?? defaultAllocation(bill, members) : null;
+  const allocation = bill ? bill.defaultPlan ?? defaultAllocation(bill, members) : null;
   const cycleEntries = active?.bills.flatMap(item => occurrencesInMonth(item, calendarMonth).map(date => ({ item, date }))) ?? [];
   const balanceGroups = groups;
   const owedToYou = balanceGroups.reduce((total, group) => total + (group.amountOwedCents !== undefined ? group.amountOwedCents / 100 : Math.max(group.balance, 0)), 0);
@@ -169,7 +167,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     memberProfiles: group.members.filter(member => member.id !== currentUser.id).map(toFriend),
     memberRoles: Object.fromEntries(group.members.map(member => [member.id, member.role])),
     createdById: group.createdById, createdBy: group.createdBy, currentUserRole: group.currentUserRole,
-    archived: !!group.archivedAt, archivedAt: group.archivedAt, archiveReason: group.archiveReason,
+    canArchive: group.canArchive, archived: !!group.archivedAt, archivedAt: group.archivedAt, archiveReason: group.archiveReason,
     inactivityDays: group.inactivityDays ?? 60, createdAt: group.createdAt, lastActivityAt: group.lastActivityAt ?? group.updatedAt,
     lastAccessedAt: group.lastAccessedAt, amountOwesCents: group.amountOwesCents, amountOwedCents: group.amountOwedCents, hasUnresolved: group.hasUnresolved,
     balance: ((group.amountOwedCents ?? 0) - (group.amountOwesCents ?? 0)) / 100, privateBudget: null, plans: [],
@@ -187,10 +185,17 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     const sequence = ++refreshSequence.current;
     try {
       const result = await groupsApi.list();
-      const rows = await Promise.all(result.groups.map(async group => {
-        const response = await expensesApi.list(group.id);
-        return { group: fromApiGroup(group), splits: response.expenses.map(expense => fromApiExpense(expense, currentUser.id)).reverse() };
+      const fetched = await Promise.all(result.groups.map(async group => {
+        try {
+          const response = await expensesApi.list(group.id);
+          return { group: fromApiGroup(group), splits: response.expenses.map(expense => fromApiExpense(expense, currentUser.id)).reverse() };
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 404) return null;
+          throw error;
+        }
       }));
+      // Another member may delete a group between listing it and loading its expenses.
+      const rows = fetched.filter((row): row is NonNullable<typeof row> => row !== null);
       if (sequence !== refreshSequence.current) return;
       setPreviewSplits(Object.fromEntries(rows.map(row => [row.group.id, row.splits])));
       setGroups(previous => rows.map(({ group, splits }) => {
@@ -241,7 +246,36 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     if (!initialGroupsData) void groupsApi.get(String(id)).then(() => refreshGroups()).catch(error => setMessage(error.message));
     else setGroups(previous => previous.map(group => group.id === id ? { ...group, lastAccessedAt: new Date().toISOString() } : group));
   };
+  const canArchive = (group: Group) => group.canArchive ?? !(group.hasUnresolved || group.balance !== 0 ||
+    (previewSplits[group.id] ?? []).some(split => split.shares.some(share => share.memberId !== split.payerId &&
+      share.totalCents > (split.payments ?? []).filter(payment => payment.memberId === share.memberId).reduce((sum, payment) => sum + payment.receivedCents, 0))));
+  const requestDeletion = (target: NonNullable<typeof deletion>) => { setDeleteError(''); setDeletion(target); };
+  const canDeleteGroup = (group: Group) => !group.currentUserRole || group.currentUserRole === 'OWNER';
+  const confirmDeletion = async () => {
+    if (!deletion || deleting) return;
+    setDeleting(true); setDeleteError('');
+    try {
+      if (!initialGroupsData) {
+        if (deletion.kind === 'group') await groupsApi.remove(String(deletion.id));
+        else await recurringApi.remove(String(deletion.id));
+      }
+      ++refreshSequence.current;
+      if (deletion.kind === 'group') {
+        setGroups(previous => previous.filter(group => group.id !== deletion.id));
+        setPreviewSplits(previous => { const next = { ...previous }; delete next[deletion.id]; return next; });
+        setActiveId(null); setViewedExpense(null); setOpenActionsId(null); go('list');
+      } else {
+        setGroups(previous => previous.map(group => group.id === deletion.groupId ? { ...group, bills: group.bills.filter(item => item.id !== deletion.id) } : group));
+        setBillId(null); setAllocationDraft(null); go('detail');
+      }
+      setDeletion(null);
+      setMessage(deletion.kind === 'group' ? 'Group permanently deleted for everyone.' : 'Recurring expense deleted. Past expenses and payments are unchanged.');
+      if (!initialGroupsData) await refreshGroups();
+    } catch (error) { setDeleteError(error instanceof Error ? error.message : 'Could not delete. Please try again.'); }
+    finally { setDeleting(false); }
+  };
   const changeArchive = async (group: Group, archived: boolean) => {
+    if (archived && !canArchive(group)) { setMessage('Resolve all splits and confirm all payments before archiving this group.'); return; }
     try {
       if (!initialGroupsData) await groupsApi.archive(String(group.id), archived);
       setGroups(previous => previous.map(item => item.id === group.id ? { ...item, archived, archivedAt: archived ? new Date().toISOString() : null,
@@ -264,7 +298,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     window.setTimeout(() => { if (suppressCardClick.current === id) suppressCardClick.current = null; }, 0);
     setOpenActionsId(dx < 0 ? id : null);
   };
-  const openBill = (id: number | string, index = 0) => { setBillId(id); setCycleIndex(index); setAllocationDraft(null); go('bill'); };
+  const openBill = (id: number | string) => { setBillId(id); setAllocationDraft(null); go('bill'); };
   const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const startCreate = () => { setDraft(initialDraft()); setSelected([]); setEditing(false); setEditingMembers(false); go('select'); };
   const createGroup = async (event: FormEvent) => {
@@ -383,14 +417,14 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     }
     if (!initialGroupsData) {
       setBillBusy(true);
-      try { await recurringApi.saveCycle(String(bill.id), cycleIndex, realPlan(plan)); await refreshGroups(); setAllocationDraft(null); setMessage('Payment plan saved for this cycle.'); }
-      catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save cycle.'); }
+      try { await recurringApi.update(String(bill.id), { defaultPlan: realPlan(plan) }); await refreshGroups(); setAllocationDraft(null); setMessage('Payment plan saved for the next and future expenses.'); }
+      catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save payment plan.'); }
       finally { setBillBusy(false); }
       return;
     }
     setGroups(previous => previous.map(group => group.id !== active.id ? group : { ...group,
-      bills: group.bills.map(item => item.id !== bill.id ? item : { ...item, cycles: { ...item.cycles, [cycleDate]: plan } }) }));
-    setAllocationDraft(null); setMessage('Payment plan saved for this cycle.');
+      bills: group.bills.map(item => item.id !== bill.id ? item : { ...item, defaultPlan: plan, cycles: {}, paused: false }) }));
+    setAllocationDraft(null); setMessage('Payment plan saved for the next and future expenses.');
   };
 
   const storeRemoteSplit = (groupId: string | number, split: PreviewSplit) => {
@@ -514,7 +548,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
           onPointerDown={event => { if (event.target instanceof Element && event.target.closest('.group-list-card')) swipeStart.current = { id: group.id, x: event.clientX, y: event.clientY }; }}
           onPointerMove={event => { const start = swipeStart.current; if (start?.id === group.id && Math.abs(event.clientX - start.x) > 12 && Math.abs(event.clientX - start.x) > Math.abs(event.clientY - start.y)) event.currentTarget.setPointerCapture(event.pointerId); }}
           onPointerUp={event => finishSwipe(group.id, event.clientX, event.clientY)} onPointerCancel={() => { swipeStart.current = null; }}>
-          <div className="group-card-actions"><button type="button" onClick={() => group.archived ? restoreGroup(group) : archiveGroup(group)}>{group.archived ? 'Restore' : 'Archive'}</button></div>
+          <div className="group-card-actions"><button type="button" disabled={!group.archived && !canArchive(group)} title={!group.archived && !canArchive(group) ? 'Resolve all splits before archiving' : undefined} onClick={() => group.archived ? restoreGroup(group) : archiveGroup(group)}>{group.archived ? 'Restore' : 'Archive'}</button>
+            <button type="button" disabled={!canDeleteGroup(group)} title={!canDeleteGroup(group) ? 'Only the group owner can delete' : undefined} onClick={() => requestDeletion({ kind: 'group', id: group.id, groupId: group.id, name: group.name })}>Delete</button></div>
           <div className={`group-card-foreground${group.archived ? ' archived-card' : ''}`}><button className="group-list-card" type="button" onClick={() => {
             if (suppressCardClick.current === group.id) { suppressCardClick.current = null; return; }
             if (openActionsId === group.id) { setOpenActionsId(null); return; }
@@ -580,7 +615,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       <button className="group-primary group-bottom-action" type="button" disabled={!selected.length} onClick={() => { if (!selected.length) return; setDraft(previous => ({ ...previous, members: selected })); go('customize'); }}>Next: customize group</button>
     </>}
     {screen === 'customize' && <>
-      <Header title="Customize group" subtitle="You can change these settings later." back={() => { setMemberSelectionSnapshot([...selected]); setEditingMembers(true); go('select'); }} />
+      <Header title="Customize group" subtitle="You can change these settings later." back={() => { setEditingMembers(false); go('select'); }} />
       <div className="group-photo-editor"><button type="button" onClick={() => photoInput.current?.click()} aria-label="Add group photo">
         <Avatar name={draft.name || 'B'} color={draft.color} photo={draft.photo} size="large" /><span>+</span></button>
         <button type="button" onClick={() => photoInput.current?.click()}>Add group photo</button></div>
@@ -591,13 +626,13 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         <div><span className="group-field-label">PURPOSE</span><div className="group-type-picker">{(['General', 'Trip', 'Recurring'] as GroupType[]).map(type =>
           <button type="button" className={draft.type === type ? 'selected' : ''} key={type} onClick={() => updateGroup({ type })}>{type}</button>)}</div>
           <small className="group-type-help">{draft.type === 'General' ? 'General groups support any shared expense and flexible splitting.' :
-            draft.type === 'Trip' ? 'Trip groups have dates, a private budget, and future cost planning.' :
+            draft.type === 'Trip' ? 'Trip groups have dates and future cost planning.' :
               'Add recurring costs with flexible schedules and payment plans for each cycle.'}</small></div>
         {draft.type === 'Trip' && <div className="trip-dates"><span className="group-field-label">TRIP DATES</span>
           <div><label>Start<input type="date" required value={draft.startDate} onChange={event => updateGroup({ startDate: event.target.value })} /></label>
             <label>End<input type="date" required min={draft.startDate} value={draft.endDate} onChange={event => updateGroup({ endDate: event.target.value })} /></label></div></div>}
         <div className="member-preview"><span className="group-field-label">MEMBERS · {selected.length + 1}</span><div className="member-preview-card">
-          {groupMembers({ ...draft, members: selected }).slice(0, 4).map(member => <div key={member.id}><Avatar name={member.name} color={member.color} /><small>{member.name.split(' ')[0]}</small></div>)}
+          {groupMembers({ ...draft, members: selected }).map(member => <div key={member.id}><Avatar name={member.name} color={member.color} /><small>{member.name}</small></div>)}
           <button type="button" onClick={() => { setMemberSelectionSnapshot([...selected]); setEditingMembers(true); go('select'); }}>Edit members</button></div></div>
       </form>
       {message && <p className="group-notice" role="status">{message}</p>}
@@ -613,7 +648,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
           <button type="button" aria-label="Previous month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>‹</button>
           <button type="button" aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>›</button></span></div>
           <div className="calendar-days">{cycleEntries.slice(0, 5).map(({ item, date }) => <button type="button" key={`${item.id}-${date}`}
-            aria-label={`${item.title} on ${dateLabel(date)}`} onClick={() => openBill(item.id, findCycleIndex(item, date))}>{Number(date.slice(-2))}</button>)}</div>
+            aria-label={`${item.title} on ${dateLabel(date)}`} onClick={() => openBill(item.id)}>{Number(date.slice(-2))}</button>)}</div>
           <small>{cycleEntries.length} scheduled this month</small></section>
         <div className="group-section-line"><h2 className="group-overline">RECURRING EXPENSES</h2><button type="button" onClick={() => { setAddingBill(!addingBill); setNewBillPlan(null); }}>+ Add recurring</button></div>
         {addingBill && <form className="group-form add-bill-form" onSubmit={event => void addBill(event)}>
@@ -628,33 +663,29 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
           {Number(newBill.amount) > 0 && (() => {
             const plan = newBillPlan ?? defaultAllocation({ amount: Number(newBill.amount) } as RecurringBill, members);
             return <fieldset><legend>Default payer and shares</legend><label>Default payer<select value={plan.payerId} onChange={event => setNewBillPlan({ ...plan, payerId: event.target.value })}>{members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
-              {members.map(member => <label key={member.id}>Default share for {member.name}<input type="number" min="0" step="0.01" value={(plan.shares[member.id] ?? 0) / 100} onChange={event => setNewBillPlan({ ...plan, shares: { ...plan.shares, [member.id]: Math.round(Number(event.target.value) * 100) } })} /></label>)}<small>Shares must add up to the bill total. You can override each cycle later.</small></fieldset>;
+              {members.map(member => <label key={member.id}>Default share for {member.name}<input type="number" min="0" step="0.01" value={(plan.shares[member.id] ?? 0) / 100} onChange={event => setNewBillPlan({ ...plan, shares: { ...plan.shares, [member.id]: Math.round(Number(event.target.value) * 100) } })} /></label>)}<small>Shares must add up to the bill total. Changes to payer and shares apply to the next and future expenses.</small></fieldset>;
           })()}
           <button className="group-primary" disabled={billBusy} type="submit">Save recurring cost</button></form>}
         {active.bills.map(item => <button className="recurring-card" type="button" key={item.id} onClick={() => openBill(item.id)}>
-          <span><strong>{item.title}</strong><small>{item.frequency === 'Custom' ? `Every ${item.customEvery} ${item.customUnit}` : item.frequency} · from {dateLabel(item.startDate)}</small><small>{item.paused ? 'Paused' : `Next cycle: ${item.nextDate ?? item.startDate}`} · Set payer and shares for each cycle</small></span><b>{money(item.amount)}</b></button>)}
-        <h2>Generated expenses</h2>
-        {[...activeSplits].reverse().map(split => <button className="group-transaction expense-list-row" type="button" key={split.expenseId} onClick={() => { setViewedExpense({ title: split.name, subtitle: `Cycle of ${dateLabel(split.date.slice(0, 10))}`, amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>{dateLabel(split.date.slice(0, 10))} · View payments</small></span><b>{formatCents(split.totalCents)}</b></button>)}
+          <span><strong>{item.title}</strong><small>{item.frequency === 'Custom' ? `Every ${item.customEvery} ${item.customUnit}` : item.frequency} · from {dateLabel(item.startDate)}</small><small>{item.paused ? 'Paused' : `Next cycle: ${item.nextDate ?? item.startDate}`} · Edit upcoming payer and shares</small></span><b>{money(item.amount)}</b></button>)}
+        <h2>Past expenses</h2>
+        {[...activeSplits].reverse().map(split => <button className="group-transaction expense-list-row" type="button" key={split.expenseId} onClick={() => { setViewedExpense({ title: split.name, subtitle: dateLabel(split.date.slice(0, 10)), amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>{dateLabel(split.date.slice(0, 10))} · View payments</small></span><b>{formatCents(split.totalCents)}</b></button>)}
         {!activeSplits.length && <p>No cycles due yet. Expenses appear automatically on their scheduled date (UTC).</p>}
         {message && <p className="group-notice" role="status">{message}</p>}
       </> : <>
         <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE'}</small>
           <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? formatCents(currentRunningTotal) : balanceMoney(Math.max(-active.balance, 0))}</strong></span>
             <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? formatCents(yourCurrentExpenses) : balanceMoney(Math.max(active.balance, 0))}</strong></span></div></section>
-        <div className="group-split-actions"><button type="button" onClick={() => { requestId.current = createRequestId(); go('expense'); }}>+ Add expense</button>
+        <div className="group-split-actions"><button type="button" disabled={active.archived} onClick={() => { requestId.current = createRequestId(); go('expense'); }}>+ Add expense</button>
           <button type="button" disabled={!currentRunningTotal || !initialGroupsData} title={!initialGroupsData ? 'Each saved expense already has its own split' : !currentRunningTotal ? 'Add an expense before splitting the current total' : undefined}
             onClick={() => go('running-split')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
         <section className="group-info"><strong>{active.type === 'Trip' ? active.description || 'Trip with friends' : 'Any member can add expenses and split when ready.'}</strong>
           <small>{active.type === 'Trip' ? `Trip dates · ${dateLabel(active.startDate)} – ${dateLabel(active.endDate)}` : `About · ${active.description || 'No description yet'}`}</small></section>
         {active.type === 'Trip' && <>
-          <section className="private-budget"><div><h2>Your private trip budget</h2><small>Only you can see this amount</small></div>
-            <label className="budget-input">$<input aria-label="Private trip budget" type="number" min="0" step="0.01" placeholder="Set budget"
-              value={active.privateBudget ?? ''} onChange={event => setGroups(previous => previous.map(group => group.id === active.id
-                ? { ...group, privateBudget: event.target.value === '' ? null : Number(event.target.value) } : group))} /></label></section>
           <div className="group-section-line"><h2 className="group-section-title">Planned expenses</h2><button type="button" onClick={() => go('plan')}>+ Plan expense</button></div>
           {active.plans.length === 0 ? <p className="group-caption">Estimate future costs before adding actual expenses.</p>
-            : active.plans.map(item => <div className="group-transaction" key={item.id}><span><strong>{item.title}</strong><small>Estimated · Your share {money(item.amount / (active.members.length + 1))}</small></span><b>{money(item.amount)}</b></div>)}
+            : active.plans.map(item => <div className="group-transaction" key={item.id}><span><strong>{item.title}</strong><small>Estimated · Your share {money(item.amount / (active.members.length + 1))}</small></span><b>{money(item.amount)}</b><button type="button" className="planned-delete" aria-label={`Delete planned expense ${item.title}`} onClick={() => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, plans: group.plans.filter(plan => plan.id !== item.id) } : group))}>Delete</button></div>)}
         </>}
         <section aria-label={active.type === 'Trip' ? 'Current trip expenses' : 'Transactions · Current period'}>
         <h2 className="group-section-title">{active.type === 'Trip' ? 'Current trip expenses' : 'Transactions · Current period'}</h2>
@@ -676,8 +707,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       <form className="group-form" onSubmit={addPlan}><label>EXPENSE NAME<input required value={plannedTitle} onChange={event => setPlannedTitle(event.target.value)} placeholder="Museum tickets" /></label>
         <label>ESTIMATED TOTAL<input required type="number" min="0.01" step="0.01" value={plannedAmount} onChange={event => setPlannedAmount(event.target.value)} placeholder="0.00" /></label>
         {Number(plannedAmount) > 0 && <div className="planning-impact"><strong>Your estimated share: {money(Number(plannedAmount) / (active.members.length + 1))}</strong>
-          <small>{active.privateBudget === null ? 'Set your private trip budget to see the impact.' :
-            `${money(active.privateBudget - Number(plannedAmount) / (active.members.length + 1))} of your private trip budget would remain.`}</small></div>}
+</div>}
         <button className="group-primary" type="submit">Save estimate</button></form>
     </>}
     {screen === 'settings' && active && <>
@@ -703,7 +733,9 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       <p className="group-info"><strong>New members start from $0</strong><small>Previous expenses and balances are not assigned to them.</small></p>
       <div className="group-form"><label>Archive after inactive days<input type="number" min="1" max="3650" disabled={!canManageActive} value={active.inactivityDays ?? 60} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, inactivityDays: Number(event.target.value) } : group))} /></label></div>
       <p className="group-caption">Default: 60 days. Opening a group does not count as activity. Archiving is shared by all members.</p>
-      <button className="group-secondary" type="button" onClick={() => active.archived ? restoreGroup(active) : archiveGroup(active)}>{active.archived ? 'Restore group' : 'Archive group'}</button>
+      <button className="group-secondary" type="button" disabled={!active.archived && !canArchive(active)} onClick={() => active.archived ? restoreGroup(active) : archiveGroup(active)}>{active.archived ? 'Restore group' : 'Archive group'}</button>
+      {!active.archived && !canArchive(active) && <p className="group-caption">Resolve all splits and confirm all payments before archiving.</p>}
+      {canDeleteGroup(active) && <button className="group-secondary group-danger" type="button" onClick={() => requestDeletion({ kind: 'group', id: active.id, groupId: active.id, name: active.name })}>Delete group permanently</button>}
       {message && <p className="group-notice" role="status">{message}</p>}
     </>}
     {screen === 'add-members' && active && <>
@@ -721,26 +753,23 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     {screen === 'bill' && active && bill && <>
       <Header title={bill.title} subtitle={active.name} back={() => go('detail')} />
       <section className="group-hero"><small>AMOUNT PER CYCLE</small><strong>{money(bill.amount)}</strong><p>{bill.frequency === 'Custom' ? `Every ${bill.customEvery} ${bill.customUnit}` : bill.frequency} · starts {dateLabel(bill.startDate)}</p></section>
-      <div className="cycle-navigation"><button type="button" disabled={cycleIndex === 0} onClick={() => { setCycleIndex(cycleIndex - 1); setAllocationDraft(null); setMessage(''); }} aria-label="Previous cycle">‹</button>
-        <span>Cycle of {dateLabel(cycleDate)}</span><button type="button" onClick={() => { setCycleIndex(cycleIndex + 1); setAllocationDraft(null); setMessage(''); }} aria-label="Next cycle">›</button></div>
-      <h2 className="group-overline">PAYMENT PLAN FOR THIS CYCLE</h2>
+      <h2 className="group-overline">UPCOMING PAYMENT PLAN</h2>
       <form className="group-form cycle-form" onSubmit={event => void saveAllocation(event)}>
-        <label>Who pays this cycle?<select value={(allocationDraft ?? allocation)?.payerId} onChange={event => setAllocationDraft({ ...(allocationDraft ?? allocation!), payerId: event.target.value })}>
+        <label>Who pays?<select value={(allocationDraft ?? allocation)?.payerId} onChange={event => setAllocationDraft({ ...(allocationDraft ?? allocation!), payerId: event.target.value })}>
           {members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
         <span className="group-field-label">HOW MUCH EACH MEMBER PAYS</span>
         {members.map(member => <label key={member.id}>{member.name}<input type="number" min="0" step="0.01" required
           value={((allocationDraft ?? allocation)?.shares[member.id] ?? 0) / 100}
           onChange={event => setAllocationDraft({ ...(allocationDraft ?? allocation!), shares: { ...(allocationDraft ?? allocation)!.shares, [member.id]: Math.round(Number(event.target.value) * 100) } })} /></label>)}
-        <button className="group-primary" disabled={billBusy} type="submit">Save this cycle</button></form>
+        <button className="group-primary" disabled={billBusy} type="submit">Save payment plan</button></form>
       {message && <p className="group-notice" role="status">{message}</p>}
       {bill.error && <p role="status">{bill.error}</p>}
-      {!initialGroupsData && <div className="group-actions"><button type="button" disabled={billBusy} onClick={async () => {
-        setBillBusy(true); try { await recurringApi.update(String(bill.id), { defaultPlan: realPlan(allocationDraft ?? allocation!) }); await refreshGroups(); setMessage('Default updated for future cycles without overrides.'); } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not update defaults.'); } finally { setBillBusy(false); }
-      }}>Use plan as future default</button><button type="button" disabled={billBusy} onClick={async () => {
-        setBillBusy(true); try { await recurringApi.update(String(bill.id), { paused: !bill.paused }); await refreshGroups(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not update schedule.'); } finally { setBillBusy(false); }
-      }}>{bill.paused ? 'Resume schedule' : 'Pause schedule'}</button></div>}
-      <p className="group-info"><small>Saving this cycle changes only this occurrence. Generated expenses support payment confirmations; cycles with payment history are locked. Archived groups pause generation and catch up when restored.</small></p>
+      <button type="button" className="group-secondary group-danger" disabled={billBusy} onClick={() => requestDeletion({ kind: 'bill', id: bill.id, groupId: active.id, name: bill.title })}>Delete recurring expense</button>
+      <p className="group-info"><small>Saving updates the next and future expenses using the original start date and frequency. Past expenses and their payments stay unchanged.</small></p>
     </>}
 
+    {deletion && <ConfirmDeletion title={deletion.kind === 'group' ? 'Delete group permanently?' : 'Delete recurring expense?'}
+      description={deletion.kind === 'group' ? `Delete “${deletion.name}” for everyone? All group data, expenses, receipts, and payments will be permanently deleted and cannot be recovered.` : `Permanently delete “${deletion.name}” and stop future expenses? This schedule cannot be recovered. Past expenses and their payments will remain unchanged.`}
+      busy={deleting} error={deleteError} onCancel={() => setDeletion(null)} onConfirm={() => void confirmDeletion()} />}
   </main>;
 }

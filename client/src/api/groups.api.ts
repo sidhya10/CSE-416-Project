@@ -4,6 +4,7 @@ import type { ApiGroup, GroupRole } from './types';
 type GroupResponse = { group: ApiGroup };
 
 export const groupsApi = {
+  remove: (groupId: string) => apiRequest<void>(`/groups/${groupId}`, { method: 'DELETE' }),
   list: () => apiRequest<{ groups: ApiGroup[] }>('/groups'),
   get: (groupId: string) => apiRequest<GroupResponse>(`/groups/${groupId}`),
   create: (input: {

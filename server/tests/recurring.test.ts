@@ -131,6 +131,6 @@ describe('persistent recurring generation', () => {
     await runMaintenance(new Date('2030-01-11T00:00:00Z'), id); expect((await prisma.group.findUniqueOrThrow({ where: { id } })).archiveReason).toBe('INACTIVE');
     await member.post(`/api/groups/${id}/archive`).send({ archived: false }).expect(200);
     expect((await owner.get('/api/groups').query({ archived: 'active' })).body.groups.some((g: { id: string }) => g.id === id)).toBe(true);
-    await owner.delete(`/api/groups/${id}`).expect(404);
+    await owner.delete(`/api/groups/${id}`).expect(204);
   });
 });

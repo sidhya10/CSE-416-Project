@@ -1,19 +1,19 @@
 import { useEffect, useSyncExternalStore } from 'react';
 
-export type Appearance = 'System' | 'Light' | 'Dark';
+export type Appearance = 'Light' | 'Dark';
 export const appearanceKey = 'cse416.appearance.v1';
 const eventName = 'cse416:appearance';
-let fallback: Appearance = 'System';
+let fallback: Appearance = 'Light';
 
 export function readAppearance(): Appearance {
   try {
     const saved = localStorage.getItem(appearanceKey);
-    return saved === 'Light' || saved === 'Dark' || saved === 'System' ? saved : 'System';
+    return saved === 'Dark' ? 'Dark' : 'Light';
   } catch { return fallback; }
 }
 
 export function applyAppearance(preference: Appearance) {
-  const dark = preference === 'Dark' || preference === 'System' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  const dark = preference === 'Dark';
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
 }
 
@@ -37,17 +37,11 @@ function subscribe(onChange: () => void) {
 }
 
 export function useAppearance() {
-  const preference = useSyncExternalStore(subscribe, readAppearance, () => 'System' as const);
+  const preference = useSyncExternalStore(subscribe, readAppearance, () => 'Light' as const);
   return [preference, setAppearance] as const;
 }
 
 export function useApplyAppearance() {
   const [preference] = useAppearance();
-  useEffect(() => {
-    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const update = () => applyAppearance(preference);
-    update();
-    media?.addEventListener('change', update);
-    return () => media?.removeEventListener('change', update);
-  }, [preference]);
+  useEffect(() => { applyAppearance(preference); }, [preference]);
 }

@@ -64,3 +64,24 @@
 .archive-workspace .group-avatar { border-radius: 12px; }
 .archive-workspace .group-list-card strong { color: var(--muted); }
 .archive-workspace .archive-tag { color: var(--muted); }
+
+/* Full member lists wrap into as many rows as needed, with a separate edit action. */
+.selected-friends { flex-wrap: wrap; }
+.member-preview-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 16px 8px; padding: 16px; }
+.member-preview-card > div { min-width: 0; }
+.member-preview-card small { overflow-wrap: anywhere; text-align: center; }
+.member-preview-card button { position: static; grid-column: 1 / -1; justify-self: end; }
+.group-card-actions { width: 144px; grid-template-columns: 1fr 1fr; }
+.group-list-row.is-open .group-card-foreground { transform: translateX(-144px); }
+.group-card-actions button:last-child { background: var(--danger-soft); color: var(--danger); }
+.group-card-actions button:disabled { opacity: .6; cursor: not-allowed; }
+.group-danger { color: var(--danger); border: 1px solid var(--danger); background: var(--danger-soft); }
+.planned-delete { margin-left: 10px; padding: 8px; color: var(--danger); border: 0; border-radius: 8px; background: var(--danger-soft); }
+.deletion-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; background: #0009; }
+.deletion-dialog { width: min(100%, 360px); max-height: calc(100dvh - 40px); overflow-y: auto; box-sizing: border-box; padding: 24px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: 0 16px 60px #0005; }
+.deletion-dialog h2 { margin-top: 0; font-size: 20px; }
+.deletion-dialog p { font-size: 14px; line-height: 1.6; }
+.deletion-dialog > div { display: grid; gap: 10px; margin-top: 20px; }
+.deletion-dialog button { min-height: 44px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-subtle); color: var(--text); font-weight: 600; }
+.deletion-dialog button.group-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.deletion-dialog button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }

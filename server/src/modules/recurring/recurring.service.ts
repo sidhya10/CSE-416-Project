@@ -25,7 +25,11 @@ export async function runMaintenance(now = new Date(), groupId: string | null = 
   return prisma.$transaction(async tx => {
     await lockMaintenance(tx);
     // Archive before generating: a dormant schedule cannot keep an inactive group alive.
-    await tx.$executeRaw`UPDATE "Group" SET "archivedAt" = (${now}::timestamptz AT TIME ZONE 'UTC'), "archiveReason" = 'INACTIVE' WHERE (${groupId}::text IS NULL OR "id" = ${groupId}) AND "archivedAt" IS NULL AND "lastActivityAt" <= (${now}::timestamptz AT TIME ZONE 'UTC') - "inactivityDays" * INTERVAL '1 day'`;
+    await tx.$executeRaw`UPDATE "Group" SET "archivedAt" = (${now}::timestamptz AT TIME ZONE 'UTC'), "archiveReason" = 'INACTIVE' WHERE (${groupId}::text IS NULL OR "id" = ${groupId}) AND "archivedAt" IS NULL AND "lastActivityAt" <= (${now}::timestamptz AT TIME ZONE 'UTC') - "inactivityDays" * INTERVAL '1 day'
+      AND NOT EXISTS (SELECT 1 FROM "Expense" e JOIN "ExpenseShare" s ON s."expenseId" = e.id
+        WHERE e."groupId" = "Group".id AND s."userId" <> e."paidByUserId"
+        AND s."totalCents" > COALESCE((SELECT SUM(p."amountCents") FROM "ExpensePayment" p
+          WHERE p."expenseId" = s."expenseId" AND p."senderUserId" = s."userId" AND p.status = 'CONFIRMED'), 0))`;
     const bills = await tx.recurringBill.findMany({ where: { ...(groupId ? { groupId } : {}), paused: false, group: { archivedAt: null } }, include: { cycles: true }, orderBy: { id: 'asc' } });
     let budget = 500;
     for (const bill of bills) {
@@ -37,7 +41,7 @@ export async function runMaintenance(now = new Date(), groupId: string | null = 
         try { plan = await validatePlan(tx, bill.groupId, bill.amountCents, bill.cycles.find(cycle => cycle.index === index)?.plan ?? bill.defaultPlan); }
         catch (error) {
           if (!(error instanceof ExpenseError) && !(error instanceof z.ZodError)) throw error;
-          await tx.recurringBill.update({ where: { id: bill.id }, data: { paused: true, error: 'Update the default payer and shares to match current group members, then resume.' } });
+          await tx.recurringBill.update({ where: { id: bill.id }, data: { paused: true, error: 'Update the default payer and shares to match current group members, then save the updated plan.' } });
           break;
         }
         const existing = await tx.expense.findUnique({ where: { recurringBillId_cycleDate: { recurringBillId: bill.id, cycleDate: date } } });

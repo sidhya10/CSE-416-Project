@@ -69,7 +69,6 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
 
   const avatar = (item: Profile, large = false) => <span className={large ? 'profile-avatar large' : 'profile-avatar'}>
     {item.photoUrl ? <img src={item.photoUrl} alt="" /> : item.name.trim().charAt(0).toUpperCase() || '?'}
-    <span className="avatar-plus" aria-hidden="true">+</span>
   </span>;
 
   if (screen === 'banking') return <ConnectedAccounts onBack={back} />;
@@ -89,7 +88,7 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       <SettingsRow title="Bank connections" subtitle="Linked banks, balances, and transaction sync" onClick={() => open('banking')} />
       <h2 className="settings-section-heading preferences-heading">Preferences</h2>
       <SettingsRow title="Notifications" subtitle="Budgets, settlements, and reminders" onClick={() => open('notifications')} />
-      <SettingsRow title="Appearance" subtitle={theme === 'System' ? 'Follow your device appearance' : `${theme} theme`} action={theme} onClick={() => open('appearance')} />
+      <SettingsRow title="Appearance" subtitle={`${theme} theme`} action={theme} onClick={() => open('appearance')} />
       <SettingsRow title="Privacy & security" subtitle="Permissions and connected data" onClick={() => open('privacy')} />
       <SettingsRow title="Help & legal" subtitle="Support, privacy policy, and terms" onClick={() => open('help')} />
       <button className="logout-button" type="button" onClick={onLogout}>Log out</button>
@@ -152,7 +151,6 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       {!user.hasGoogle && <GoogleSignInButton intent="link" onSuccess={updated => { onUserChange(updated); setMessage('Google account connected. You can sign in with Google or your existing password.'); }} />}
       <h2 className="settings-overline spaced">SECURITY</h2>
       <SettingsRow title="Password" subtitle={user.hasPassword ? 'Password login enabled' : 'Google sign-in only'} onClick={() => open('password')} />
-      <SettingsRow title="Two-step verification" subtitle="Not enabled" onClick={() => setMessage('Two-step verification requires an account.')} />
       <button className="delete-account" type="button" onClick={() => {
         if (!window.confirm('Delete your account and friendships permanently?')) return;
         void usersApi.deleteMe().then(onLogout).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not delete your account.'));
@@ -165,9 +163,9 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       {screen === 'notifications' && <label className="setting-row preference-control"><span className="setting-row-copy"><strong>Reminders</strong><small>Preview preference for budgets and settlements</small></span>
         <input type="checkbox" checked={reminders} onChange={event => setReminders(event.target.checked)} /></label>}
       {screen === 'appearance' && <fieldset className="appearance-options"><legend>Theme preference</legend>
-        {(['System', 'Light', 'Dark'] as const).map(option => <label key={option}><input type="radio" name="theme" value={option} checked={theme === option}
+        {(['Light', 'Dark'] as const).map(option => <label key={option}><input type="radio" name="theme" value={option} checked={theme === option}
           onChange={() => setTheme(option)} />{option}</label>)}
-        <p>System follows your device. Your choice is saved on this browser.</p>
+        <p>Light is the default. Your choice is saved on this browser.</p>
       </fieldset>}
       {screen === 'privacy' && <p className="setting-info">Permissions and connected data will appear here when account and bank connections are available.</p>}
       {screen === 'help' && <p className="setting-info">Support and legal documents will be linked here when they are available.</p>}

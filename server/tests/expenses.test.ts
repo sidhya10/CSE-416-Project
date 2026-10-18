@@ -151,13 +151,13 @@ describe('persisted expenses and settlements', () => {
     expect(records[0]?.amountCents).toBe(1051);
   });
 
-  it('blocks deletion and unpaid member removal, preserving history after settlement and removal', async () => {
+  it('blocks unauthorized deletion and unpaid member removal, preserving history after settlement and removal', async () => {
     const createdGroup = await owner.post('/api/groups').send({ name: 'History', memberIds: [memberId] }).expect(201);
     const id = createdGroup.body.group.id;
     groupIds.push(id);
     const created = await owner.post(`/api/groups/${id}/expenses`).send({ expense: input(), clientRequestId: randomUUID() }).expect(201);
     const expenseId = created.body.expense.id;
-    await owner.delete(`/api/groups/${id}`).expect(404);
+    await member.delete(`/api/groups/${id}`).expect(403);
     await owner.delete('/api/users/me').expect(409);
     await owner.delete(`/api/groups/${id}/members/${memberId}`).expect(409);
     await member.delete(`/api/groups/${id}/members/${memberId}`).expect(409);

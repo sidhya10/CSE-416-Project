@@ -126,7 +126,7 @@ test('item splits and two-sided payments persist for different signed-in members
   }
 });
 
-test('a recurring expense generates once and any member can archive and restore the shared group', async ({ browser }) => {
+test('recurring plans affect future expenses, deletion retains history, and settled groups archive and delete for everyone', async ({ browser }) => {
   const ownerContext = await browser.newContext({ baseURL: 'http://127.0.0.1:5173' });
   const memberContext = await browser.newContext({ baseURL: 'http://127.0.0.1:5173' });
   try {
@@ -153,15 +153,29 @@ test('a recurring expense generates once and any member can archive and restore 
     await payerPage.getByRole('button', { name: /Utilities.*Monthly/ }).click();
     await payerPage.getByLabel('You', { exact: true }).fill('4');
     await payerPage.getByLabel('schedulemember', { exact: true }).fill('8');
-    await payerPage.getByRole('button', { name: 'Save this cycle' }).click();
-    await expect(payerPage.getByText('Payment plan saved for this cycle.')).toBeVisible();
+    await payerPage.getByRole('button', { name: 'Save payment plan' }).click();
+    await expect(payerPage.getByText('Payment plan saved for the next and future expenses.')).toBeVisible();
     const balances = await ownerContext.request.get(`/api/groups/${group.id}/balances`);
-    expect((await balances.json()).balances).toEqual(expect.arrayContaining([expect.objectContaining({ userId: owner.id, balanceCents: 800 })]));
+    expect((await balances.json()).balances).toEqual(expect.arrayContaining([expect.objectContaining({ userId: owner.id, balanceCents: 600 })]));
     await memberPage.goto('/'); await memberPage.getByRole('button', { name: 'Groups', exact: true }).click();
     await expect(memberPage.getByRole('group', { name: group.name })).toBeVisible();
-    await payerPage.getByRole('button', { name: 'Back', exact: true }).click();
+    await payerPage.getByRole('button', { name: 'Delete recurring expense' }).click();
+    await expect(payerPage.getByRole('dialog')).toContainText('Past expenses and their payments will remain unchanged');
+    await payerPage.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await payerPage.getByRole('button', { name: 'Delete recurring expense' }).click();
+    await payerPage.getByRole('button', { name: 'Delete permanently', exact: true }).click();
+    await expect(payerPage.getByRole('heading', { name: 'Past expenses' })).toBeVisible();
+    await expect(payerPage.getByRole('button', { name: /Utilities.*Monthly/ })).toHaveCount(0);
+    await expect(payerPage.getByRole('button', { name: /Utilities.*View payments/ })).toBeVisible();
     await payerPage.getByRole('button', { name: 'Group settings' }).click();
-    await expect(payerPage.getByRole('button', { name: 'Delete group' })).toHaveCount(0);
+    await expect(payerPage.getByRole('button', { name: 'Archive group' })).toBeDisabled();
+    const savedExpenses = (await (await ownerContext.request.get(`/api/groups/${group.id}/expenses`)).json()).expenses;
+    const sent = await memberContext.request.post(`/api/expenses/${savedExpenses[0].id}/payments`, { data: { amountCents: 600, clientRequestId: crypto.randomUUID() } });
+    expect(sent.status()).toBe(201);
+    const payment = (await sent.json()).payment;
+    expect((await ownerContext.request.patch(`/api/expenses/${savedExpenses[0].id}/payments/${payment.id}`, { data: { status: 'CONFIRMED' } })).status()).toBe(200);
+    await payerPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(payerPage.getByRole('button', { name: 'Archive group' })).toBeEnabled();
     await payerPage.getByRole('button', { name: 'Archive group' }).click();
     await expect(payerPage.getByRole('heading', { name: 'Archived groups' })).toBeVisible();
     await memberPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
@@ -175,6 +189,15 @@ test('a recurring expense generates once and any member can archive and restore 
     await expect(payerPage.getByRole('group', { name: group.name })).toBeVisible();
     const restoredExpenses = await memberContext.request.get(`/api/groups/${group.id}/expenses`);
     expect((await restoredExpenses.json()).expenses).toHaveLength(1);
+    await payerPage.getByRole('group', { name: group.name }).getByRole('button', { name: 'Group actions' }).click();
+    await payerPage.getByRole('group', { name: group.name }).getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(payerPage.getByRole('dialog')).toContainText('cannot be recovered');
+    await payerPage.getByRole('button', { name: 'Delete permanently', exact: true }).click();
+    await expect(payerPage.getByRole('group', { name: group.name })).toHaveCount(0);
+    await memberPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(memberPage.getByRole('group', { name: group.name })).toHaveCount(0);
+    expect((await ownerContext.request.get(`/api/groups/${group.id}`)).status()).toBe(404);
+
   } finally { await Promise.allSettled([ownerContext.close(), memberContext.close()]); }
 });
 
@@ -216,4 +239,39 @@ test('appearance persists and password changes work through settings and a new l
   await page.getByLabel('PASSWORD', { exact: true }).fill('replacement2');
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
   await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), Settings$/ })).toBeVisible();
+});
+
+test('mobile customization shows all members and Back then Cancel exits creation', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const run = Date.now().toString();
+  const ownerEmail = `mobile-owner-${run}@example.com`;
+  await page.request.post('/api/auth/register', { data: { name: 'Mobile Owner', username: `mob_owner_${run}`, email: ownerEmail, password: 'password1' } });
+  const friendIds: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const response = await page.request.post('/api/auth/register', { data: { name: `Mobile Friend ${i}`, username: `mob_${i}_${run}`, email: `mobile-${i}-${run}@example.com`, password: 'password1' } });
+    expect(response.status()).toBe(201); friendIds.push((await response.json()).user.id);
+  }
+  await page.request.post('/api/auth/login', { data: { email: ownerEmail, password: 'password1' } });
+  for (const id of friendIds) expect((await page.request.post(`/api/friends/${id}`)).status()).toBe(201);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Groups', exact: true }).click();
+  await page.getByRole('button', { name: /new group/i }).click();
+  for (let i = 0; i < 7; i++) await page.getByRole('button', { name: new RegExp(`Mobile Friend ${i}.*@mob_${i}_`) }).click();
+  await page.getByRole('button', { name: /next: customize group/i }).click();
+  await expect(page.getByText('MEMBERS · 8')).toBeVisible();
+  const members = page.locator('.member-preview-card > div');
+  await expect(members).toHaveCount(8);
+  expect(await members.evaluateAll(rows => new Set(rows.map(row => Math.round(row.getBoundingClientRect().top))).size)).toBeGreaterThan(1);
+  for (let i = 0; i < 7; i++) await expect(page.locator('.member-preview-card').getByText(`Mobile Friend ${i}`, { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.locator('.member-preview-card').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('customize-light.png') });
+  await page.evaluate(() => { localStorage.setItem('cse416.appearance.v1', 'Dark'); window.dispatchEvent(new StorageEvent('storage', { key: 'cse416.appearance.v1' })); });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.screenshot({ path: test.info().outputPath('customize-dark.png') });
+
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Groups', exact: true })).toBeVisible();
 });

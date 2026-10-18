@@ -164,6 +164,6 @@ Playwright starts the frontend and API automatically. The flows exercise expense
 
 ## Appearance and password settings
 
-Profile → Appearance supports System, Light and Dark throughout the app. Light preserves the original palette; Dark uses green accents and warm dark surfaces. The preference is saved per browser and synchronized between tabs. System responds to device appearance changes.
+Profile → Appearance supports Light (default) and Dark throughout the app. Dark uses brighter green accents, clearer borders and contrasting dark surfaces. The preference is saved per browser and synchronized between tabs; legacy System preferences fall back to Light.
 
 Profile → Account settings → Password verifies the current password, requires a new password of at least eight characters including a number (maximum 72 UTF-8 bytes), and checks confirmation. Password changes are hashed with bcrypt and keep the current session signed in. Google-only accounts manage passwords through Google. `POST /api/auth/password` accepts `currentPassword`, `newPassword` and `confirmPassword`; it requires an authenticated session. No additional environment variables or database migrations are required for these settings.

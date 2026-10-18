@@ -6,13 +6,14 @@ Schedules persist in PostgreSQL. Members of a Recurring group can create a sched
 
 The API process runs maintenance at startup and every minute. Group-list requests also run maintenance, so reopening the app catches up after downtime. A database advisory lock coordinates instances, and a unique `(recurringBillId, cycleDate)` prevents duplicate generation. Each transaction advances the persistent cursor only after saving expenses and cycle plans. Work is capped at 500 occurrences per pass; a large backlog continues on subsequent passes. Monthly/yearly dates stay anchored: January 31 becomes February 28/29, then March 31. Dates are interpreted as UTC calendar dates.
 
-Each due occurrence becomes a saved expense with explicit custom shares and uses the existing two-sided payment flow. This records obligations; it does not send money or automatically confirm that a bill was paid. Members can edit a cycle's payer/shares until that expense has payment history. Updating the default plan affects ungenerated cycles without overrides, and generated cycles retain their allocation snapshots. Pause/resume is supported. If a default/override references a removed member, generation pauses with a repair message instead of silently reallocating money. Correct the default and any affected cycle override before resuming.
+Each due occurrence becomes a saved expense with explicit custom shares and uses the existing two-sided payment flow. This records obligations; it does not send money or automatically confirm that a bill was paid. Members edit one upcoming payment plan. Saving payer/shares applies to the next and future ungenerated expenses while preserving start date/frequency and existing expense snapshots. It supersedes ungenerated legacy cycle overrides. The UI has no cycle navigator, use-as-default action, or pause/resume control. A schedule with removed members stops generating until its plan is repaired and saved. Past expenses remain in **Past expenses**.
 
-Archived groups suspend generation. Restoring resumes overdue, ungenerated cycles; pause the schedule first if you do not want those obligations generated. Automatically generated expenses do not count as human activity, so a dormant schedule does not keep an otherwise inactive group alive.
+Deleting a recurring expense requires a confirmation dialog and permanently removes its schedule and overrides. All previously generated expenses, including unpaid ones, their recorded payer/shares, and payments remain available. Archived groups suspend generation; restoring catches up overdue occurrences. Automatic generation is not human activity.
+
 
 ## Shared archives
 
-Groups cannot be deleted through the UI or API. Any member can archive or restore a group for everyone. Archives retain memberships, expenses, receipts and payment history. The bottom **Archived groups** button opens a separate archive view; manual and inactivity archives have distinct tags. The archive has a compact back header, muted background and dashed group cards, with no search, filters, creation actions or balance overview. Active-page filters do not hide archived groups. Other open clients refresh every 15 seconds or when the tab becomes visible, without requiring a reload.
+Only the owner can permanently delete a group, from Settings or the sliding card actions, after a mobile confirmation explaining that all shared group data is unrecoverable. Deletion removes expenses, payments, receipts, schedules, memberships, invitations and group budget plans for everyone. Any member can archive or restore a group for everyone, but manual and automatic archiving require every non-payer share to be fully covered by confirmed payments. Pending, disputed, partial, and offsetting debts block archiving, including when the current viewer owes nothing. Archives retain memberships, expenses, receipts and payment history. The bottom **Archived groups** button opens a separate archive view; manual and inactivity archives have distinct tags. The archive has a compact back header, muted background and dashed group cards, with no search, filters, creation actions or balance overview. Active-page filters do not hide archived groups. Other open clients refresh every 15 seconds or when the tab becomes visible, without requiring a reload.
 
 Groups default to auto-archiving after 60 days without activity. Owners/admins can set 1–3650 days in Group settings and save group details. Activity includes group/membership changes, expense edits/creation, payment reports/confirmations and schedule/plan changes. Access dates are tracked per member and do not reset inactivity. Restoring resets the activity clock.
 
@@ -24,17 +25,19 @@ User search automatically searches full name, username (including `@`), email an
 
 ## Group creation
 
-The frontend requires at least one friend before proceeding to Customize group. Edit members and the customization back button reopen the selection step with a saved selection snapshot. Cancel discards member-selection edits and returns to the existing customization draft, preserving its name, description, purpose, dates and photo. Next commits the revised selection.
+The frontend requires at least one friend before proceeding to Customize group. The customization Back button returns to member selection, where Cancel exits to Groups. Explicit Edit members preserves a selection snapshot; Cancel there returns to the draft, while Next commits the revised selection. The member preview wraps to show every person, including the creator. Trip groups no longer show a private trip budget; their session-local planned estimates can be deleted individually.
 
 ## API
 
 - `GET /api/groups`: `query`, `archived=active|archived|all` (default all), `friendId`, `type`, `balance=all|owe|owed|unresolved|settled`, `sort=activity|created|accessed|owe|owed`, `createdAfter`, `createdBefore`, `accessedAfter`, `accessedBefore`, `minAmount`, `maxAmount`.
 - `GET /api/groups/:id`: records the requesting member's access time.
-- `POST /api/groups/:id/archive`: `{ "archived": true | false }`, any member.
+- `DELETE /api/groups/:id`: owner-only permanent deletion, including shared ledger.
+- `DELETE /api/recurring/:id`: member-only schedule deletion, retaining past expenses/payments.
+- `POST /api/groups/:id/archive`: `{ "archived": true | false }`, any member, 409 if any split is unresolved.
 - `PATCH /api/groups/:id`: accepts `inactivityDays` in addition to group details, owner/admin only.
 - `GET/POST /api/groups/:id/recurring`: list/create schedules.
 - `PATCH /api/recurring/:id`: update `defaultPlan` and/or `paused`, any member.
-- `PUT /api/recurring/:id/cycles/:index`: `{ payerId, shares: { userId: cents } }`, any member.
+- Legacy API `PUT /api/recurring/:id/cycles/:index` (not exposed in the UI): `{ payerId, shares: { userId: cents } }`, any member.
 - `GET /api/users`: `query`, optional `field=all|name|username|email|phone`, `sort=name|username|email`.
 
 ## Setup and validation

@@ -47,7 +47,9 @@ recurringRouter.patch('/recurring/:id', async (req, res) => {
     if (!bill) throw new ExpenseError(404, 'Schedule not found');
     await requireMember(tx, bill.groupId, req.userId!);
     await validatePlan(tx, bill.groupId, bill.amountCents, value.defaultPlan ?? bill.defaultPlan);
-    const updated = await tx.recurringBill.update({ where: { id: bill.id }, data: { ...value, error: null }, include: { cycles: true } });
+    // A saved plan applies to all not-yet-generated occurrences, superseding legacy overrides.
+    if (value.defaultPlan) await tx.recurringCycle.deleteMany({ where: { billId: bill.id, index: { gte: bill.nextCycle } } });
+    const updated = await tx.recurringBill.update({ where: { id: bill.id }, data: { ...value, ...(value.defaultPlan ? { paused: false } : {}), error: null }, include: { cycles: true } });
     await tx.group.update({ where: { id: bill.groupId }, data: { lastActivityAt: new Date() } });
     return updated;
   });
@@ -71,6 +73,20 @@ recurringRouter.put('/recurring/:id/cycles/:index', async (req, res) => {
       await tx.expense.update({ where: { id: expense.id }, data: { paidByUserId: plan.payerId, version: { increment: 1 } } });
     }
     await tx.recurringCycle.upsert({ where: { billId_index: { billId: bill.id, index } }, create: { billId: bill.id, index, plan }, update: { plan } });
+    await tx.group.update({ where: { id: bill.groupId }, data: { lastActivityAt: new Date() } });
+  });
+  res.status(204).end();
+});
+
+recurringRouter.delete('/recurring/:id', async (req, res) => {
+  await transaction(async tx => {
+    await lockMaintenance(tx);
+    const bill = await tx.recurringBill.findUnique({ where: { id: req.params.id } });
+    if (!bill) throw new ExpenseError(404, 'Schedule not found');
+    await requireMember(tx, bill.groupId, req.userId!);
+    // Detach history before removing the template; past expenses and payments survive.
+    await tx.expense.updateMany({ where: { recurringBillId: bill.id }, data: { recurringBillId: null } });
+    await tx.recurringBill.delete({ where: { id: bill.id } });
     await tx.group.update({ where: { id: bill.groupId }, data: { lastActivityAt: new Date() } });
   });
   res.status(204).end();

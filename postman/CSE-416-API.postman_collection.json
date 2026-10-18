@@ -104,7 +104,7 @@
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Invited member has access', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().group.currentUserRole).to.eql('MEMBER'); });"], "type": "text/javascript" } }]
     },
     {
-      "name": "Group deletion endpoint is unavailable",
+      "name": "Member cannot permanently delete group",
       "request": {
         "method": "DELETE",
         "url": "{{baseUrl}}/api/groups/{{groupId}}"
@@ -114,7 +114,7 @@
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('Group deletion is unavailable', () => pm.response.to.have.status(404));"
+              "pm.test('Only owner can delete', () => pm.response.to.have.status(403));"
             ],
             "type": "text/javascript"
           }
@@ -219,6 +219,16 @@
           }
         }
       ]
+    },
+    {
+      "name": "Owner permanently deletes group",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Group deleted', () => pm.response.to.have.status(204));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Deleted group is inaccessible",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/groups/{{groupId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Deleted group cannot be retrieved', () => pm.response.to.have.status(404));"], "type": "text/javascript" } }]
     },
     {
       "name": "Remove friend",
