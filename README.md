@@ -1,173 +1,279 @@
-# Personal & Group Budgeting App — Project Specification
+# Personal & Group Budgeting App
 
 **Team:** Eva · Vivian · Nicole · Sidhya  
 **Course:** CSE 416 · Software Engineering  
-**Last updated:** October 9, 2026
+**Implementation status:** October 18, 2026
 
-## 1. Problem Statement
+## Project Overview
 
-Young adults frequently share rent, utilities, groceries, restaurant bills, trips, and other expenses, but their group debts and personal budgets usually live in separate tools. If one person pays a $240 dinner bill for six people, their bank statement reports that they spent $240 on food even though their actual share was only $40. Bill-splitting apps can track what friends owe, while budgeting apps categorize the full bank charge; neither produces an accurate picture of the user's true spending.
+This project is a mobile-responsive web application for young adults who manage personal budgets while regularly sharing expenses with roommates, friends, and travel groups. It combines group expense splitting, settlement tracking, connected bank transactions, and personal category budgets in one application.
 
-Recurring expenses create another layer of friction. Roommates repeatedly coordinate the same rent and utility splits, organizers chase reimbursements across messages and payment apps, and budget-conscious users often abandon tools that require manual transaction entry. The project addresses these problems through one shared system for recording group expenses, tracking settlement, connecting bank transactions, and maintaining an accurate personal budget.
+The long-term product goal is to reconcile a group expense with the corresponding bank charge so that a payer's personal budget counts only their own share. That reconciliation is **not implemented yet**. The current application supports the group-expense workflow and the personal-budget workflow as connected areas of the same authenticated application, but bank transactions and group shares are not yet matched or deduplicated in personal spending totals.
 
-## 2. Product Summary
+The app records that payments were sent and received, but it does not move money. It currently supports USD only.
 
-The app is a mobile-first progressive web application for students, recent graduates, roommates, trip organizers, and other young adults who regularly share costs. Its core job is to let a user split a real bill with a group in under thirty seconds, retain the expense even if the app closes or loses connectivity, and update every participant's balance correctly.
+## Current Implementation
 
-What makes the product unique is its reconciliation between group and personal spending:
+### Accounts and profiles
 
-- When a user fronts a group expense, only their own share is posted to their personal budget—not the full amount charged to their card.
-- Each participant's debt remains visible until the debtor marks it paid and the creditor confirms receipt.
-- When the full charge later appears among connected bank transactions, the app can match it using the amount, date, and merchant. After user confirmation, it avoids counting the expense twice.
-- Recurring bills can be generated automatically for established groups, reducing repeated coordination among roommates and friends.
-- Receipt items, tax, and tip can be assigned fairly while the system verifies that all shares add up to the printed total.
+- Register and sign in with email and password.
+- Sign in with Google Identity Services when Google OAuth is configured.
+- Use signed httpOnly session cookies for authentication.
+- View and update profile photo, username, name, birthday, and bio.
+- View read-only email and phone information.
+- Change a password after verifying the current password.
+- Link Google authentication to an existing account.
+- Delete an account when doing so would not erase protected financial history.
+- Switch between Light and Dark appearance modes. The preference is stored in the browser and synchronized between tabs.
 
-The app records settlements but does not move real money. Version 1 is USD-only and excludes native mobile apps, public social features, and cross-group debt netting. Bank transaction connections are done through Plaid, with encrypted action tokens.
+### Friends and group access
 
-### Navigation and account flow
+- Search registered users by name, username, email, or phone number.
+- Add users as friends and persist friendships in PostgreSQL.
+- Create groups using members from the authenticated user's friend list.
+- Assign Owner, Admin, and Member roles.
+- Restrict group data and actions to authenticated group members.
+- Add members after group creation. Membership currently takes effect immediately rather than waiting for invitation acceptance.
+- Remove or leave a group after required payments are settled.
 
-The mobile app opens on the Log in screen. Users can create an account with name, username, email, optional phone number, and a password of at least eight characters including a number. Email/password authentication and signed httpOnly sessions are implemented. Google Identity Services sign-in is implemented and activates when the Google client ID is configured. After authentication, a persistent bottom navigation bar has four destinations: **Home**, **Budget**, **Groups**, and **Profile**. Profile data is loaded from PostgreSQL; profile photo, username, name, birthday, and bio are editable, while email and phone number are read-only.
+QR-based friend discovery is not implemented.
 
-Account registration, login, logout, current-session lookup, profile updates, and account deletion call the Express API. Friend discovery searches every registered account by name, username, email, or phone, and friendships persist in PostgreSQL. Groups, memberships, expenses, split assignments, and payment confirmations now persist through the API. Category budget limits, group shared plans, and budget spending persist through the API; see [Category budgets API](docs/budget-backend.md). Bank-connection and synced transactions persist as well. The iPhone status bar shown in Figma is omitted from the web app because the device or browser supplies its own.
+### Group types
 
-### Group types and flows
+The application supports three group types:
 
-There are exactly three group types: **General**, **Trip**, and **Recurring**. Each shares a consistent group header, members, balances, expenses, and settings structure. A group description is visible on its detail screen and editable in group settings.
-
-| Type | Creation and detail behavior |
+| Type | Current behavior |
 |---|---|
-| General | Members may add expenses and split them whenever needed. |
-| Trip | Creation captures trip dates. The detail view shows dates, expenses, and the current user's private trip budget. Members can plan a future expense, estimate their own share and budget impact, then commit an actual expense later. Other members cannot view an individual's private budget. |
-| Recurring | The detail view includes a calendar and recurring expenses. An expense starts on a chosen date and repeats weekly, monthly, quarterly, semi-yearly, yearly, or at a custom interval of days, weeks, months, or years. Each cycle has an independently editable payer and per-member amounts; shares must equal the expense total. |
+| **General** | Members can add expenses, assign a payer, split costs, and settle balances. |
+| **Trip** | Stores trip dates and supports expenses plus locally previewed planned costs. Planned costs and private trip budgets do not currently persist to the backend. |
+| **Recurring** | Supports recurring schedules, generated expense cycles, editable cycle payers and shares, and a calendar/detail view. |
 
-All group types can surface balances and settlement status. Group insights can show shared monthly spending, trip cost per person, common categories, outstanding balances, and increases in recurring expenses when supporting data exists. Before committing a split, show the user's estimated share and how much of the relevant category budget would remain without exposing private budget numbers to other members.
+All group types share group information, members, expenses, balances, settings, and settlement status.
 
-The Groups workspace starts without seeded groups or transactions. Friend selection is populated from the authenticated user's persisted friend list. Group creation, settings, membership, and General/Trip expenses now persist with server-side access checks. Member additions currently take effect immediately. Recurring schedules, per-cycle payer/shares, generated expenses, and shared group archives now persist. Groups auto-archive after 60 inactive days by default, and any member can restore them. Group filters and universal user search are available. Planned costs and private trip budgets remain local preview state. See [Recurring bills and archives](docs/recurring-and-archives.md) for behavior, APIs, and setup.
+### Expense entry and splitting
 
-### Expense splitting and settlement
+- Add and edit General and Trip expenses.
+- Select the member who paid.
+- Enter item names, quantities, prices, tax, tip, and additional fees.
+- Split an expense equally, by assigned items, or with custom shares.
+- Validate on the server that all shares equal the expense total to the cent.
+- Persist expenses, items, shares, and receipt attachments in PostgreSQL.
+- Return retried expense-creation requests safely through client request IDs.
+- Block financial edits after payment history exists until a future adjustment workflow is available.
 
-- Add and edit General and Trip group expenses with payer selection, item quantities, and tax/tip/fees.
-- Split equally or by item, with participant assignment and cent-accurate rounding.
-- Scan receipts with Azure Document Intelligence, review extracted items, quantities, prices, tax, and tip, then explicitly apply them to Add/Edit Expense. HEIC/HEIF photos are converted to JPEG on the backend.
-- Reuse cached scan results for identical files uploaded by the same account. PostgreSQL retains the cache across restarts; configurable limits default to 450 new attempts per UTC month across the app and 20 per day per user.
-- View expense details and role-based payment status, report payments sent, and confirm receipt. Expense creators and payers may edit before payment history exists; later financial edits are blocked until an adjustment flow is implemented.
-- New expenses persist across reloads, appear newest first, and update group balances and the all-groups overview. Only confirmed payments reduce debt. Automated tests cover the main expense and payment flows.
+### Receipt scanning
 
-Expense entry, equal/item splits, details, editing, and two-sided payment confirmation are connected to PostgreSQL through authenticated APIs. Group deletion is unavailable; use shared archiving. Account deletion is blocked when it would erase expense history, and members must settle their payments before leaving or removal. Receipt scanning is implemented and requires server-side Azure credentials. Selected receipt attachments are saved in PostgreSQL with the expense and can be viewed by group members from Details without calling Azure. Multi-photo receipt merging, dashboard/budget reconciliation, and group-wide split reallocation remain unimplemented. Scanning handles one file at a time and only the first page/main image; users must review extraction warnings and correct values before saving. No money moves through the app. See [Expense persistence API](docs/expense-backend.md) for the schema, endpoints, setup, and limitations.
+- Upload JPEG, PNG, PDF, HEIC, or HEIF receipts.
+- Convert HEIC/HEIF images to JPEG on the backend.
+- Extract receipt items, quantities, prices, tax, and tip with Azure Document Intelligence.
+- Require the user to review and explicitly apply extracted data before saving an expense.
+- Cache normalized scan results per user and file hash in PostgreSQL.
+- Store a selected receipt attachment with the saved expense for authenticated group members to view.
+- Enforce configurable application and per-user scan limits.
 
+Receipt scanning currently processes one uploaded file and the first page or primary image. Multi-photo receipt merging is not implemented.
 
-## 3. Technology Stack
+### Current-period settlements
 
-The table includes the intended architecture as well as implemented services. Tailwind CSS, TanStack Query/IndexedDB, Redis/BullMQ, SSE, object storage, and notification integrations remain planned; the expense UI currently uses regular CSS, React state, and API refreshes.
+- Any group member can initialize a settlement for expenses that have not already entered a settlement period.
+- Previously settled expenses remain in history and do not enter a later settlement again.
+- Debtors can report that they sent money and record a payment method.
+- Creditors can confirm receipt or report an issue.
+- Only confirmed payments reduce the underlying debt.
+- Groups and the Home dashboard display payment tasks, confirmation tasks, collection progress, and in-app reminders.
+- Settlement notices persist in PostgreSQL.
 
-| Layer | Technologies | Purpose |
+The application does not initiate ACH, card, Venmo, Cash App, or other real-money transfers.
+
+### Recurring expenses and group lifecycle
+
+- Create recurring expenses with weekly, monthly, quarterly, semiannual, annual, or custom intervals.
+- Configure a default payer and per-member shares.
+- Edit the payer and shares for individual cycles.
+- Generate recurring expense cycles through an in-process maintenance scheduler coordinated through PostgreSQL.
+- Archive groups manually after open splits are resolved.
+- Automatically archive inactive groups according to their inactivity setting.
+- Restore archived groups.
+- Filter and search groups.
+- Permanently delete a group as its owner. Permanent deletion removes the group's shared ledger for all members.
+
+### Connected bank accounts
+
+- Connect bank accounts through Plaid Link when Plaid is configured.
+- Encrypt Plaid access tokens before storing them.
+- Synchronize accounts, balances, and transactions with Plaid's transaction-sync API.
+- Update existing transactions by Plaid transaction ID and remove transactions deleted by the provider.
+- Rename or hide connected accounts.
+- Reauthenticate connections that need attention.
+- Disconnect an institution.
+
+The application currently uses Plaid's provider categories as input to its fixed budget categories. It does not yet provide a transaction-review queue, manual recategorization, exclusion, notes, or transaction splitting.
+
+### Personal budgets
+
+- Set and edit monthly limits for Dining, Groceries, Transit, Shopping, and Other.
+- Calculate current-month spending from positive transactions in visible connected bank accounts.
+- View spending and remaining amounts by category.
+- Open a category to view its contributing transactions.
+- Display an over-budget item on the Home dashboard when a category exceeds its limit.
+- Show a four-month spending and income comparison on Home.
+- Display the most recently added group expense and group payment tasks on Home.
+
+Personal-budget totals currently use bank transactions directly. They do **not** substitute a user's group-expense share for the full bank charge.
+
+### Group budgets
+
+- Set a shared monthly spending plan for a group as an Owner or Admin.
+- Compare the group's current-month expense total with its shared plan.
+- View how much each member paid and currently owes or is owed.
+- Refresh budget and group information while the relevant tab is active.
+
+### What-if simulator
+
+- Load the user's current category limits and spending.
+- Adjust category limits in a scenario.
+- Project end-of-month spending using the current average daily spending pace.
+- Show whether each category is on track, needs reductions, or is already over the proposed limit.
+- Calculate a suggested daily allowance when a category is projected to exceed its limit.
+- Compare up to two scenarios and apply a scenario's category limits to the real budget.
+
+Saved scenarios currently exist only in the active browser session and are not persisted to PostgreSQL.
+
+## Current Limitations and Planned Work
+
+The following product concepts are planned or incomplete and should not be treated as implemented behavior:
+
+- **Bank/group reconciliation:** No matching currently exists between `BankTransaction` and `Expense`. A full bank charge is still counted in personal spending even when the user paid on behalf of a group.
+- **Transaction review:** Users cannot yet approve, recategorize, exclude, annotate, or divide synchronized bank transactions.
+- **Offline support:** There is no IndexedDB write queue, offline draft persistence, or service worker.
+- **Installable PWA support:** The interface is responsive, but a web app manifest and service worker are not configured.
+- **External notifications:** In-app settlement notices exist, but Web Push and email fallback are not implemented.
+- **Live server events:** The client refreshes relevant data periodically and when the browser tab becomes visible. Server-Sent Events are not implemented.
+- **Persistent trip planning:** Planned trip expenses and private trip budgets are local preview state.
+- **Persistent what-if scenarios:** Saved scenarios are session-only.
+- **Advanced insights:** Subscription detection, spending anomaly detection, recurring-charge forecasts, and personalized savings recommendations are not implemented.
+- **Debt simplification:** Within-group and cross-group debt netting are not implemented.
+- **Multi-currency:** All current financial flows use USD.
+- **Receipt merging:** Multiple receipt photos or pages cannot be merged into one scan.
+
+Possible future features also include CSV export, exportable trip summaries, savings goals, budget rollover, payer-balance suggestions, and a curated credit-card benefits tool.
+
+## Technology Stack
+
+### Implemented technologies
+
+| Layer | Technologies | Current use |
 |---|---|---|
-| Frontend | React, TypeScript, Vite, Tailwind CSS | Mobile-first installable PWA and user interface |
-| Client data | TanStack Query, IndexedDB | Server-state management, local draft persistence, and offline writes |
-| Charts | Recharts | Category, monthly spending, and projection visualizations |
-| Backend | Node.js, Express, TypeScript | REST APIs, authentication, groups, expenses, budgets, and imports |
-| Database | PostgreSQL, Prisma | Relational financial data and enforcement of money-related constraints |
-| Background jobs | In-process scheduler with PostgreSQL coordination; Redis/BullMQ planned | Recurring bill generation and inactive-group archiving run now |
-| Live updates | Server-Sent Events (SSE) | Group expense and status updates when available |
-| Bank data | Plaid | Connect accounts and retrieve transactions with user consent |
-| Document processing | Azure Document Intelligence (`prebuilt-receipt`), heic-convert, sharp | Authenticated receipt parsing with PostgreSQL cache, usage limits, and editable review; requires server Azure credentials |
-| File storage | PostgreSQL bytea via Prisma Bytes; external object storage planned | Saved receipt JPEGs (up to 1 MB) and PDFs (up to 4 MB), served through an authenticated API |
-| Security | bcrypt, signed httpOnly session cookies | Password hashing and authenticated sessions |
-| Notifications | Web Push with email fallback | Recurring bill reminders, parse completion, and budget warnings |
-| Testing and CI | Vitest, Supertest, Playwright, fast-check, GitHub Actions | Unit, API, end-to-end, property-based, and automated integration testing |
+| Frontend | React 19, TypeScript, Vite | Mobile-responsive interface and client-side application state |
+| Styling and charts | CSS | Responsive layouts, theme support, progress bars, and chart-like visualizations |
+| Backend | Node.js, Express, TypeScript | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts |
+| Database | PostgreSQL, Prisma | Relational persistence and transactional financial operations |
+| Authentication | bcrypt, Google Identity Services, signed httpOnly cookies | Password and Google login with server-managed sessions |
+| Bank data | Plaid | Account connection, balance retrieval, and transaction synchronization |
+| Receipt processing | Azure Document Intelligence, `heic-convert`, `sharp` | Receipt extraction, HEIC conversion, and image processing |
+| File storage | PostgreSQL `bytea` through Prisma `Bytes` | Authenticated storage of selected receipt attachments |
+| Scheduled work | In-process scheduler with PostgreSQL coordination | Recurring expense generation and inactive-group archiving |
+| Testing | Vitest, Supertest, Playwright, Newman, GitHub Actions | Unit, API, browser, Postman, build, migration, and CI checks |
 
-PostgreSQL is preferred over MongoDB because expenses, shares, memberships, and ledger entries have strong relationships and transactional requirements. Financial values are represented as integer cents, and balances are computed from ledger activity rather than maintained as freely editable totals.
+### Planned technologies
 
-## 4. Feature Roadmap
+TanStack Query, IndexedDB, Redis/BullMQ, Server-Sent Events, external object storage, Web Push, email notification delivery, Tailwind CSS, and Recharts are not currently part of the implemented application.
 
-### Core Features for M1
+## Data and Financial Rules
 
-| Feature | Owner | Scope |
-|---|---|---|
-| **F1 — Expense Splitting & Settlement** | Eva | Receipt upload, item assignment, equal and custom splitting, tax/tip reconciliation, share validation, owe/owed tracking, two-sided settlement confirmation, trip settlement, and the expense ledger |
-| **F2 — Accounts, Groups & Recurring Bills** | Vivian | Authentication, user profiles, friend discovery by username/phone/QR, group creation and types, membership validation, recurring bill generation, reminders, and notification delivery |
-| **F3 — Category Budgets & What-If** | Nicole | Creating and editing category limits, connecting budgets to transactions, over-limit warnings, category charts, and a sandbox for testing changes to budget limits |
-| **F4 — Bank Transactions & Projections** | Sidhya | Provider-based bank transaction connection (Plaid), duplicate and overlap handling, mandatory transaction review, personal dashboard layout, spending projections, and monthly charts |
+- Financial values are stored as integer cents.
+- Expense shares must equal the total expense amount.
+- Retried creates use client-generated request IDs to avoid duplicate expense or payment records.
+- Group balances are derived from expense shares and confirmed payments.
+- A debtor reporting a payment does not clear the debt until the creditor confirms it.
+- Settled expenses do not enter later settlement periods.
+- Bank access tokens are encrypted before storage.
+- Receipt extraction results require user review before they are applied to an expense.
+- Authorization checks prevent nonmembers from reading or modifying group data.
 
-Each owner is responsible for their feature's screens, API routes, data model, and tests. The group and personal halves connect through four shared interfaces:
+## Running the Application
 
-1. **Budget posting:** committed personal transactions and group-expense shares must present one consistent transaction shape to the budget layer.
-2. **Projection:** the projection engine accepts spending history and category limits, allowing the what-if tool to call it with modified limits.
-3. **Expense matching:** imported charges are compared with group expenses using amount, date proximity, and merchant, followed by user confirmation.
-4. **Group access:** the expense layer reads membership and group state before allowing participants to be included in a split.
+### Requirements
 
-Bank-synced charges are matched to group expenses only after user review. The personal budget counts a group participant's share, including when the full charge appears in that payer's bank feed. Planned future expenses remain estimates until committed and must not enter actual spending totals.
+- Node.js 22 or later
+- npm 10 or later
+- PostgreSQL
 
-Authentication is implemented first because it blocks multi-user testing. Budgeting and projection work can begin in parallel with fixture transactions before authentication and statement parsing are complete. The team will also use a shared component set and color palette so category and monthly charts have a consistent visual language.
-
-### Additional Features for Future Iterations
-
-- **Card Tier List:** Let users record the cards they own, compare rewards by spending category, and see which card is most useful for a purchase. A later recommendation feature could suggest cards based on spending patterns using a curated dataset and a clear “not financial advice” disclaimer.
-- **Within-group debt simplification:** Reduce the number of payments needed to settle a group's balances while preserving the correct totals.
-- **Recurring transaction detection:** Identify likely subscriptions and other repeating charges in bank transactions.
-- **CSV export:** Allow users to export their transaction and budgeting data for external analysis or recordkeeping.
-- **Exportable trip summaries:** Produce a clear summary of trip expenses, participant shares, and settlement status.
-- **Anonymous group comparisons:** Compare a user's spending patterns with aggregated, anonymized group averages.
-- **Cross-group debt netting:** Optionally simplify balances across multiple groups rather than calculating them only within each group.
-
-
-## 5. Running the app and checks
-
-Use Node.js 22 or later, npm 10 or later, and PostgreSQL. Copy `.env.example` to `.env`, set a strong `JWT_SECRET`, and start PostgreSQL (the included Docker Compose file is suitable for local development).
-
-### Start the app
+Copy `.env.example` to `.env`, configure `DATABASE_URL` and a strong `JWT_SECRET`, and start PostgreSQL. The included Docker Compose configuration exposes its PostgreSQL container on the documented host port.
 
 ```sh
 npm ci
 npm run prisma:generate
-npm run prisma:migrate
+npx prisma migrate deploy
 npm run dev
 ```
 
-Open the URL printed by Vite (normally http://localhost:5173), create an account, and sign in. To enable Google popup sign-in, set `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` in the root `.env` to the same OAuth Web client ID, authorize `http://localhost` and `http://localhost:5173` in Google, and restart both processes. Vite reads the root `.env`. See [Google setup and account linking](docs/google-auth.md) for popup, Profile connection, native-mobile scope and troubleshooting. Email/password authentication remains available independently.
+Vite normally serves the frontend at `http://localhost:5173`, and the Express server handles `/api` requests.
 
-After pulling changes, stop the dev servers and run `npm ci`, `npm run prisma:generate`, and `npx prisma migrate deploy` before restarting `npm run dev`. This installs the pulled dependencies, refreshes Prisma Client, and applies committed database migrations without resetting local data. Keep the Prisma CLI and `@prisma/client` on compatible version 6 releases for the current schema.
+After pulling migrations or dependency changes, stop the development servers and run:
 
-If Vite reports a missing `@rollup/rollup-darwin-arm64` module on an Apple Silicon Mac, run `npm ci --include=optional` using the committed lockfile. Rollup requires this native optional dependency. For PostgreSQL, ensure the port in `.env`'s `DATABASE_URL` matches the host port in `docker-compose.yml` (currently 5433 for the included container).
+```sh
+npm ci
+npm run prisma:generate
+npx prisma migrate deploy
+npm run dev
+```
 
-Users, profiles, friendships, groups, expenses, and payment records are persisted. After adding a General/Trip expense, refresh and reopen the group to see it retained. Category budgets are connected (see [Category budgets API](docs/budget-backend.md)); the Home dashboard and what-if simulator are also connected. Receipt scanning is integrated with Azure and requires server credentials; see [receipt parsing setup and cache behavior](docs/receipt-parsing.md). Additional backend development notes are in [docs/development.md](docs/development.md).
+For Apple Silicon systems reporting a missing Rollup native module, reinstall optional dependencies using the committed lockfile:
 
-### Receipt scanning setup
+```sh
+npm ci --include=optional
+```
 
-Set `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `AZURE_DOCUMENT_INTELLIGENCE_KEY` in the root `.env`, then restart the backend. Keep the key server-only; never prefix it with `VITE_`. Use a Free F0 Azure resource for the free allowance. The app limits cover only requests through this app/database, not Azure Studio or other apps using the resource.
+### Optional provider configuration
 
-In Add/Edit Expense, select **Take photo** or **Upload receipt**, then **Scan receipt with Azure**. Review the result and select **Replace entries with scanned items** to apply it. HEIC/HEIF originals can be up to 12 MB; JPEG, PNG, and PDF uploads can be up to 4 MB. Conversion keeps HEIC output within Azure's 4 MB limit. Manual entry remains available without Azure configuration. See [receipt parsing documentation](docs/receipt-parsing.md) for cache behavior, failure handling, and testing.
+Email/password authentication and manual expense entry work without Google, Plaid, or Azure credentials.
 
-### Tests and quality checks
+To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth Web client ID and configure the local and deployed browser origins in Google Cloud.
 
-Run lint across the repository and type checks, tests, and a production build for the frontend:
+To enable receipt scanning, set:
+
+```text
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+AZURE_DOCUMENT_INTELLIGENCE_KEY
+```
+
+To enable connected bank accounts, configure the Plaid variables documented in `.env.example`. Use Plaid Sandbox for development and demonstrations.
+
+## Tests and Quality Checks
+
+Run all repository checks:
 
 ```sh
 npm run lint
-npm run typecheck --workspace client
-npm run test --workspace client
-npm run build --workspace client
+npm run typecheck
+npm test
+npm run build
 ```
 
-For full frontend and backend checks, use `npm run typecheck`, `npm test`, and `npm run build`. Before running backend tests, point `DATABASE_URL` to a dedicated PostgreSQL test database and apply migrations with `npx prisma migrate deploy`. Receipt integration tests require its name to contain `test` or `integration`; they reset test scan counters. Azure calls are mocked, so automated tests do not consume Azure pages.
+Run the Postman/Newman API collections against the local server:
 
-To run the browser tests, install Chromium once and then run Playwright:
+```sh
+npm run test:api
+```
+
+Install Chromium once and run the browser tests:
 
 ```sh
 npx playwright install chromium
 npm run test:e2e
 ```
 
-Playwright starts the frontend and API automatically. The flows exercise expense persistence/editing and item splits with two-sided payments. Use a dedicated database with migrations applied: these tests create real accounts, groups, and expenses. When reusing already-running dev servers, those servers determine which database is used.
+Use a dedicated PostgreSQL test database with all migrations applied for backend, Postman, and Playwright tests. Browser tests create real accounts, groups, expenses, settlements, and payments in the configured database.
 
-[GitHub Actions CI](.github/workflows/ci.yml) runs on pushes and pull requests. It installs with `npm ci`, validates Prisma, generates the client, deploys and checks migrations against PostgreSQL, then runs lint, type checks, client and API tests, production builds, and the Chromium group-expense flow. Failed browser runs upload the Playwright report.
+GitHub Actions installs dependencies, validates Prisma, applies migrations to PostgreSQL, runs lint and type checks, executes automated tests, builds the application, and uploads Playwright reports when browser tests fail.
 
-## Appearance and password settings
+## Supporting Documentation
 
-Profile → Appearance supports Light (default) and Dark throughout the app. Dark uses brighter green accents, clearer borders and contrasting dark surfaces. The preference is saved per browser and synchronized between tabs; legacy System preferences fall back to Light.
-
-Profile → Account settings → Password verifies the current password, requires a new password of at least eight characters including a number (maximum 72 UTF-8 bytes), and checks confirmation. Password changes are hashed with bcrypt and keep the current session signed in. Google-only accounts manage passwords through Google. `POST /api/auth/password` accepts `currentPassword`, `newPassword` and `confirmPassword`; it requires an authenticated session. No additional environment variables or database migrations are required for these settings.
-
-## Current-period group settlements
-
-Any member can initialize a settlement for unresolved transactions. Groups and Home show payment cards, recorded payment methods, recipient confirmation, collection progress and in-app reminders. Paid transactions remain in separate history and never enter a new split. Apply the new migration before starting; see [period-settlements.md](docs/period-settlements.md) for setup, API details and invariants.
+- [Budget backend](docs/budget-backend.md)
+- [Expense persistence](docs/expense-backend.md)
+- [Current-period settlements](docs/period-settlements.md)
+- [Recurring bills and archives](docs/recurring-and-archives.md)
+- [Receipt parsing](docs/receipt-parsing.md)
+- [Google authentication](docs/google-auth.md)
+- [Development notes](docs/development.md)
