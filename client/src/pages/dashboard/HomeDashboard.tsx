@@ -1,3 +1,4 @@
+import SettlementInbox from '../settlements/SettlementInbox';
 import { budgetsApi } from '../../api/budgets.api';
 import { relativeTime } from '../../utils/dates';
 import { budgetPeriod, categoryPct, toCategoryBudgets, totalPlannedCents, totalSpentCents } from '../budgets/categoryPlan';
@@ -66,6 +67,8 @@ export default function HomeDashboard({ userName, onNavigate, active = true }: {
         })}
       </section>
     </>}
+
+    <SettlementInbox active={active} onChanged={retry} />
 
     {home.data && <section className="home-card">
       <div className="home-chart-head"><h2>Spending & income</h2><small>Last {months.length} months</small></div>

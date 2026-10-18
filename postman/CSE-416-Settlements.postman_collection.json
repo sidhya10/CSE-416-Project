@@ -1,0 +1,719 @@
+{
+  "info": {
+    "_postman_id": "ef6f9ed2-0af7-4a83-bf58-1d8a8ccd6b8a",
+    "name": "CSE 416 Period Settlements",
+    "description": "Current-period snapshots, member initialization, report/retry, recipient confirmation, reminders, history exclusion and budget invariants. Creates fictional users and records.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('run')) { pm.collectionVariables.set('run', String(Date.now())); pm.collectionVariables.set('date', new Date().toISOString().slice(0,10)); ['expenseKey','splitKey','paymentKey'].forEach(key => pm.collectionVariables.set(key, pm.variables.replaceIn('{{$guid}}'))); }"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Register owner",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/register",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\": \"Owner\", \"username\": \"settle_owner_{{run}}\", \"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Register owner', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('ownerId', pm.response.json().user.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Register member",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/register",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\": \"Member\", \"username\": \"settle_member_{{run}}\", \"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Register member', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('memberId', pm.response.json().user.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login owner",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login owner', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create settlement group",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/groups",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\": \"Settlement API group\", \"memberIds\": [\"{{memberId}}\"]}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Create settlement group', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('groupId', pm.response.json().group.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Add original expense",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/groups/{{groupId}}/expenses",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"clientRequestId\": \"{{expenseKey}}\", \"expense\": {\"title\": \"Dinner\", \"expenseDate\": \"{{date}}\", \"paidByUserId\": \"{{ownerId}}\", \"participantIds\": [\"{{ownerId}}\", \"{{memberId}}\"], \"splitMode\": \"EQUAL\", \"items\": [{\"name\": \"Dinner\", \"quantity\": 1, \"unitPriceCents\": 4000, \"assignedUserIds\": []}], \"taxCents\": 0, \"tipCents\": 0, \"otherCents\": 0}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add original expense', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login member",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login member', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Preview current period",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/groups/{{groupId}}/settlements/preview"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Preview current period', () => pm.response.to.have.status(200));",
+              "pm.test('Only outstanding reimbursements', () => pm.expect(pm.response.json().totalCents).to.eql(2000));",
+              "pm.collectionVariables.set('expenseIds', JSON.stringify(pm.response.json().expenseIds));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Member initializes split",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/groups/{{groupId}}/settlements",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"clientRequestId\":\"{{splitKey}}\",\"expenseIds\":{{expenseIds}},\"totalCents\":2000}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Member initializes split', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('batchId', pm.response.json().batch.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Initialize retry is idempotent",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/groups/{{groupId}}/settlements",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"clientRequestId\":\"{{splitKey}}\",\"expenseIds\":{{expenseIds}},\"totalCents\":2000}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Initialize retry is idempotent', () => pm.response.to.have.status(201));",
+              "pm.test('Same split', () => pm.expect(pm.response.json().batch.id).to.eql(pm.collectionVariables.get('batchId')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login owner",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login owner', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recipient sees collection progress",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/settlements"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Recipient sees collection progress', () => pm.response.to.have.status(200));",
+              "pm.test('Recipient gets period', () => pm.expect(pm.response.json().batches.some(b => b.id === pm.collectionVariables.get('batchId'))).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Send in-app reminder",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/settlements/{{batchId}}/reminders",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"recipientId\": \"{{memberId}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Send in-app reminder', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reminder cooldown",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/settlements/{{batchId}}/reminders",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"recipientId\": \"{{memberId}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Reminder cooldown', () => pm.response.to.have.status(429));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login member",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login member', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Member receives reminder",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/settlements"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Member receives reminder', () => pm.response.to.have.status(200));",
+              "pm.test('Reminder delivered', () => pm.expect(pm.response.json().notices.some(n => n.kind === 'REMINDER')).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reject unsupported payment method",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/settlements/{{batchId}}/payments",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"recipientId\": \"{{ownerId}}\", \"amountCents\": 2000, \"method\": \"Unsupported\", \"clientRequestId\": \"{{paymentKey}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Reject unsupported payment method', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Report money sent with method",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/settlements/{{batchId}}/payments",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"recipientId\": \"{{ownerId}}\", \"amountCents\": 2000, \"method\": \"Zelle\", \"clientRequestId\": \"{{paymentKey}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Report money sent with method', () => pm.response.to.have.status(200));",
+              "const pair = pm.response.json().batch.pairs.find(p => p.senderId === pm.collectionVariables.get('memberId'));",
+              "pm.test('Report does not settle debt', () => { pm.expect(pair.pendingCents).to.eql(2000); pm.expect(pair.confirmedCents).to.eql(0); });",
+              "pm.collectionVariables.set('paymentIds', JSON.stringify(pair.pendingPayments.map(p => p.id)));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Report retry is idempotent",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/settlements/{{batchId}}/payments",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"recipientId\": \"{{ownerId}}\", \"amountCents\": 2000, \"method\": \"Zelle\", \"clientRequestId\": \"{{paymentKey}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Report retry is idempotent', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sender cannot confirm own receipt",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/settlements/{{batchId}}/confirm",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"senderId\":\"{{memberId}}\",\"paymentIds\":{{paymentIds}},\"status\":\"CONFIRMED\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Sender cannot confirm own receipt', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login owner",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login owner', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recipient confirms receipt",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/settlements/{{batchId}}/confirm",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"senderId\":\"{{memberId}}\",\"paymentIds\":{{paymentIds}},\"status\":\"CONFIRMED\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Recipient confirms receipt', () => pm.response.to.have.status(200));",
+              "pm.test('Split is complete', () => pm.expect(pm.response.json().batch.completed).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Confirmed history excluded from new periods",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/groups/{{groupId}}/settlements/preview"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Confirmed history excluded from new periods', () => pm.response.to.have.status(200));",
+              "pm.test('No double splitting', () => pm.expect(pm.response.json().expenseIds).to.eql([]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Repayments do not duplicate budget spending",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/budgets/groups"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Repayments do not duplicate budget spending', () => pm.response.to.have.status(200));",
+              "pm.test('Original expense counted once', () => pm.expect(pm.response.json().groups.find(g => g.id === pm.collectionVariables.get('groupId')).spentCents).to.eql(4000));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login member",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login member', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sender receives receipt confirmation",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/settlements"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Sender receives receipt confirmation', () => pm.response.to.have.status(200));",
+              "pm.test('Confirmation delivered', () => pm.expect(pm.response.json().notices.some(n => n.kind === 'CONFIRMED')).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Logout settlement member",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/logout"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout settlement member', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settlement inbox requires authentication",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/settlements"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Settlement inbox requires authentication', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

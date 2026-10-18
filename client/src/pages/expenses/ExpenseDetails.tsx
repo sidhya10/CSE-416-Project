@@ -23,7 +23,7 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
   const name = (id: string) => id === 'you' ? 'You' : split?.memberNames?.[id] ?? members.find(member => member.id === id)?.name ?? 'Member';
   const ownPayment = split ? paymentFor(split, 'you') : undefined;
   const payer = split?.payerId === 'you';
-  const editLocked = !!split?.expenseId && (split.recurring || split.hasPaymentHistory || (split.creatorId !== 'you' && !payer));
+  const editLocked = !!split?.expenseId && (!!split.settlementBatchId || split.recurring || split.hasPaymentHistory || (split.creatorId !== 'you' && !payer));
   const changeTab = (open: boolean) => { setPaymentsOpen(open); setNotice(''); onPaymentViewChange(open); };
   const paymentNotice = () => split ? changeTab(true) : setNotice('Payment records are unavailable for this sample.');
   return <main className="expense-screen expense-details-screen">
@@ -86,7 +86,7 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
       </section>
       </>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
-      {split && !paymentsOpen && <p className="details-preview">{split.expenseId ? (editLocked ? split.recurring ? 'Edit this cycle’s payer and shares from its recurring schedule.' : split.hasPaymentHistory ? 'Editing is locked because this expense has payment history.' : 'Only the expense creator or payer can edit.' : 'Saved to your group.') : 'Session-only preview. Live balances are not connected.'}</p>}
+      {split && !paymentsOpen && <p className="details-preview">{split.expenseId ? (editLocked ? split.settlementBatchId ? 'This transaction belongs to an initialized split; its recorded shares are locked.' : split.recurring ? 'Past recurring expenses keep their recorded shares. Change upcoming expenses from the schedule.' : split.hasPaymentHistory ? 'Editing is locked because this expense has payment history.' : 'Only the expense creator or payer can edit.' : 'Saved to your group.') : 'Session-only preview. Live balances are not connected.'}</p>}
     </div>
     {!paymentsOpen && <footer className="expense-footer"><button type="button" className="expense-outline" disabled={editLocked} onClick={() => split ? onEdit() : setNotice('This sample has no item or split records to edit. Create an expense to try the editing flow.')}>Edit expense</button></footer>}
   </main>;

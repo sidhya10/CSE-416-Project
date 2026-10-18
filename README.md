@@ -167,3 +167,7 @@ Playwright starts the frontend and API automatically. The flows exercise expense
 Profile → Appearance supports Light (default) and Dark throughout the app. Dark uses brighter green accents, clearer borders and contrasting dark surfaces. The preference is saved per browser and synchronized between tabs; legacy System preferences fall back to Light.
 
 Profile → Account settings → Password verifies the current password, requires a new password of at least eight characters including a number (maximum 72 UTF-8 bytes), and checks confirmation. Password changes are hashed with bcrypt and keep the current session signed in. Google-only accounts manage passwords through Google. `POST /api/auth/password` accepts `currentPassword`, `newPassword` and `confirmPassword`; it requires an authenticated session. No additional environment variables or database migrations are required for these settings.
+
+## Current-period group settlements
+
+Any member can initialize a settlement for unresolved transactions. Groups and Home show payment cards, recorded payment methods, recipient confirmation, collection progress and in-app reminders. Paid transactions remain in separate history and never enter a new split. Apply the new migration before starting; see [period-settlements.md](docs/period-settlements.md) for setup, API details and invariants.

@@ -20,6 +20,8 @@ model User {
   photoUrl             String?           @db.Text
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+  createdSettlements SettlementBatch[]
+  settlementNotices SettlementNotice[]
   createdRecurringBills RecurringBill[]
   bankConnections      BankConnection[]
   categoryLimits       CategoryLimit[]
@@ -72,6 +74,7 @@ model Group {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  settlements SettlementBatch[]
   expenses    Expense[]
   memberships GroupMembership[]
   recurringBills RecurringBill[]
@@ -126,6 +129,8 @@ enum ExpenseSplitMode {
 
 model Expense {
   id              String           @id @default(cuid())
+  settlementBatchId String?
+  settlementBatch SettlementBatch? @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
   groupId         String
   group           Group            @relation(fields: [groupId], references: [id], onDelete: Restrict)
   createdByUserId String
@@ -153,6 +158,7 @@ model Expense {
   shares          ExpenseShare[]
 
   @@unique([recurringBillId, cycleDate])
+  @@index([settlementBatchId])
   @@unique([createdByUserId, clientRequestId])
   @@index([groupId, createdAt])
 }
@@ -180,6 +186,7 @@ model ExpenseShare {
   baseCents   Int
   totalCents  Int
   assignments ItemAssignment[]
+  settlementShare SettlementShare?
   payments    ExpensePayment[]
 
   @@id([expenseId, userId])
@@ -209,6 +216,7 @@ model ExpensePayment {
   senderUserId    String
   share           ExpenseShare         @relation(fields: [expenseId, senderUserId], references: [expenseId, userId], onDelete: Restrict)
   amountCents     Int
+  method          String?
   status          ExpensePaymentStatus @default(SENT)
   clientRequestId String
   sentAt          DateTime             @default(now())
@@ -341,4 +349,45 @@ model GroupBudgetPlan {
   group        Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   plannedCents Int
   updatedAt    DateTime @updatedAt
+}
+
+// Each expense is assigned to at most one settlement period. Original shares remain the ledger.
+model SettlementBatch {
+  id String @id @default(cuid())
+  groupId String
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById String?
+  creator User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  clientRequestId String
+  createdAt DateTime @default(now())
+  expenses Expense[]
+  shares SettlementShare[]
+  notices SettlementNotice[]
+  @@unique([createdById, clientRequestId])
+  @@index([groupId, createdAt])
+}
+model SettlementShare {
+  expenseId String
+  userId String
+  source ExpenseShare @relation(fields: [expenseId, userId], references: [expenseId, userId], onDelete: Cascade)
+  batchId String
+  batch SettlementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  amountCents Int
+  baselineConfirmedCents Int
+  @@id([expenseId, userId])
+  @@index([batchId])
+}
+model SettlementNotice {
+  id String @id @default(cuid())
+  batchId String
+  batch SettlementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId String
+  kind String
+  message String
+  createdAt DateTime @default(now())
+  readAt DateTime?
+  @@index([recipientId, readAt])
+  @@index([batchId, actorId, recipientId, kind, createdAt])
 }
