@@ -37,6 +37,7 @@ function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]
     if (override) return override();
     if (url.endsWith('/budgets/personal')) return json(data.personal ?? personal());
     if (url.endsWith('/budgets/groups')) return json({ groups: data.groups ?? groups() });
+    if (url.endsWith('/settlements')) return json({ userId: 'me', batches: [], notices: [] });
     if (url.endsWith('/budgets/home')) return json(data.home ?? home());
     throw new Error(`Unexpected request ${url}`);
   }));
@@ -127,7 +128,7 @@ describe('home dashboard with real data', () => {
     expect(urls).toHaveLength(0);
     rerender(<HomeDashboard userName="Nicole" active onNavigate={() => {}} />);
     expect(await screen.findByText('$892.00')).toBeInTheDocument();
-    expect(urls.sort()).toEqual(['/api/budgets/groups', '/api/budgets/home', '/api/budgets/personal']);
+    expect(urls.sort()).toEqual(['/api/budgets/groups', '/api/budgets/home', '/api/budgets/personal', '/api/settlements']);
   });
 
   it('shows an error with a retry when the data cannot load', async () => {

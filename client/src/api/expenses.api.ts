@@ -3,6 +3,7 @@ import type { PreviewSplit } from '../pages/expenses/split';
 
 type Payment = { id: string; amountCents: number; status: 'SENT' | 'CONFIRMED' | 'ISSUE'; sentAt: string; resolvedAt?: string };
 export type ApiExpense = {
+  settlementBatchId?: string | null;
   receipt?: { name: string; mimeType: string } | null;
   id: string; version: number; title: string; expenseDate: string; createdByUserId: string; creator: { id: string; name: string };
   paidByUserId: string; recurringBillId?: string | null; splitMode: 'EQUAL' | 'ITEMS' | 'CUSTOM'; totalCents: number; taxCents: number; tipCents: number; otherCents: number;
@@ -25,6 +26,7 @@ export function toExpenseInput(split: PreviewSplit, currentUserId: string) {
 export function fromApiExpense(expense: ApiExpense, currentUserId: string): PreviewSplit {
   const id = (value: string) => value === currentUserId ? 'you' : value;
   return {
+    settlementBatchId: expense.settlementBatchId,
     recurring: !!expense.recurringBillId || expense.splitMode === 'CUSTOM',
     receiptName: expense.receipt?.name, receiptMimeType: expense.receipt?.mimeType,
     expenseId: expense.id, version: expense.version, creatorId: id(expense.createdByUserId), creatorName: expense.creator.name,

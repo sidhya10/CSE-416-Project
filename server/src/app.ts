@@ -1,3 +1,4 @@
+import { settlementsRouter } from './modules/settlements/settlement.routes.js';
 import { bankingRouter } from './modules/banking/bank.routes.js';
 import { budgetsRouter } from './modules/budgets/budget.routes.js';
 import { BankingError } from './modules/banking/plaid.client.js';
@@ -37,6 +38,7 @@ app.use('/api/friends', friendsRouter);
 app.use('/api/groups', groupsRouter);
 app.use('/api/banking', bankingRouter);
 app.use('/api/budgets', budgetsRouter);
+app.use('/api', settlementsRouter);
 app.use('/api', expensesRouter);
 app.use('/api', recurringRouter);
 

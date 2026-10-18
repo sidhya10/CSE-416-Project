@@ -1,0 +1,80 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import SettlementInbox from './SettlementInbox';
+import SettlementReview from './SettlementReview';
+import { settlementsApi, type SettlementBatch, type SettlementInboxData } from '../../api/settlements.api';
+const pair = { senderId: 'member', senderName: 'Jordan', recipientId: 'owner', recipientName: 'Alex', amountCents: 3000, confirmedCents: 0, pendingCents: 0, unreportedCents: 3000, pendingPayments: [] };
+const batch: SettlementBatch = { id: 'batch', groupId: 'group', groupName: 'Trip', createdAt: '2026-10-18', totalCents: 3000, completed: false, expenses: [{ id: 'expense', title: 'Dinner' }], pairs: [pair] };
+const data = (userId = 'member'): SettlementInboxData => ({ userId, batches: [structuredClone(batch)], notices: [] });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+it('shows send notifications, records the method and preserves an idempotency key on a failed retry', async () => {
+  let current = data();
+  vi.spyOn(settlementsApi, 'inbox').mockImplementation(async () => structuredClone(current));
+  const report = vi.spyOn(settlementsApi, 'report').mockRejectedValueOnce(new Error('Network failed')).mockImplementationOnce(async () => {
+    current = { ...current, batches: [{ ...batch, pairs: [{ ...pair, pendingCents: 3000, unreportedCents: 0, pendingPayments: [{ id: 'payment', cents: 3000, method: 'Zelle' }] }] }] }; return {};
+  });
+  render(<SettlementInbox />);
+  fireEvent.click(await screen.findByRole('button', { name: /Send Alex \$30.00/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Confirm money sent' });
+  fireEvent.change(within(dialog).getByLabelText('How did you send it?'), { target: { value: 'Zelle' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'I sent $30.00' }));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Network failed');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'I sent $30.00' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(report.mock.calls[0]).toEqual(report.mock.calls[1]);
+  expect(report).toHaveBeenCalledWith('batch', expect.objectContaining({ recipientId: 'owner', method: 'Zelle', amountCents: 3000 }));
+  expect(screen.getByRole('button', { name: /Waiting for Alex to confirm/ })).toBeInTheDocument();
+});
+it('shows real sent/confirmed progress and lets only the recipient confirm or remind through the collection dialog', async () => {
+  const current = data('owner');
+  current.batches[0]!.pairs[0] = { ...pair, pendingCents: 1000, unreportedCents: 2000, pendingPayments: [{ id: 'p1', cents: 1000, method: 'Venmo' }] };
+  vi.spyOn(settlementsApi, 'inbox').mockResolvedValue(current);
+  const confirm = vi.spyOn(settlementsApi, 'confirm').mockResolvedValue({});
+  const remind = vi.spyOn(settlementsApi, 'remind').mockResolvedValue(undefined);
+  render(<SettlementInbox />);
+  expect(await screen.findByRole('progressbar')).toHaveAttribute('aria-valuenow', '1000');
+  fireEvent.click(screen.getByRole('button', { name: /Trip · Collect/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Collection progress' });
+  expect(within(dialog).getByText('$10.00 · Venmo')).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm received from Jordan' }));
+  await waitFor(() => expect(confirm).toHaveBeenCalledWith('batch', { senderId: 'member', paymentIds: ['p1'], status: 'CONFIRMED' }));
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Remind Jordan' })).toBeEnabled());
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Remind Jordan' }));
+  await waitFor(() => expect(remind).toHaveBeenCalledWith('batch', 'member'));
+});
+it('does not fetch hidden notifications and dismisses only the selected notice', async () => {
+  const current = { ...data(), batches: [], notices: [{ id: 'notice', batchId: 'batch', message: 'Alex confirmed receiving $30.', kind: 'CONFIRMED', createdAt: '' }] };
+  const load = vi.spyOn(settlementsApi, 'inbox').mockResolvedValue(current);
+  const dismiss = vi.spyOn(settlementsApi, 'dismiss').mockResolvedValue(undefined);
+  const view = render(<SettlementInbox active={false} />);
+  expect(load).not.toHaveBeenCalled(); view.rerender(<SettlementInbox active />);
+  fireEvent.click(await screen.findByRole('button', { name: /Dismiss Alex confirmed/ }));
+  await waitFor(() => expect(dismiss).toHaveBeenCalledWith('notice'));
+});
+it('does not offer reminders when every debtor has reported sent, and never offers another payment while awaiting confirmation', async () => {
+  const current = data('owner');
+  current.batches[0]!.pairs[0] = { ...pair, unreportedCents: 0, pendingCents: 3000, pendingPayments: [{ id: 'p', cents: 3000, method: 'Cash' }] };
+  vi.spyOn(settlementsApi, 'inbox').mockResolvedValue(current);
+  render(<SettlementInbox />);
+  fireEvent.click(await screen.findByRole('button', { name: /Trip · Collect/ }));
+  expect(screen.queryByRole('button', { name: /Remind Jordan/ })).not.toBeInTheDocument();
+});
+it('reviews only current outstanding transactions and returns to Groups after initialization succeeds', async () => {
+  vi.spyOn(settlementsApi, 'preview').mockResolvedValue({ expenseIds: ['expense'], totalCents: 3000, expenses: [{ id: 'expense', title: 'Dinner', outstandingCents: 3000 }] });
+  const save = vi.spyOn(settlementsApi, 'initialize').mockResolvedValue({ batch });
+  const done = vi.fn();
+  render(<SettlementReview groupId="group" groupName="Trip" onBack={() => {}} onDone={done} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Initialize split' }));
+  await waitFor(() => expect(done).toHaveBeenCalledOnce());
+  expect(save).toHaveBeenCalledWith('group', expect.objectContaining({ expenseIds: ['expense'], totalCents: 3000 }));
+});
+it('keeps the review open when a stale preview is rejected and offers a refresh', async () => {
+  vi.spyOn(settlementsApi, 'preview').mockResolvedValue({ expenseIds: ['expense'], totalCents: 3000, expenses: [{ id: 'expense', title: 'Dinner', outstandingCents: 3000 }] });
+  vi.spyOn(settlementsApi, 'initialize').mockRejectedValue(new Error('Transactions changed'));
+  const done = vi.fn();
+  render(<SettlementReview groupId="group" groupName="Trip" onBack={() => {}} onDone={done} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Initialize split' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Transactions changed');
+  expect(done).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Review updated transactions' })).toBeInTheDocument();
+});

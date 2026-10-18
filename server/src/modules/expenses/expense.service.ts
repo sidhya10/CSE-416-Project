@@ -91,6 +91,7 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
 export function editExpense(id: string, userId: string, version: number, input: ExpenseInput) {
   return transaction(async tx => {
     const previous = await readExpense(tx, id, userId);
+    if (previous.settlementBatchId) throw new ExpenseError(409, 'This expense belongs to an initialized split. Its recorded shares cannot be changed.');
     if (previous.recurringBillId || previous.splitMode === 'CUSTOM') throw new ExpenseError(409, 'Past recurring expenses keep their recorded payer and shares. Update upcoming expenses from the schedule.');
     if (previous.createdByUserId !== userId && previous.paidByUserId !== userId) throw new ExpenseError(403, 'Only the creator or payer can edit this expense');
     if (previous.version !== version) throw new ExpenseError(409, 'Expense changed; reload before editing');
@@ -133,6 +134,8 @@ export function resolvePayment(expenseId: string, paymentId: string, userId: str
     if (payment.status === status) return payment;
     if (payment.status !== 'SENT') throw new ExpenseError(409, 'Payment has already been resolved');
     await tx.group.update({ where: { id: expense.groupId }, data: { lastActivityAt: new Date() } });
+    if (expense.settlementBatchId) await tx.settlementNotice.create({ data: { batchId: expense.settlementBatchId, recipientId: payment.senderUserId, actorId: userId, kind: status,
+      message: status === 'CONFIRMED' ? `Your $${(payment.amountCents / 100).toFixed(2)} payment for ${expense.title} was confirmed.` : `Your payment for ${expense.title} needs review. Please check before sending again.` } });
     return tx.expensePayment.update({ where: { id: paymentId }, data: { status, resolvedAt: new Date() } });
   });
 }

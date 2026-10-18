@@ -68,6 +68,7 @@ recurringRouter.put('/recurring/:id/cycles/:index', async (req, res) => {
     if (!Number.isFinite(date.getTime()) || date.getUTCFullYear() > 9999) throw new ExpenseError(400, 'Cycle date is outside the supported range');
     const expense = await tx.expense.findUnique({ where: { recurringBillId_cycleDate: { recurringBillId: bill.id, cycleDate: date } }, include: { shares: { include: { payments: true } } } });
     if (expense) {
+      if (expense.settlementBatchId) throw new ExpenseError(409, 'This expense belongs to an initialized split');
       if (expense.shares.some(share => share.payments.length)) throw new ExpenseError(409, 'This cycle has payment history and cannot be changed');
       await writeCycleShares(tx, expense.id, plan);
       await tx.expense.update({ where: { id: expense.id }, data: { paidByUserId: plan.payerId, version: { increment: 1 } } });

@@ -14,7 +14,7 @@
     "typecheck": "npm run typecheck --workspace shared && npm run typecheck --workspace client && npm run typecheck --workspace server",
     "test": "npm run test --workspace client && npm run test --workspace server",
     "test:coverage": "npm run test:coverage --workspace client && npm run test:coverage --workspace server",
-    "test:api": "newman run postman/CSE-416-API.postman_collection.json --env-var baseUrl=http://127.0.0.1:3000 --reporters cli",
+    "test:api": "newman run postman/CSE-416-API.postman_collection.json --env-var baseUrl=http://127.0.0.1:3000 --reporters cli && newman run postman/CSE-416-Settlements.postman_collection.json --env-var baseUrl=http://127.0.0.1:3000 --reporters cli",
     "test:api:ci": "start-server-and-test 'npm run start --workspace server' http-get://127.0.0.1:3000/api/health 'npm run test:api'",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

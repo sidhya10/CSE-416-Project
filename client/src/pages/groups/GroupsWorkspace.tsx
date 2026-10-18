@@ -1,3 +1,5 @@
+import SettlementInbox from '../settlements/SettlementInbox';
+import SettlementReview from '../settlements/SettlementReview';
 import ConfirmDeletion from '../../components/common/ConfirmDeletion';
 import { recurringApi, type CyclePlan } from '../../api/recurring.api';
 import { selectGroups, defaultFilters } from './groupFilters';
@@ -38,7 +40,7 @@ type Group = {
 };
 export type FriendFixture = Friend;
 export type GroupFixture = Group;
-type Screen = 'friend-profile' | 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'running-split' | 'archive' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
+type Screen = 'settlement-review' | 'friend-profile' | 'edit-expense' | 'expense-details' | 'saved' | 'expense' | 'running-split' | 'archive' | 'list' | 'friends' | 'select' | 'customize' | 'detail' | 'settings' | 'add-members' | 'bill' | 'plan';
 
 const initialGroups: Group[] = [];
 
@@ -91,7 +93,8 @@ function Header({ title, subtitle, back, trailing }: { title: string; subtitle?:
   </header>;
 }
 
-export default function GroupsWorkspace({ onRootChange, currentUser, initialGroupsData, initialFriendsData }: {
+export default function GroupsWorkspace({ onRootChange, currentUser, initialGroupsData, initialFriendsData, visible = true }: {
+  visible?: boolean;
   onRootChange: (atRoot: boolean) => void;
   currentUser: AppUser;
   initialGroupsData?: GroupFixture[];
@@ -152,10 +155,14 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const largestBalance = Math.max(owedToYou, youOwe, 1);
   const balanceWidth = (amount: number) => `${Math.round((amount / largestBalance) * 100)}%`;
   const activeSplits = active ? previewSplits[active.id] ?? [] : [];
-  const recordedRunningTotal = activeSplits.reduce((total, split) => total + split.totalCents, 0);
+  const unresolved = (split: PreviewSplit) => split.shares.some(share => share.memberId !== split.payerId && share.totalCents > (split.payments ?? []).filter(p => p.memberId === share.memberId).reduce((sum, p) => sum + p.receivedCents, 0));
+  const currentSplits = activeSplits.filter(split => !split.settlementBatchId && unresolved(split));
+  const waitingSplits = activeSplits.filter(split => split.settlementBatchId && unresolved(split));
+  const resolvedSplits = activeSplits.filter(split => !unresolved(split));
+  const recordedRunningTotal = currentSplits.reduce((total, split) => total + split.totalCents, 0);
   const currentRunningTotal = active ? recordedRunningTotal : 0;
   const runningActivityWeights = Object.fromEntries(members.map(member => [member.id,
-    activeSplits.reduce((total, split) => total + (split.shares.find(share => share.memberId === member.id)?.totalCents ?? 0), 0)]));
+    currentSplits.reduce((total, split) => total + (split.shares.find(share => share.memberId === member.id)?.totalCents ?? 0), 0)]));
   const yourCurrentExpenses = activeSplits.length ? runningActivityWeights.you ?? 0 : 0;
 
   const toFriend = (user: FriendUser | AppUser): Friend => ({ ...user, isFriend: 'isFriend' in user ? user.isFriend : false,
@@ -474,9 +481,13 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const expenseMembers = viewedExpense?.split ? viewedExpense.split.shares.map(share => ({ id: share.memberId,
     name: share.memberId === 'you' ? 'You' : viewedExpense.split?.memberNames?.[share.memberId] ?? members.find(member => member.id === share.memberId)?.name ?? 'Member' })) : members;
 
+  if (screen === 'settlement-review' && active) return <SettlementReview groupId={String(active.id)} groupName={active.name} onBack={() => go('detail')} onDone={() => {
+    go('list'); setMessage('Your current split is ready. Use Group payments to send money or confirm receipts.'); void refreshGroups();
+  }} />;
+
   if (screen === 'running-split' && active) return <RunningTotalSplit groupName={active.name} totalCents={currentRunningTotal}
     members={members} activityWeights={runningActivityWeights} onBack={() => go('detail')} onDone={() => {
-      go('detail'); setMessage('Current total split saved in this preview session.');
+      go('list'); setMessage('Current total split saved in this preview session.');
     }} />;
 
   if (screen === 'expense' && active) return <ExpenseEntry groupName={active.name} members={members} onBack={() => go('detail')} onConfirm={split => {
@@ -543,6 +554,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       <h2 className="group-section-title">Your groups</h2>
       </>}
       {message && <p className="group-notice" role="status">{message}</p>}
+      {screen === 'list' && !initialGroupsData && <SettlementInbox active={visible} onChanged={() => void refreshGroups()} />}
       <div className="group-list">{displayedGroups.map(group =>
         <div className={`group-list-row${openActionsId === group.id ? ' is-open' : ''}`} key={group.id} role="group" aria-label={group.name}
           onPointerDown={event => { if (event.target instanceof Element && event.target.closest('.group-list-card')) swipeStart.current = { id: group.id, x: event.clientX, y: event.clientY }; }}
@@ -668,8 +680,11 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
           <button className="group-primary" disabled={billBusy} type="submit">Save recurring cost</button></form>}
         {active.bills.map(item => <button className="recurring-card" type="button" key={item.id} onClick={() => openBill(item.id)}>
           <span><strong>{item.title}</strong><small>{item.frequency === 'Custom' ? `Every ${item.customEvery} ${item.customUnit}` : item.frequency} · from {dateLabel(item.startDate)}</small><small>{item.paused ? 'Paused' : `Next cycle: ${item.nextDate ?? item.startDate}`} · Edit upcoming payer and shares</small></span><b>{money(item.amount)}</b></button>)}
+        <button type="button" className="group-primary" disabled={active.archived || !activeSplits.some(unresolved)} onClick={() => go(initialGroupsData ? 'running-split' : 'settlement-review')}>Split current expenses</button>
         <h2>Past expenses</h2>
-        {[...activeSplits].reverse().map(split => <button className="group-transaction expense-list-row" type="button" key={split.expenseId} onClick={() => { setViewedExpense({ title: split.name, subtitle: dateLabel(split.date.slice(0, 10)), amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>{dateLabel(split.date.slice(0, 10))} · View payments</small></span><b>{formatCents(split.totalCents)}</b></button>)}
+        {[...activeSplits.filter(unresolved)].reverse().map(split => <button className="group-transaction expense-list-row" type="button" key={split.expenseId} onClick={() => { setViewedExpense({ title: split.name, subtitle: dateLabel(split.date.slice(0, 10)), amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>{dateLabel(split.date.slice(0, 10))} · View payments</small></span><b>{formatCents(split.totalCents)}</b></button>)}
+        {!activeSplits.filter(unresolved).length && <p>No unpaid past expenses. New expenses appear on their scheduled date (UTC).</p>}
+        <section aria-label="Resolved transactions"><h2 className="group-section-title">Resolved transactions</h2>{[...resolvedSplits].reverse().map(split => <button className="group-transaction expense-list-row" type="button" key={split.expenseId} onClick={() => { setViewedExpense({ title: split.name, subtitle: 'Resolved · retained in history', amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>Resolved · Not included in new splits</small></span><b>{formatCents(split.totalCents)}</b></button>)}</section>
         {!activeSplits.length && <p>No cycles due yet. Expenses appear automatically on their scheduled date (UTC).</p>}
         {message && <p className="group-notice" role="status">{message}</p>}
       </> : <>
@@ -677,8 +692,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
           <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? formatCents(currentRunningTotal) : balanceMoney(Math.max(-active.balance, 0))}</strong></span>
             <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? formatCents(yourCurrentExpenses) : balanceMoney(Math.max(active.balance, 0))}</strong></span></div></section>
         <div className="group-split-actions"><button type="button" disabled={active.archived} onClick={() => { requestId.current = createRequestId(); go('expense'); }}>+ Add expense</button>
-          <button type="button" disabled={!currentRunningTotal || !initialGroupsData} title={!initialGroupsData ? 'Each saved expense already has its own split' : !currentRunningTotal ? 'Add an expense before splitting the current total' : undefined}
-            onClick={() => go('running-split')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
+          <button type="button" disabled={active.archived || !activeSplits.some(unresolved)} title={!activeSplits.some(unresolved) ? 'Add an unresolved transaction before starting a split' : undefined}
+            onClick={() => go(initialGroupsData ? 'running-split' : 'settlement-review')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
         <section className="group-info"><strong>{active.type === 'Trip' ? active.description || 'Trip with friends' : 'Any member can add expenses and split when ready.'}</strong>
           <small>{active.type === 'Trip' ? `Trip dates · ${dateLabel(active.startDate)} – ${dateLabel(active.endDate)}` : `About · ${active.description || 'No description yet'}`}</small></section>
@@ -689,7 +704,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         </>}
         <section aria-label={active.type === 'Trip' ? 'Current trip expenses' : 'Transactions · Current period'}>
         <h2 className="group-section-title">{active.type === 'Trip' ? 'Current trip expenses' : 'Transactions · Current period'}</h2>
-        {[...(previewSplits[active.id] ?? [])].reverse().map((split, index) => {
+        {[...currentSplits].reverse().map((split, index) => {
           const title = split.name;
           const subtitle = `${members.find(member => member.id === split.payerId)?.name ?? split.memberNames?.[split.payerId] ?? 'Member'} paid · ${split.mode === 'equal' ? 'Equal split' : 'Split by item'}${initialGroupsData ? ' · Preview' : ''}`;
           const amount = formatCents(split.totalCents);
@@ -697,6 +712,15 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
             <span><strong>{title}</strong><small>{subtitle}</small></span><b>{amount}<span aria-hidden="true">›</span></b>
           </button>;
         })}
+        {!currentSplits.length && <p className="group-caption">No new unresolved transactions in this period.</p>}
+        </section>
+        {waitingSplits.length > 0 && <section aria-label="Transactions awaiting settlement"><h2 className="group-section-title">Awaiting settlement</h2>
+          <p className="group-caption">Already split. Finish these repayments from Group payments.</p>
+          {[...waitingSplits].reverse().map(split => <button type="button" className="group-transaction expense-list-row" key={split.expenseId} onClick={() => { setViewedExpense({ title: split.name, subtitle: 'Awaiting settlement', amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>Split initialized · View payments</small></span><b>{formatCents(split.totalCents)}</b></button>)}
+        </section>}
+        <section aria-label="Resolved transactions"><h2 className="group-section-title">Resolved transactions</h2>
+          {[...resolvedSplits].reverse().map((split, index) => <button type="button" className="group-transaction expense-list-row" key={split.expenseId ?? index} onClick={() => { setViewedExpense({ title: split.name, subtitle: 'Resolved · retained in history', amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>Resolved · Not included in new splits</small></span><b>{formatCents(split.totalCents)}</b></button>)}
+          {!resolvedSplits.length && <p className="group-caption">Settled transactions will stay here for reference.</p>}
         <p className="group-caption">{initialGroupsData ? 'Expenses are saved for this preview session.' : 'Expenses and confirmed payments are saved for your group.'}</p>
         </section>
       </>}
