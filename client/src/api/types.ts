@@ -13,6 +13,7 @@ export type GroupInvitation = {
   status: 'ACCEPTED' | 'REVOKED'; createdAt: string; acceptedAt: string | null;
 };
 export type ApiGroup = {
+  canArchive?: boolean;
   id: string; name: string; description: string; type: 'General' | 'Trip' | 'Recurring'; color: string;
   photoUrl: string | null; startDate: string; endDate: string; createdById: string; createdBy: AppUser;
   currentUserRole: GroupRole; members: GroupMember[]; invitations: GroupInvitation[];

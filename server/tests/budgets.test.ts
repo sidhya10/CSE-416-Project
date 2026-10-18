@@ -173,10 +173,12 @@ describe('group budgets', () => {
   });
 
   it('leaves archived groups out until they are restored', async () => {
-    await owner.post(`/api/groups/${groupId}/archive`).send({ archived: true }).expect(200);
-    expect((await owner.get('/api/budgets/groups').expect(200)).body.groups.map((group: { id: string }) => group.id)).not.toContain(groupId);
-    await owner.post(`/api/groups/${groupId}/archive`).send({ archived: false }).expect(200);
-    expect((await owner.get('/api/budgets/groups').expect(200)).body.groups.map((group: { id: string }) => group.id)).toContain(groupId);
+    const created = await owner.post('/api/groups').send({ name: 'Settled archive', memberIds: [memberId] }).expect(201);
+    const archiveId = created.body.group.id; groupIds.push(archiveId);
+    await owner.post(`/api/groups/${archiveId}/archive`).send({ archived: true }).expect(200);
+    expect((await owner.get('/api/budgets/groups').expect(200)).body.groups.map((group: { id: string }) => group.id)).not.toContain(archiveId);
+    await owner.post(`/api/groups/${archiveId}/archive`).send({ archived: false }).expect(200);
+    expect((await owner.get('/api/budgets/groups').expect(200)).body.groups.map((group: { id: string }) => group.id)).toContain(archiveId);
   });
 });
 

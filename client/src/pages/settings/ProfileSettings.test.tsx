@@ -51,35 +51,34 @@ describe('password settings', () => {
 
 function AppearanceHarness() { useApplyAppearance(); return <ProfileSettings user={user} onUserChange={() => {}} onLogout={() => {}} onRootChange={() => {}} />; }
 describe('appearance', () => {
-  it('applies and persists light/dark, restores on remount, and follows system changes only in System mode', async () => {
-    let dark = true;
-    const listeners = new Set<() => void>();
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ get matches() { return dark; }, addEventListener: (_: string, fn: () => void) => listeners.add(fn), removeEventListener: (_: string, fn: () => void) => listeners.delete(fn) })));
+  it('defaults to light even on dark devices and persists the explicit choice', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
     const view = render(<AppearanceHarness />);
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light');
+    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
+    expect(screen.queryByLabelText('System')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Light')).toBeChecked();
+    fireEvent.click(screen.getByLabelText('Dark'));
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+    expect(localStorage.getItem(appearanceKey)).toBe('Dark');
+    view.unmount(); render(<AppearanceHarness />);
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
     fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
     fireEvent.click(screen.getByLabelText('Light'));
     expect(document.documentElement).toHaveAttribute('data-theme', 'light');
-    expect(localStorage.getItem(appearanceKey)).toBe('Light');
-    dark = true; listeners.forEach(fn => fn());
+  });
+  it('migrates a saved System preference to Light and removes redundant profile controls', () => {
+    localStorage.setItem(appearanceKey, 'System');
+    render(<AppearanceHarness />);
     expect(document.documentElement).toHaveAttribute('data-theme', 'light');
-    fireEvent.click(screen.getByLabelText('Dark'));
-    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
-    view.unmount();
-    const reopened = render(<AppearanceHarness />);
-    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
-    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
-    expect(screen.getByLabelText('Dark')).toBeChecked();
-    fireEvent.click(screen.getByLabelText('System'));
-    dark = false; listeners.forEach(fn => fn());
-    await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'light'));
-    reopened.unmount(); expect(listeners.size).toBe(0);
+    expect(screen.queryByText('Two-step verification')).not.toBeInTheDocument();
+    expect(document.querySelector('.avatar-plus')).not.toBeInTheDocument();
   });
   it('ignores invalid stored preferences and synchronizes changes from another tab', async () => {
     localStorage.setItem(appearanceKey, 'invalid');
     render(<AppearanceHarness />);
     fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
-    expect(screen.getByLabelText('System')).toBeChecked();
+    expect(screen.getByLabelText('Light')).toBeChecked();
     localStorage.setItem(appearanceKey, 'Dark');
     fireEvent(window, new StorageEvent('storage', { key: appearanceKey }));
     await waitFor(() => expect(screen.getByLabelText('Dark')).toBeChecked());

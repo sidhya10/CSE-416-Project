@@ -1,3 +1,4 @@
+import { hasOpenSplits } from './settlement.js';
 import { presentBill } from '../recurring/recurring.service.js';
 import { Prisma } from '@prisma/client';
 import { presentUser } from '../users/user.presenter.js';
@@ -24,6 +25,7 @@ export function presentGroup(group: GroupWithRelations, currentUserId: string) {
     else if (share.userId === currentUserId) amountOwesCents += remaining;
   }
   return {
+    canArchive: !hasOpenSplits(group.expenses),
     archivedAt: group.archivedAt?.toISOString() ?? null, archiveReason: group.archiveReason,
     inactivityDays: group.inactivityDays, lastActivityAt: group.lastActivityAt.toISOString(),
     lastAccessedAt: group.memberships.find(member => member.userId === currentUserId)?.lastAccessedAt?.toISOString() ?? null,

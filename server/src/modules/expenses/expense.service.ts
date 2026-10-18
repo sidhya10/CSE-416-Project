@@ -72,6 +72,8 @@ function expenseFields(input: ExpenseInput) {
 export function createExpense(groupId: string, userId: string, clientRequestId: string, input: ExpenseInput) {
   return transaction(async tx => {
     await requireMember(tx, groupId, userId);
+    const group = await tx.group.findUniqueOrThrow({ where: { id: groupId } });
+    if (group.archivedAt) throw new ExpenseError(409, 'Restore the group before adding an expense');
     const previous = await tx.expense.findUnique({ where: { createdByUserId_clientRequestId: { createdByUserId: userId, clientRequestId } }, include: expenseInclude });
     if (previous) {
       if (previous.groupId !== groupId) throw new ExpenseError(409, 'Request ID already used for another group');
@@ -89,7 +91,7 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
 export function editExpense(id: string, userId: string, version: number, input: ExpenseInput) {
   return transaction(async tx => {
     const previous = await readExpense(tx, id, userId);
-    if (previous.recurringBillId) throw new ExpenseError(409, 'Edit the payer and shares from this recurring cycle instead');
+    if (previous.recurringBillId || previous.splitMode === 'CUSTOM') throw new ExpenseError(409, 'Past recurring expenses keep their recorded payer and shares. Update upcoming expenses from the schedule.');
     if (previous.createdByUserId !== userId && previous.paidByUserId !== userId) throw new ExpenseError(403, 'Only the creator or payer can edit this expense');
     if (previous.version !== version) throw new ExpenseError(409, 'Expense changed; reload before editing');
     if (previous.shares.some(share => share.payments.length)) throw new ExpenseError(409, 'Expenses with payment history cannot be edited yet');

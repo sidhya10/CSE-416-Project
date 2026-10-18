@@ -25,7 +25,7 @@ export function toExpenseInput(split: PreviewSplit, currentUserId: string) {
 export function fromApiExpense(expense: ApiExpense, currentUserId: string): PreviewSplit {
   const id = (value: string) => value === currentUserId ? 'you' : value;
   return {
-    recurring: !!expense.recurringBillId,
+    recurring: !!expense.recurringBillId || expense.splitMode === 'CUSTOM',
     receiptName: expense.receipt?.name, receiptMimeType: expense.receipt?.mimeType,
     expenseId: expense.id, version: expense.version, creatorId: id(expense.createdByUserId), creatorName: expense.creator.name,
     hasPaymentHistory: expense.shares.some(share => share.payments.length > 0),
