@@ -43,3 +43,11 @@ npm run dev
 ```
 
 Use a dedicated test database for automated tests. Coverage includes paid-history exclusion, prior partial payments, multiple periods, stale previews, competing initialization/reporting, idempotency, recipient authorization, persisted methods, reminders/cooldown/dismissal, issue/retry, group deletion, completion, unchanged budget totals, popup behavior and a three-account mobile browser flow. `npm run test:api` now runs both Postman collections.
+
+## Combined group payment cards
+
+Groups and Home show at most one outgoing card and one collection card for each group. New settlement periods add their unresolved amounts to those cards; completed periods stay in expense history. Different recipients appear inside the outgoing popup, and collection progress counts each debtor once across open periods. The collection card shows the amount still outstanding, with reported/confirmed progress beneath it.
+
+Reporting one recipient's combined amount and confirming one debtor's reports commit atomically across their source periods. Snapshot allocations prevent a newly initialized split from silently changing an open payment form. Retry keys prevent duplicate reports. A group reminder includes the combined unsent amount and has a group-wide hourly cooldown. Original expense shares and confirmed payments remain intact; opposite-direction obligations are still recorded separately.
+
+New authenticated member routes: `POST /api/groups/:id/settlement-payments` (`recipientId`, `method`, `clientRequestId`, `allocations: [{batchId, amountCents}]`), `POST /api/groups/:id/settlement-confirmations` (`senderId`, `status`, `allocations: [{batchId, paymentIds}]`), and `POST /api/groups/:id/settlement-reminders` (`recipientId`). No migration or new environment variables are required.

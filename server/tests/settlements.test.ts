@@ -168,3 +168,47 @@ it('retains a period when its non-financial initiator deletes their account', as
   expect((await member!.get('/api/settlements')).body.batches.some((b: { id: string }) => b.id === batchId)).toBe(true);
   expect(await prisma.expense.count({ where: { groupId: id, settlementBatchId: batchId } })).toBe(1);
 });
+
+it('reports and confirms one combined group payment across periods atomically and retries safely', async () => {
+  const id = await group(); await expense(id); const first = (await initialize(id)).body.batch;
+  await expense(id, 'Next period', ids[0]!, 3000); const second = (await initialize(id)).body.batch;
+  const payload = { recipientId: ids[0], method: 'Zelle', clientRequestId: randomUUID(), allocations: [{ batchId: first.id, amountCents: 2000 }, { batchId: second.id, amountCents: 1000 }] };
+  await outsider!.post(`/api/groups/${id}/settlement-payments`).send(payload).expect(404);
+  await member!.post(`/api/groups/${id}/settlement-payments`).send({ ...payload, allocations: [{ batchId: first.id, amountCents: 2000 }] }).expect(409);
+  expect(await prisma.expensePayment.count({ where: { senderUserId: ids[1], share: { expense: { groupId: id } } } })).toBe(0);
+  await member!.post(`/api/groups/${id}/settlement-payments`).send(payload).expect(200);
+  await member!.post(`/api/groups/${id}/settlement-payments`).send(payload).expect(200);
+  expect(await prisma.expensePayment.count({ where: { senderUserId: ids[1], share: { expense: { groupId: id } } } })).toBe(2);
+  await member!.post(`/api/groups/${id}/settlement-payments`).send({ ...payload, allocations: payload.allocations.slice(0, 1) }).expect(409);
+  const boxes = (await owner!.get('/api/settlements')).body.batches.filter((b: { groupId: string }) => b.groupId === id);
+  const allocations = boxes.map((b: { id: string; pairs: { senderId: string; pendingPayments: { id: string }[] }[] }) => ({ batchId: b.id, paymentIds: b.pairs.find(p => p.senderId === ids[1])!.pendingPayments.map(p => p.id) }));
+  const confirmation = { senderId: ids[1], status: 'CONFIRMED', allocations };
+  await observer!.post(`/api/groups/${id}/settlement-confirmations`).send(confirmation).expect(403);
+  const forged = { ...confirmation, allocations: [allocations[0], { batchId: allocations[1].batchId, paymentIds: ['missing'] }] };
+  await owner!.post(`/api/groups/${id}/settlement-confirmations`).send(forged).expect(403);
+  expect(await prisma.expensePayment.count({ where: { senderUserId: ids[1], status: 'CONFIRMED', share: { expense: { groupId: id } } } })).toBe(0);
+  await owner!.post(`/api/groups/${id}/settlement-confirmations`).send(confirmation).expect(200);
+  await owner!.post(`/api/groups/${id}/settlement-confirmations`).send(confirmation).expect(200);
+  const notices = await prisma.settlementNotice.findMany({ where: { batch: { groupId: id }, recipientId: ids[1] } });
+  expect(notices).toHaveLength(1); expect(notices[0]!.message).toContain('$30.00');
+});
+it('rejects stale group totals and payments from another group without partial writes', async () => {
+  const id = await group(); await expense(id); const first = (await initialize(id)).body.batch;
+  const payload = { recipientId: ids[0], method: 'Cash', clientRequestId: randomUUID(), allocations: [{ batchId: first.id, amountCents: 2000 }] };
+  await expense(id, 'New split'); await initialize(id);
+  await member!.post(`/api/groups/${id}/settlement-payments`).send(payload).expect(409);
+  const otherGroup = await group(); await expense(otherGroup); const otherBatch = (await initialize(otherGroup)).body.batch;
+  await member!.post(`/api/groups/${id}/settlement-payments`).send({ ...payload, allocations: [...payload.allocations, { batchId: otherBatch.id, amountCents: 2000 }] }).expect(404);
+  expect(await prisma.expensePayment.count({ where: { share: { expense: { groupId: id } } } })).toBe(0);
+});
+it('sends one reminder with the combined group total and enforces cooldown across periods', async () => {
+  const id = await group(); await expense(id); await initialize(id);
+  await expense(id, 'New split', ids[0]!, 3000); await initialize(id);
+  await member!.post(`/api/groups/${id}/settlement-reminders`).send({ recipientId: ids[2] }).expect(409);
+  await owner!.post(`/api/groups/${id}/settlement-reminders`).send({ recipientId: ids[1] }).expect(204);
+  const notices = await prisma.settlementNotice.findMany({ where: { batch: { groupId: id }, recipientId: ids[1] } });
+  expect(notices).toHaveLength(1); expect(notices[0]!.message).toContain('$30.00');
+  await member!.post(`/api/settlement-notices/${notices[0]!.id}/read`).expect(204);
+  await expense(id, 'Another split'); await initialize(id);
+  await owner!.post(`/api/groups/${id}/settlement-reminders`).send({ recipientId: ids[1] }).expect(429);
+});

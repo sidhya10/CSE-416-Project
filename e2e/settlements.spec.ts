@@ -79,3 +79,53 @@ test('any member splits only the current period, reports how they paid, and rece
     await expect(memberPage.locator('.settlement-review').getByText('Current dinner')).toHaveCount(0);
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });
+
+test('new splits merge into one group card and one payment covers several periods', async ({ browser }) => {
+  const contexts = await Promise.all([0, 1].map(() => browser.newContext({ baseURL: 'http://127.0.0.1:5173', viewport: { width: 375, height: 812 } })));
+  try {
+    const [owner, member] = contexts;
+    const users = [];
+    for (const [i, context] of contexts.entries()) {
+      const response = await context.request.post('/api/auth/register', { data: { name: ['Alex', 'Jordan'][i], username: `merge_${i}_${Date.now()}`, email: `merge-${i}-${randomUUID()}@example.com`, password: 'password1' } });
+      expect(response.status()).toBe(201); users.push((await response.json()).user);
+    }
+    const g = await owner!.request.post('/api/groups', { data: { name: 'Merged payment cards', memberIds: [users[1].id] } });
+    const groupId = (await g.json()).group.id;
+    const addPeriod = async (title: string, total: number, payer = users[0].id) => {
+      const e = await owner!.request.post(`/api/groups/${groupId}/expenses`, { data: { clientRequestId: randomUUID(), expense: { title, expenseDate: new Date().toISOString().slice(0, 10), paidByUserId: payer, participantIds: users.map(u => u.id), splitMode: 'EQUAL', items: [{ name: title, quantity: 1, unitPriceCents: total, assignedUserIds: [] }], taxCents: 0, tipCents: 0, otherCents: 0 } } });
+      expect(e.status()).toBe(201);
+      const preview = await member!.request.get(`/api/groups/${groupId}/settlements/preview`); const p = await preview.json();
+      expect((await member!.request.post(`/api/groups/${groupId}/settlements`, { data: { clientRequestId: randomUUID(), expenseIds: p.expenseIds, totalCents: p.totalCents } })).status()).toBe(201);
+    };
+    await addPeriod('First dinner', 2000); await addPeriod('Second dinner', 4000);
+    await addPeriod('Jordan paid for taxi', 1000, users[1].id);
+    const page = await member!.newPage(); await page.goto('/'); await page.getByRole('button', { name: 'Groups', exact: true }).click();
+    const inbox = page.getByRole('region', { name: 'Group payment notifications' });
+    await expect(inbox.getByRole('button', { name: /Send Alex \$30.00/ })).toHaveCount(1);
+    await expect(inbox.getByRole('button', { name: /Collect \$5.00/ })).toHaveCount(1);
+    await addPeriod('New coffee', 1000);
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(inbox.getByRole('button', { name: /Send Alex \$35.00/ })).toHaveCount(1);
+    await expect(inbox.getByRole('button', { name: /Send Alex/ })).toHaveCount(1);
+    await inbox.getByRole('button', { name: /Send Alex/ }).click();
+    await page.getByRole('dialog').getByLabel('How did you send it?').selectOption('Zelle');
+    await page.getByRole('dialog').getByRole('button', { name: 'I sent $35.00' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(inbox.getByRole('button', { name: /Waiting for Alex to confirm/ })).toHaveCount(1);
+    const recipient = await owner!.newPage(); await recipient.goto('/'); await recipient.getByRole('button', { name: 'Groups', exact: true }).click();
+    const collections = recipient.getByRole('region', { name: 'Group payment notifications' });
+    await expect(collections.getByRole('button', { name: /Collect \$35.00/ })).toHaveCount(1);
+    await collections.getByRole('button', { name: /Collect \$35.00/ }).click();
+    await expect(recipient.getByRole('button', { name: 'Confirm received from Jordan' })).toHaveCount(1);
+    await recipient.getByRole('button', { name: 'Confirm received from Jordan' }).click();
+    await expect(recipient.getByRole('status')).toContainText('Receipt from Jordan confirmed');
+    await recipient.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(collections.getByRole('button', { name: /Collect/ })).toHaveCount(0);
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(inbox.getByRole('button', { name: /Waiting for Alex/ })).toHaveCount(0);
+    await expect(inbox.getByText('Alex confirmed receiving $35.00 for Merged payment cards.')).toBeVisible();
+    await expect(inbox.getByRole('button', { name: /Collect \$5.00/ })).toHaveCount(1);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Group payment notifications' }).getByRole('button', { name: /Collect \$5.00/ })).toHaveCount(1);
+  } finally { await Promise.all(contexts.map(c => c.close())); }
+});

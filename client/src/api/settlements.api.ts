@@ -15,5 +15,8 @@ export const settlementsApi = {
   report: (batchId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }) => apiRequest(`/settlements/${batchId}/payments`, { method: 'POST', body: JSON.stringify(input) }),
   confirm: (batchId: string, input: { senderId: string; paymentIds: string[]; status: 'CONFIRMED' | 'ISSUE' }) => apiRequest(`/settlements/${batchId}/confirm`, { method: 'POST', body: JSON.stringify(input) }),
   remind: (batchId: string, recipientId: string) => apiRequest(`/settlements/${batchId}/reminders`, { method: 'POST', body: JSON.stringify({ recipientId }) }),
+  reportGroup: (groupId: string, input: { recipientId: string; method: string; clientRequestId: string; allocations: { batchId: string; amountCents: number }[] }) => apiRequest(`/groups/${groupId}/settlement-payments`, { method: 'POST', body: JSON.stringify(input) }),
+  confirmGroup: (groupId: string, input: { senderId: string; status: 'CONFIRMED' | 'ISSUE'; allocations: { batchId: string; paymentIds: string[] }[] }) => apiRequest(`/groups/${groupId}/settlement-confirmations`, { method: 'POST', body: JSON.stringify(input) }),
+  remindGroup: (groupId: string, recipientId: string) => apiRequest(`/groups/${groupId}/settlement-reminders`, { method: 'POST', body: JSON.stringify({ recipientId }) }),
   dismiss: (id: string) => apiRequest(`/settlement-notices/${id}/read`, { method: 'POST' }),
 };
