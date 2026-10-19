@@ -43,7 +43,7 @@ export default function SettlementInbox({ active = true, onChanged }: { active?:
       const outgoing = item.pairs.filter(p => p.senderId === data.userId && p.confirmedCents < p.amountCents);
       const incoming = item.pairs.filter(p => p.recipientId === data.userId);
       return <div key={item.id}>
-        {outgoing.map(p => <button className="settlement-card" type="button" key={p.recipientId} onClick={() => open('send', item.id, p.recipientId, p.unreportedCents)}>
+        {outgoing.map(p => <button className={`settlement-card ${p.unreportedCents ? 'settlement-attention' : 'settlement-waiting'}`} type="button" key={p.recipientId} onClick={() => open('send', item.id, p.recipientId, p.unreportedCents)}>
           <strong>{p.unreportedCents ? `Send ${p.recipientName} ${formatCents(p.unreportedCents)}` : `Waiting for ${p.recipientName} to confirm`}</strong>
           <small>{item.groupName} · {item.expenses.length} {item.expenses.length === 1 ? 'transaction' : 'transactions'}{p.pendingCents ? ` · ${formatCents(p.pendingCents)} reported sent` : ''}</small>
         </button>)}
@@ -67,13 +67,13 @@ export default function SettlementInbox({ active = true, onChanged }: { active?:
             <button className="settlement-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : `I sent ${formatCents(pair.unreportedCents)}`}</button></form>}
         </>}
         {selection.kind === 'collect' && <><p>Reported sent includes payments you have received and payments waiting for your confirmation.</p>
-          {collection.map(p => <div className="settlement-person" key={p.senderId}><strong>{p.senderName} · {formatCents(p.amountCents)}</strong>
-            <span>{p.confirmedCents === p.amountCents ? 'Received and confirmed' : p.pendingCents ? `${formatCents(p.pendingCents)} reported sent · confirm receipt` : 'Not sent yet'}</span>
+          {collection.map(p => <div className={`settlement-person ${p.confirmedCents === p.amountCents ? 'settlement-person-confirmed' : p.pendingCents ? 'settlement-person-pending' : 'settlement-person-unpaid'}`} key={p.senderId}><strong>{p.senderName} · {formatCents(p.amountCents)}</strong>
+            <span className="settlement-person-status">{p.confirmedCents === p.amountCents ? 'Received and confirmed' : p.pendingCents ? `${formatCents(p.pendingCents)} reported sent · confirm receipt` : 'Not sent yet'}</span>
             {!!p.confirmedCents && p.confirmedCents < p.amountCents && <small>{formatCents(p.confirmedCents)} already confirmed</small>}
             {p.pendingPayments.map(payment => <small key={payment.id}>{formatCents(payment.cents)} · {payment.method ?? 'method not recorded'}</small>)}
-            {!!p.pendingPayments.length && <div className="settlement-person-actions"><button type="button" disabled={busy} onClick={() => void run(() => settlementsApi.confirm(batch.id, { senderId: p.senderId, paymentIds: p.pendingPayments.map(pay => pay.id), status: 'CONFIRMED' }), `Receipt from ${p.senderName} confirmed.`)}>Confirm received from {p.senderName}</button>
+            {!!p.pendingPayments.length && <div className="settlement-person-actions"><button className="settlement-confirm-action" type="button" disabled={busy} onClick={() => void run(() => settlementsApi.confirm(batch.id, { senderId: p.senderId, paymentIds: p.pendingPayments.map(pay => pay.id), status: 'CONFIRMED' }), `Receipt from ${p.senderName} confirmed.`)}>Confirm received from {p.senderName}</button>
               <button type="button" disabled={busy} onClick={() => void run(() => settlementsApi.confirm(batch.id, { senderId: p.senderId, paymentIds: p.pendingPayments.map(pay => pay.id), status: 'ISSUE' }), 'Payment flagged for review.')}>Not received</button></div>}
-            {p.unreportedCents > 0 && <button type="button" disabled={busy} onClick={() => void run(() => settlementsApi.remind(batch.id, p.senderId), `In-app reminder sent to ${p.senderName}.`)}>Remind {p.senderName}</button>}
+            {p.unreportedCents > 0 && <button className="settlement-remind-action" type="button" disabled={busy} onClick={() => void run(() => settlementsApi.remind(batch.id, p.senderId), `In-app reminder sent to ${p.senderName}.`)}>Remind {p.senderName}</button>}
           </div>)}
         </>}
       </>}
@@ -87,7 +87,7 @@ function CollectionCard({ batch, pairs, onClick }: { batch: SettlementBatch; pai
   const total = pairs.reduce((sum, p) => sum + p.amountCents, 0), sent = pairs.reduce((sum, p) => sum + p.confirmedCents + p.pendingCents, 0);
   const confirmed = pairs.filter(p => p.confirmedCents === p.amountCents).length;
   const reported = pairs.filter(p => p.confirmedCents + p.pendingCents === p.amountCents).length;
-  return <button type="button" className="settlement-card collection" onClick={onClick}><strong>{batch.groupName} · Collect {formatCents(total)}</strong>
+  return <button type="button" className="settlement-card collection settlement-attention" onClick={onClick}><strong>{batch.groupName} · Collect {formatCents(total)}</strong>
     <small>{reported} of {pairs.length} people reported sent · {confirmed} confirmed received</small>
     <span role="progressbar" aria-label={`Collection progress for ${batch.groupName}`} aria-valuemin={0} aria-valuemax={total} aria-valuenow={sent}><i style={{ width: `${total ? sent / total * 100 : 0}%` }} /></span>
     <small>{formatCents(sent)} of {formatCents(total)} reported sent · Tap to review</small></button>;

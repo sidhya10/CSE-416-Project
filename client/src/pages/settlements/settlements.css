@@ -14,4 +14,104 @@
 .settlement-dialog label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 600; }.settlement-dialog select { padding: 12px; color: var(--text); background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 10px; }
 .settlement-dialog .settlement-primary { background: var(--primary); color: #fff; width: 100%; }.settlement-dialog .settlement-close { width: 100%; margin-top: 14px; }
 .settlement-person { display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--border); font-size: 13px; }.settlement-person small { color: var(--muted); }.settlement-person-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.settlement-review { color: var(--text); padding: 24px; overflow-y: auto; }.settlement-review li { margin: 12px 0; }.settlement-review .group-primary { width: 100%; }
+.settlement-review { display: flex; flex-direction: column; min-height: 0; width: 100%; color: var(--text); overflow-y: auto; }
+.settlement-review-header { display: flex; align-items: flex-start; gap: 8px; padding: 48px 23px 22px; }
+.settlement-review-header > button { display: grid; place-items: center; flex: none; width: 32px; min-height: 44px; margin-left: -8px; border: 0; background: transparent; cursor: pointer; }
+.settlement-review-header > div { min-width: 0; }
+.settlement-review-header h1 { margin: 7px 0 0; font-size: 22px; line-height: 1.2; letter-spacing: -.4px; }
+.settlement-review-header p { margin: 6px 0 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.settlement-review-body { display: flex; flex-direction: column; gap: 16px; padding: 0 23px 28px; }
+.settlement-review-total { display: flex; flex-direction: column; gap: 9px; padding: 22px 20px; border-radius: 20px; background: var(--primary); color: #fff; }
+.settlement-review-total > span { font-size: 13px; font-weight: 600; }
+.settlement-review-total > strong { font-size: 34px; line-height: 1.15; letter-spacing: -.8px; overflow-wrap: anywhere; }
+.settlement-review-total > small { font-size: 11px; line-height: 1.5; }
+.settlement-review-expenses { padding: 18px 16px 6px; background: var(--surface); border-radius: 20px; }
+.settlement-review-section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settlement-review-section-title h2 { margin: 0; font-size: 15px; }
+.settlement-review-section-title > span { padding: 4px 9px; border-radius: 9px; background: var(--soft-green); color: var(--accent); font-size: 12px; font-weight: 600; }
+.settlement-review-expenses ul { margin: 8px 0 0; padding: 0; list-style: none; }
+.settlement-review-expenses li { display: flex; align-items: center; gap: 10px; padding: 14px 0; }
+.settlement-review-expenses li + li { border-top: 1px solid var(--border); }
+.settlement-review-icon { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 11px; color: var(--accent); background: var(--soft-green); font-size: 20px; }
+.settlement-review-expenses li > div { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.settlement-review-expenses li strong { font-size: 13px; overflow-wrap: anywhere; }
+.settlement-review-expenses li small { color: var(--muted); font-size: 11px; }
+.settlement-review-expenses li b { font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; max-width: 45%; }
+.settlement-review-note { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-radius: 13px; background: var(--soft-green); color: var(--accent); }
+.settlement-review-note p { margin: 0; font-size: 12px; line-height: 1.5; }
+.settlement-review-help { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.settlement-review-help summary { cursor: pointer; min-height: 44px; align-content: center; color: var(--text); font-weight: 600; }
+.settlement-review-help p { margin: 8px 0; }
+.settlement-review-actions { padding-top: 4px; }
+.settlement-review .group-primary { width: 100%; min-height: 48px; border: 0; border-radius: 15px; background: var(--primary); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.settlement-review-disclaimer { margin: 10px 6px 0; color: var(--muted); text-align: center; font-size: 11px; line-height: 1.5; }
+.settlement-review-empty { padding: 20px; border-radius: 20px; background: var(--surface); }
+.settlement-review-empty h2 { margin: 0; font-size: 18px; }
+.settlement-review-empty p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+.settlement-review-body > button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--accent); cursor: pointer; }
+.settlement-review [role="alert"] { margin: 0; padding: 12px; border-radius: 12px; background: var(--soft-green); font-size: 13px; }
+.settlement-review button:disabled { opacity: .6; cursor: wait; }
+.settlement-review button:focus-visible, .settlement-review summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+/* Soft peach distinguishes outstanding payments from the green waiting state. */
+.settlement-card.settlement-attention {
+  background: color-mix(in srgb, var(--soft-peach) 50%, var(--surface));
+  border-color: color-mix(in srgb, var(--coral) 35%, var(--surface));
+  border-left: 4px solid var(--coral);
+  color: var(--text);
+}
+.settlement-card.settlement-attention small { color: var(--muted); }
+.settlement-card.settlement-attention [role="progressbar"] {
+  background: color-mix(in srgb, var(--soft-peach) 75%, var(--surface));
+}
+.settlement-card.settlement-attention [role="progressbar"] i { background: var(--coral); }
+.settlement-card.settlement-attention:hover {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--coral) 20%, transparent);
+}
+.settlement-card.settlement-waiting { background: var(--soft-green); }
+.settlement-card:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+/* Give payment dialogs a clear reading rhythm, including on small screens. */
+.settlement-dialog { line-height: 1.5; }
+.settlement-dialog header { margin-bottom: 16px; }
+.settlement-dialog > p { margin: 0 0 16px; }
+.settlement-dialog > .settlement-caption { margin-bottom: 12px; }
+.settlement-dialog form { display: flex; flex-direction: column; gap: 16px; }
+.settlement-dialog form label { gap: 10px; }
+.settlement-dialog form .settlement-caption { margin: 0; line-height: 1.65; }
+.settlement-dialog .settlement-close { margin-top: 20px; }
+
+.settlement-dialog .settlement-person {
+  margin: 14px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-subtle);
+}
+.settlement-dialog .settlement-person-unpaid {
+  background: color-mix(in srgb, var(--soft-peach) 50%, var(--surface));
+  border-color: color-mix(in srgb, var(--coral) 35%, var(--surface));
+}
+.settlement-dialog .settlement-person-pending {
+  background: color-mix(in srgb, var(--soft-blue) 50%, var(--surface));
+  border-color: color-mix(in srgb, var(--focus) 35%, var(--surface));
+}
+.settlement-dialog .settlement-person-confirmed {
+  background: var(--soft-green);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--surface));
+}
+.settlement-person-status { font-size: 12px; font-weight: 600; }
+.settlement-person-confirmed .settlement-person-status { color: var(--accent); }
+.settlement-dialog .settlement-remind-action {
+  margin-top: 6px;
+  border-color: var(--accent);
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+}
+.settlement-dialog .settlement-confirm-action {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}

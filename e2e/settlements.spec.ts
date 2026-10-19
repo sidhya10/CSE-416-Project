@@ -30,9 +30,9 @@ test('any member splits only the current period, reports how they paid, and rece
     await memberPage.getByRole('button', { name: /Weekend costs.*members/ }).click();
     await expect(memberPage.getByRole('region', { name: 'Resolved transactions' }).getByText('Old settled lunch')).toBeVisible();
     const splitButton = memberPage.getByRole('button', { name: 'Split current expenses', exact: true }); await expect(splitButton).toBeEnabled(); await splitButton.click();
-    await expect(memberPage.getByRole('heading', { name: '$50.00 in outstanding repayments' })).toBeVisible();
+    await expect(memberPage.getByRole('region', { name: 'Outstanding repayments', exact: true }).getByText('$50.00', { exact: true })).toBeVisible();
     await expect(memberPage.locator('.settlement-review').getByText('Old settled lunch')).toHaveCount(0);
-    await memberPage.getByRole('button', { name: 'Initialize split' }).click();
+    await memberPage.getByRole('button', { name: 'Start split', exact: true }).click();
     await expect(memberPage.getByRole('heading', { name: 'Groups', exact: true })).toBeVisible();
     await memberPage.getByRole('button', { name: /Send Alex \$20.00/ }).click();
     const sendDialog = memberPage.getByRole('dialog', { name: 'Confirm money sent' });
@@ -75,7 +75,7 @@ test('any member splits only the current period, reports how they paid, and rece
     await memberPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     await expect(memberPage.getByRole('button', { name: 'Split current expenses', exact: true })).toBeEnabled();
     await memberPage.getByRole('button', { name: 'Split current expenses', exact: true }).click();
-    await expect(memberPage.getByRole('heading', { name: '$10.00 in outstanding repayments' })).toBeVisible();
+    await expect(memberPage.getByRole('region', { name: 'Outstanding repayments', exact: true }).getByText('$10.00', { exact: true })).toBeVisible();
     await expect(memberPage.locator('.settlement-review').getByText('Current dinner')).toHaveCount(0);
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });

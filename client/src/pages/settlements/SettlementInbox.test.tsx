@@ -64,7 +64,7 @@ it('reviews only current outstanding transactions and returns to Groups after in
   const save = vi.spyOn(settlementsApi, 'initialize').mockResolvedValue({ batch });
   const done = vi.fn();
   render(<SettlementReview groupId="group" groupName="Trip" onBack={() => {}} onDone={done} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Initialize split' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Start split' }));
   await waitFor(() => expect(done).toHaveBeenCalledOnce());
   expect(save).toHaveBeenCalledWith('group', expect.objectContaining({ expenseIds: ['expense'], totalCents: 3000 }));
 });
@@ -73,7 +73,7 @@ it('keeps the review open when a stale preview is rejected and offers a refresh'
   vi.spyOn(settlementsApi, 'initialize').mockRejectedValue(new Error('Transactions changed'));
   const done = vi.fn();
   render(<SettlementReview groupId="group" groupName="Trip" onBack={() => {}} onDone={done} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Initialize split' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Start split' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Transactions changed');
   expect(done).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Review updated transactions' })).toBeInTheDocument();
