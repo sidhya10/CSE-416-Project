@@ -3,7 +3,7 @@ import Avatar from '../../components/common/Avatar';
 import ExpensePayments from './ExpensePayments';
 import { paymentFor, type PaymentAction } from './payments';
 import { useState } from 'react';
-import arrowLeft from '../../assets/expense-arrow-left.svg';
+import BackArrow from '../../components/common/BackArrow';
 import { formatCents, type PreviewSplit, type SplitMember } from './split';
 import './expenses.css';
 import './split.css';
@@ -28,7 +28,7 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
   const paymentNotice = () => split ? changeTab(true) : setNotice('Payment records are unavailable for this sample.');
   return <main className="expense-screen expense-details-screen">
     {receiptOpen && split?.expenseId && split.receiptName && <ReceiptViewer expenseId={split.expenseId} name={split.receiptName} onClose={() => setReceiptOpen(false)} />}
-    <header className="expense-header"><button type="button" aria-label="Back to group" onClick={onBack}><img src={arrowLeft} alt="" /></button><h1>{paymentsOpen ? 'Payment status' : 'Expense details'}</h1></header>
+    <header className="expense-header"><button type="button" aria-label="Back to group" onClick={onBack}><BackArrow /></button><h1>{paymentsOpen ? 'Payment status' : 'Expense details'}</h1></header>
     <div className={`expense-body details-body ${paymentsOpen ? `payment-body ${payer ? 'payer-payments' : ''}` : ''}`}>
       <div className="details-tabs" aria-label="Expense views">
         <button type="button" aria-pressed={!paymentsOpen} onClick={() => changeTab(false)}>Details</button>

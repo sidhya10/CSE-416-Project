@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import arrowLeft from '../../assets/expense-arrow-left.svg';
+import BackArrow from '../../components/common/BackArrow';
 import Avatar from '../../components/common/Avatar';
 import { formatCents } from '../expenses/split';
 import './runningTotal.css';
@@ -112,7 +112,7 @@ export default function RunningTotalSplit({ groupName, totalCents, members, acti
   const youShare = calculation.shares.find(share => share.memberId === 'you')?.cents ?? 0;
 
   if (step === 'saved') return <main className="running-split-screen">
-    <header className="running-split-header"><button type="button" aria-label="Back to review" onClick={() => setStep('review')}><img src={arrowLeft} alt="" /></button>
+    <header className="running-split-header"><button type="button" aria-label="Back to review" onClick={() => setStep('review')}><BackArrow /></button>
       <h1>Current total split</h1></header>
     <div className="running-split-body saved">
       <span className="running-split-check" aria-hidden="true">✓</span>
@@ -130,7 +130,7 @@ export default function RunningTotalSplit({ groupName, totalCents, members, acti
   </main>;
 
   if (step === 'review') return <main className="running-split-screen">
-    <header className="running-split-header"><button type="button" aria-label="Back to split methods" onClick={() => setStep('method')}><img src={arrowLeft} alt="" /></button>
+    <header className="running-split-header"><button type="button" aria-label="Back to split methods" onClick={() => setStep('method')}><BackArrow /></button>
       <div><h1>Review split</h1><p>{methodTitle}</p></div></header>
     <div className="running-split-body">
       <section className="running-total-card"><small>CURRENT RUNNING TOTAL</small><strong>{formatCents(totalCents)}</strong><span>{groupName}</span></section>
@@ -166,7 +166,7 @@ export default function RunningTotalSplit({ groupName, totalCents, members, acti
   ];
 
   return <main className="running-split-screen">
-    <header className="running-split-header"><button type="button" aria-label="Back to group" onClick={onBack}><img src={arrowLeft} alt="" /></button>
+    <header className="running-split-header"><button type="button" aria-label="Back to group" onClick={onBack}><BackArrow /></button>
       <div><h1>Split current total</h1><p>{groupName}</p></div></header>
     <div className="running-split-body">
       <section className="running-total-card"><small>CURRENT RUNNING TOTAL</small><strong>{formatCents(totalCents)}</strong>
