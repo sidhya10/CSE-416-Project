@@ -551,10 +551,10 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         <label>Maximum amount ($)<input type="number" min="0" step="0.01" value={filters.maxAmount} onChange={event => setFilters({ ...filters, maxAmount: event.target.value })} /></label>
         <button type="button" onClick={() => { setFilters(defaultFilters); setQuery(''); }}>Clear filters</button>
       </div><small>Unresolved splits stay first. Amount filters use your selected owed/owing direction, or the larger amount when viewing both.</small></details>
-      <h2 className="group-section-title">Your groups</h2>
       </>}
       {message && <p className="group-notice" role="status">{message}</p>}
       {screen === 'list' && !initialGroupsData && <SettlementInbox active={visible} onChanged={() => void refreshGroups()} />}
+      {screen === 'list' && <h2 className="group-section-title">Your groups</h2>}
       <div className="group-list">{displayedGroups.map(group =>
         <div className={`group-list-row${openActionsId === group.id ? ' is-open' : ''}`} key={group.id} role="group" aria-label={group.name}
           onPointerDown={event => { if (event.target instanceof Element && event.target.closest('.group-list-card')) swipeStart.current = { id: group.id, x: event.clientX, y: event.clientY }; }}

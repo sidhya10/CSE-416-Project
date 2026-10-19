@@ -37,7 +37,6 @@ function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]
     if (override) return override();
     if (url.endsWith('/budgets/personal')) return json(data.personal ?? personal());
     if (url.endsWith('/budgets/groups')) return json({ groups: data.groups ?? groups() });
-    if (url.endsWith('/settlements')) return json({ userId: 'me', batches: [], notices: [] });
     if (url.endsWith('/budgets/home')) return json(data.home ?? home());
     throw new Error(`Unexpected request ${url}`);
   }));
@@ -83,6 +82,9 @@ describe('home dashboard with real data', () => {
     expect(categories.queryByText('Transit')).not.toBeInTheDocument();
     for (const label of ['Jul', 'Aug', 'Sep', 'Oct']) expect(screen.getByText(label)).toBeInTheDocument();
     expect(await screen.findByText('Confirm 2 payments sent to you ($15.00)')).toBeInTheDocument();
+    const todos = screen.getByRole('region', { name: 'Your to-dos' });
+    expect(todos.compareDocumentPosition(screen.getByRole('region', { name: 'Budget summary' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Group payment notifications' })).not.toBeInTheDocument();
     expect(screen.getByText('You owe $38.20 in 1 group')).toBeInTheDocument();
     expect(screen.getByText('Over budget: Dining')).toBeInTheDocument();
     expect(screen.getByText('3 items need attention')).toBeInTheDocument();
@@ -128,7 +130,7 @@ describe('home dashboard with real data', () => {
     expect(urls).toHaveLength(0);
     rerender(<HomeDashboard userName="Nicole" active onNavigate={() => {}} />);
     expect(await screen.findByText('$892.00')).toBeInTheDocument();
-    expect(urls.sort()).toEqual(['/api/budgets/groups', '/api/budgets/home', '/api/budgets/personal', '/api/settlements']);
+    expect(urls.sort()).toEqual(['/api/budgets/groups', '/api/budgets/home', '/api/budgets/personal']);
   });
 
   it('shows an error with a retry when the data cannot load', async () => {

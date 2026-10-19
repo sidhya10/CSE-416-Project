@@ -4,12 +4,12 @@ Any group member can start **Split current expenses** (or **Split Current Total*
 
 Confirmed reimbursements are subtracted. Existing sent-but-unconfirmed reports remain pending. If the review changes before confirmation, the server rejects the stale request and asks for a new review. A transaction can belong to only one initialized period. Period initialization locks its recorded payer/shares against later expense edits and legacy recurring-cycle edits.
 
-After initialization the user returns to Groups. Both **Groups** and **Home** show:
+After initialization the user returns to Groups. The separate **Group payments** section above **Your groups** shows:
 
 - A debtor card: **Send [name] $[amount]**, opening a mobile popup to record Venmo, Zelle, PayPal, Cash, Bank transfer or Other after actually sending the money.
 - A recipient collection card: reported-sent amount and person count, plus a distinct received-and-confirmed count. Reporting sent does not clear a debt. A recipient must confirm receipt.
 - A collection popup listing everyone who owes the recipient, amounts, methods, pending reports and confirmations. The recipient can confirm specific pending reports or flag them as not received.
-- An in-app reminder action for unpaid, unreported money. Reminders are persisted, appear for the debtor on Home and Groups, and are limited to one per recipient/sender/period per hour, even if dismissed.
+- An in-app reminder action for unpaid, unreported money. Reminders are persisted, appear for the debtor on Groups, and are limited to one per recipient/sender/group per hour, even if dismissed.
 - A persisted notification to the sender when receipt is confirmed or flagged. Notifications can be dismissed only by their recipient.
 
 No payment is transferred by this app. No external email, SMS, or OS push is sent. Cards refresh every 15 seconds while their app tab is visible and when the browser tab becomes visible. Actions refresh their panel and related budget/group summaries immediately.
@@ -46,7 +46,7 @@ Use a dedicated test database for automated tests. Coverage includes paid-histor
 
 ## Combined group payment cards
 
-Groups and Home show at most one outgoing card and one collection card for each group. New settlement periods add their unresolved amounts to those cards; completed periods stay in expense history. Different recipients appear inside the outgoing popup, and collection progress counts each debtor once across open periods. The collection card shows the amount still outstanding, with reported/confirmed progress beneath it.
+The Group payments section above Your groups shows at most one outgoing card and one collection card for each group. Home keeps its to-do summary near the top, with links to Groups for payment actions. New settlement periods add their unresolved amounts to those cards; completed periods stay in expense history. Different recipients appear inside the outgoing popup, and collection progress counts each debtor once across open periods. The collection card shows the amount still outstanding, with reported/confirmed progress beneath it.
 
 Reporting one recipient's combined amount and confirming one debtor's reports commit atomically across their source periods. Snapshot allocations prevent a newly initialized split from silently changing an open payment form. Retry keys prevent duplicate reports. A group reminder includes the combined unsent amount and has a group-wide hourly cooldown. Original expense shares and confirmed payments remain intact; opposite-direction obligations are still recorded separately.
 
