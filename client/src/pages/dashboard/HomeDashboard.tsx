@@ -1,4 +1,3 @@
-import SettlementInbox from '../settlements/SettlementInbox';
 import { budgetsApi } from '../../api/budgets.api';
 import { relativeTime } from '../../utils/dates';
 import { budgetPeriod, categoryPct, toCategoryBudgets, totalPlannedCents, totalSpentCents } from '../budgets/categoryPlan';
@@ -45,6 +44,17 @@ export default function HomeDashboard({ userName, onNavigate, active = true }: {
     </div>}
     {!failed && !loaded && <p className="home-notice" role="status">Loading your dashboard…</p>}
 
+    {loaded && <section className="home-card home-todos" aria-label="Your to-dos">
+      <div className="home-todos-head">
+        <div><h2>Your to-dos</h2><small>{todos.length ? `${todos.length} ${todos.length === 1 ? 'item needs' : 'items need'} attention` : 'Nothing needs attention'}</small></div>
+      </div>
+      {todos.length === 0 && <p className="home-empty">You're all caught up.</p>}
+      {todos.map(todo => <div key={todo.id} className="home-todo-row">
+        <span>{todo.label}</span>
+        <button type="button" onClick={() => onNavigate(todo.target)}>{todo.trailing}</button>
+      </div>)}
+    </section>}
+
     {personal.data && <>
       <section className="home-hero" aria-label="Budget summary">
         <div className="home-hero-top">
@@ -68,8 +78,6 @@ export default function HomeDashboard({ userName, onNavigate, active = true }: {
       </section>
     </>}
 
-    <SettlementInbox active={active} onChanged={retry} />
-
     {home.data && <section className="home-card">
       <div className="home-chart-head"><h2>Spending & income</h2><small>Last {months.length} months</small></div>
       <div className="home-chart-legend"><span><i className="spending" />Spending</span><span><i className="income" />Income</span></div>
@@ -85,16 +93,7 @@ export default function HomeDashboard({ userName, onNavigate, active = true }: {
       {chartMax === 0 && <p className="home-empty">No bank transactions in these months yet.</p>}
     </section>}
 
-    {loaded && <section className="home-card">
-      <div className="home-todos-head">
-        <div><h2>Your to-dos</h2><small>{todos.length ? `${todos.length} ${todos.length === 1 ? 'item needs' : 'items need'} attention` : 'Nothing needs attention'}</small></div>
-      </div>
-      {todos.length === 0 && <p className="home-empty">You're all caught up.</p>}
-      {todos.map(todo => <div key={todo.id} className="home-todo-row">
-        <span>{todo.label}</span>
-        <button type="button" onClick={() => onNavigate(todo.target)}>{todo.trailing}</button>
-      </div>)}
-    </section>}
+
 
     {latest && <p className="home-recent">Latest: {latest.isYou ? 'You' : latest.creatorName} added {latest.title} in {latest.groupName} · {formatCents(latest.totalCents)}</p>}
   </main>;

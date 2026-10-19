@@ -42,6 +42,7 @@
 .home-chart-bars .bar.income{background:var(--primary)}
 .home-chart-col span{color:var(--muted);font-size:10px}
 
+.home-todos{border:1px solid var(--border);border-left:4px solid var(--accent)}
 .home-todos-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .home-todos-head small{display:block;margin-top:2px;color:var(--muted);font-size:11px}
 .home-todo-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--surface-subtle)}

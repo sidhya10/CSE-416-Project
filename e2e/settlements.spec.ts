@@ -55,6 +55,9 @@ test('any member splits only the current period, reports how they paid, and rece
     await memberPage.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     await expect(memberPage.getByText('Alex confirmed receiving $20.00 for Weekend costs.')).toBeVisible();
     await otherPage.goto('/');
+    await expect(otherPage.getByRole('region', { name: 'Your to-dos' })).toBeVisible();
+    await expect(otherPage.getByRole('region', { name: 'Group payment notifications' })).toHaveCount(0);
+    await otherPage.getByRole('button', { name: 'Groups', exact: true }).click();
     await expect(otherPage.getByText('Alex reminded you to send $30.00 for Weekend costs.')).toBeVisible();
     await otherPage.getByRole('button', { name: /Send Alex \$30.00/ }).click();
     await otherPage.getByRole('dialog').getByLabel('How did you send it?').selectOption('Cash');
@@ -126,6 +129,15 @@ test('new splits merge into one group card and one payment covers several period
     await expect(inbox.getByText('Alex confirmed receiving $35.00 for Merged payment cards.')).toBeVisible();
     await expect(inbox.getByRole('button', { name: /Collect \$5.00/ })).toHaveCount(1);
     await page.getByRole('button', { name: 'Home', exact: true }).click();
-    await expect(page.getByRole('region', { name: 'Group payment notifications' }).getByRole('button', { name: /Collect \$5.00/ })).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Group payment notifications' })).toHaveCount(0);
+    const todos = page.getByRole('region', { name: 'Your to-dos' });
+    await expect(todos.getByText("You're owed $5.00 in 1 group")).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('home-todos.png') });
+    await todos.getByRole('button', { name: 'View ›', exact: true }).click();
+    const payments = page.getByRole('region', { name: 'Group payment notifications' });
+    await expect(payments.getByRole('button', { name: /Collect \$5.00/ })).toHaveCount(1);
+    const beforeGroups = await payments.evaluate(node => Boolean(node.compareDocumentPosition(document.querySelector('.group-section-title')!) & Node.DOCUMENT_POSITION_FOLLOWING));
+    expect(beforeGroups).toBe(true);
+    await page.screenshot({ path: test.info().outputPath('groups-payments.png') });
   } finally { await Promise.all(contexts.map(c => c.close())); }
 });

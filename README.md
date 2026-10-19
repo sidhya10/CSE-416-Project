@@ -80,7 +80,7 @@ Receipt scanning currently processes one uploaded file and the first page or pri
 - Debtors can report that they sent money and record a payment method.
 - Creditors can confirm receipt or report an issue.
 - Only confirmed payments reduce the underlying debt.
-- Groups and the Home dashboard display payment tasks, confirmation tasks, collection progress, and in-app reminders.
+- A separate Group payments section above the group list displays payment tasks, confirmation tasks, collection progress, and in-app reminders. Home shows its to-do summary near the top, linking to Groups for payment actions.
 - Settlement notices persist in PostgreSQL.
 
 The application does not initiate ACH, card, Venmo, Cash App, or other real-money transfers.
@@ -117,7 +117,7 @@ The application currently uses Plaid's provider categories as input to its fixed
 - Open a category to view its contributing transactions.
 - Display an over-budget item on the Home dashboard when a category exceeds its limit.
 - Show a four-month spending and income comparison on Home.
-- Display the most recently added group expense and group payment tasks on Home.
+- Display the most recently added group expense and a prominent to-do summary on Home; detailed payment cards are on Groups.
 
 Personal-budget totals currently use bank transactions directly. They do **not** substitute a user's group-expense share for the full bank charge.
 

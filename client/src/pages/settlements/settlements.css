@@ -115,3 +115,5 @@
   color: #fff;
   font-weight: 600;
 }
+
+.groups-workspace > .settlement-inbox:has(.settlement-card, .settlement-notice) { padding-bottom: 16px; border-bottom: 1px solid var(--border); }
