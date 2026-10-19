@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database.js';
 import { lockMaintenance } from '../../utils/maintenance-lock.js';
@@ -78,7 +79,9 @@ export async function settlementInbox(userId: string) {
   return { userId, batches: batches.map(presentBatch), notices: notices.map(n => ({ ...n, createdAt: n.createdAt.toISOString() })) };
 }
 export async function reportSettlementPayment(batchId: string, userId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }) {
-  return transaction(async tx => {
+  return transaction(tx => reportPayment(tx, batchId, userId, input));
+}
+async function reportPayment(tx: Transaction, batchId: string, userId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }) {
     await lockMaintenance(tx);
     const batch = await readBatch(tx, batchId, userId);
     if (input.recipientId === userId) throw new ExpenseError(400, 'You cannot pay yourself');
@@ -98,10 +101,12 @@ export async function reportSettlementPayment(batchId: string, userId: string, i
     }
     await tx.group.update({ where: { id: batch.groupId }, data: { lastActivityAt: new Date() } });
     return presentBatch(await readBatch(tx, batchId, userId));
-  });
 }
+
 export async function confirmSettlementPayments(batchId: string, userId: string, input: { senderId: string; paymentIds: string[]; status: 'CONFIRMED' | 'ISSUE' }) {
-  return transaction(async tx => {
+  return transaction(tx => confirmPayments(tx, batchId, userId, input));
+}
+async function confirmPayments(tx: Transaction, batchId: string, userId: string, input: { senderId: string; paymentIds: string[]; status: 'CONFIRMED' | 'ISSUE' }, notify = true) {
     await lockMaintenance(tx);
     const batch = await readBatch(tx, batchId, userId);
     const payments = batch.shares.filter(s => s.userId === input.senderId && s.source.expense.paidByUserId === userId).flatMap(s => s.source.payments).filter(p => input.paymentIds.includes(p.id));
@@ -112,12 +117,12 @@ export async function confirmSettlementPayments(batchId: string, userId: string,
       await tx.expensePayment.updateMany({ where: { id: { in: changed.map(p => p.id) }, status: 'SENT' }, data: { status: input.status, resolvedAt: new Date() } });
       const payer = await tx.user.findUniqueOrThrow({ where: { id: userId } });
       const amount = changed.reduce((sum, p) => sum + p.amountCents, 0);
-      await tx.settlementNotice.create({ data: { batchId, actorId: userId, recipientId: input.senderId, kind: input.status, message: input.status === 'CONFIRMED' ? `${payer.name} confirmed receiving ${currency(amount)} for ${batch.group.name}.` : `${payer.name} could not confirm ${currency(amount)} for ${batch.group.name}. Please check the payment before sending again.` } });
+      if (notify) await tx.settlementNotice.create({ data: { batchId, actorId: userId, recipientId: input.senderId, kind: input.status, message: input.status === 'CONFIRMED' ? `${payer.name} confirmed receiving ${currency(amount)} for ${batch.group.name}.` : `${payer.name} could not confirm ${currency(amount)} for ${batch.group.name}. Please check the payment before sending again.` } });
       await tx.group.update({ where: { id: batch.groupId }, data: { lastActivityAt: new Date() } });
     }
     return presentBatch(await readBatch(tx, batchId, userId));
-  });
 }
+
 export async function remindSettlementMember(batchId: string, userId: string, recipientId: string) {
   return transaction(async tx => {
     await lockMaintenance(tx);
@@ -128,5 +133,60 @@ export async function remindSettlementMember(batchId: string, userId: string, re
     if (last && Date.now() - last.createdAt.getTime() < 60 * 60 * 1000) throw new ExpenseError(429, 'A reminder was already sent. You can remind this person again in an hour.');
     const actor = await tx.user.findUniqueOrThrow({ where: { id: userId } });
     await tx.settlementNotice.create({ data: { batchId, recipientId, actorId: userId, kind: 'REMINDER', message: `${actor.name} reminded you to send ${currency(pair.unreportedCents)} for ${batch.group.name}.` } });
+  });
+}
+
+
+type GroupReport = { recipientId: string; method: string; clientRequestId: string; allocations: { batchId: string; amountCents: number }[] };
+async function groupBatches(tx: Transaction, groupId: string, userId: string) {
+  await requireMember(tx, groupId, userId);
+  return tx.settlementBatch.findMany({ where: { groupId }, include: batchInclude, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+}
+export async function reportGroupPayment(groupId: string, userId: string, input: GroupReport) {
+  return transaction(async tx => {
+    await lockMaintenance(tx);
+    const batches = await groupBatches(tx, groupId, userId);
+    if (input.allocations.some(a => !batches.some(b => b.id === a.batchId))) throw new ExpenseError(404, 'Split not found in this group');
+    const signature = createHash('sha256').update(JSON.stringify({ recipientId: input.recipientId, method: input.method, allocations: [...input.allocations].sort((a, b) => a.batchId.localeCompare(b.batchId)) })).digest('hex');
+    const scope = `:group:${groupId}:${input.clientRequestId}:`, requestKey = `group:${groupId}:${input.clientRequestId}:${signature}`;
+    const previous = await tx.expensePayment.findMany({ where: { senderUserId: userId, clientRequestId: { contains: scope } } });
+    if (previous.length && (previous.some(p => !p.clientRequestId.includes(`:${requestKey}:`)) || previous.reduce((sum, p) => sum + p.amountCents, 0) !== input.allocations.reduce((sum, a) => sum + a.amountCents, 0))) throw new ExpenseError(409, 'Request ID already used for another group payment');
+    if (!previous.length) {
+      const expected = batches.flatMap(b => presentBatch(b).pairs.filter(p => p.senderId === userId && p.recipientId === input.recipientId && p.unreportedCents > 0).map(p => ({ batchId: b.id, amountCents: p.unreportedCents })));
+      const key = (rows: GroupReport['allocations']) => rows.map(a => `${a.batchId}:${a.amountCents}`).sort().join('|');
+      if (!expected.length || key(expected) !== key(input.allocations)) throw new ExpenseError(409, 'Group payments changed. Close and reopen this card to review the updated total.');
+    }
+    // Every allocation commits together; retries reuse each period's original payment keys.
+    for (const allocation of input.allocations) await reportPayment(tx, allocation.batchId, userId, { ...input, clientRequestId: requestKey, amountCents: allocation.amountCents });
+    return { saved: true };
+  });
+}
+export async function confirmGroupPayments(groupId: string, userId: string, input: { senderId: string; status: 'CONFIRMED' | 'ISSUE'; allocations: { batchId: string; paymentIds: string[] }[] }) {
+  return transaction(async tx => {
+    await lockMaintenance(tx);
+    const batches = await groupBatches(tx, groupId, userId);
+    if (input.allocations.some(a => !batches.some(b => b.id === a.batchId))) throw new ExpenseError(404, 'Split not found in this group');
+    const ids = input.allocations.flatMap(a => a.paymentIds);
+    const changed = await tx.expensePayment.findMany({ where: { id: { in: ids }, status: 'SENT' } });
+    for (const allocation of input.allocations) await confirmPayments(tx, allocation.batchId, userId, { ...input, paymentIds: allocation.paymentIds }, false);
+    if (changed.length) {
+      const payer = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+      const amount = changed.reduce((sum, p) => sum + p.amountCents, 0), groupName = batches[0]!.group.name;
+      await tx.settlementNotice.create({ data: { batchId: input.allocations[0]!.batchId, actorId: userId, recipientId: input.senderId, kind: input.status,
+        message: input.status === 'CONFIRMED' ? `${payer.name} confirmed receiving ${currency(amount)} for ${groupName}.` : `${payer.name} could not confirm ${currency(amount)} for ${groupName}. Please check the payment before sending again.` } });
+    }
+    return { saved: true };
+  });
+}
+export async function remindGroupMember(groupId: string, userId: string, recipientId: string) {
+  return transaction(async tx => {
+    await lockMaintenance(tx);
+    const batches = await groupBatches(tx, groupId, userId);
+    const owed = batches.flatMap(b => presentBatch(b).pairs.filter(p => p.recipientId === userId && p.senderId === recipientId && p.unreportedCents > 0).map(p => ({ batchId: b.id, amountCents: p.unreportedCents })));
+    if (!owed.length) throw new ExpenseError(409, 'Reminders are only available for money that has not been reported sent');
+    const last = await tx.settlementNotice.findFirst({ where: { actorId: userId, recipientId, kind: 'REMINDER', batch: { groupId } }, orderBy: { createdAt: 'desc' } });
+    if (last && Date.now() - last.createdAt.getTime() < 60 * 60 * 1000) throw new ExpenseError(429, 'A reminder was already sent. You can remind this person again in an hour.');
+    const actor = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+    await tx.settlementNotice.create({ data: { batchId: owed[0]!.batchId, recipientId, actorId: userId, kind: 'REMINDER', message: `${actor.name} reminded you to send ${currency(owed.reduce((sum, a) => sum + a.amountCents, 0))} for ${batches[0]!.group.name}.` } });
   });
 }
