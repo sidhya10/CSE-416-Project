@@ -238,7 +238,7 @@ AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
 AZURE_DOCUMENT_INTELLIGENCE_KEY
 ```
 
-To enable connected bank accounts, configure the Plaid variables documented in `.env.example`. Use Plaid Sandbox for development and demonstrations.
+To enable connected bank accounts, configure the Plaid variables documented in `.env.example`. Use Plaid Sandbox for development and demonstrations. See [Bank connections (Plaid)](docs/banking-backend.md) for setup, routes, and sandbox testing.
 
 ## Tests and Quality Checks
 
@@ -271,6 +271,7 @@ GitHub Actions installs dependencies, validates Prisma, applies migrations to Po
 ## Supporting Documentation
 
 - [Budget backend](docs/budget-backend.md)
+- [Bank connections (Plaid)](docs/banking-backend.md)
 - [Expense persistence](docs/expense-backend.md)
 - [Current-period settlements](docs/period-settlements.md)
 - [Recurring bills and archives](docs/recurring-and-archives.md)
