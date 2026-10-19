@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Avatar from '../../components/common/Avatar';
-import arrowLeft from '../../assets/expense-arrow-left.svg';
+import BackArrow from '../../components/common/BackArrow';
 import { calculateSplit, formatCents, type PreviewSplit, type SplitAssignments, type SplitItem, type SplitMember, type SplitMode } from './split';
 import './split.css';
 
@@ -27,7 +27,7 @@ export default function SplitExpense(props: Props) {
     onAssignmentsChange({ ...assignments, [itemId]: current.includes(memberId) ? current.filter(id => id !== memberId) : [...current, memberId] });
   };
   return <main className="expense-screen split-screen">
-    <header className="expense-header"><button type="button" aria-label="Back to expense" onClick={onBack}><img src={arrowLeft} alt="" /></button><h1>{props.editing ? 'Review changes' : 'Split expense'}</h1></header>
+    <header className="expense-header"><button type="button" aria-label="Back to expense" onClick={onBack}><BackArrow /></button><h1>{props.editing ? 'Review changes' : 'Split expense'}</h1></header>
     <div className="expense-body split-body">
       <section className="split-context"><h2>{name}</h2><div><p>Paid by {payerId === 'you' ? 'you' : memberName(payer)} · {new Date(date).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })}</p><strong>{formatCents(result.totalCents)} total</strong></div></section>
       <div className="split-modes" role="group" aria-label="Split mode"><button type="button" aria-pressed={mode === 'equal'} onClick={() => onModeChange('equal')}>Equal split</button><button type="button" aria-pressed={mode === 'items'} onClick={() => onModeChange('items')}>Split by item</button></div>

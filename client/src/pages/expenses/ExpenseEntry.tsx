@@ -1,6 +1,6 @@
 import { prepareReceiptAttachment, receiptMimeType, scanReceipt, type ParsedReceipt } from '../../api/receipts.api';
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react';
-import arrowLeft from '../../assets/expense-arrow-left.svg';
+import BackArrow from '../../components/common/BackArrow';
 import './expenses.css';
 import SplitExpense from './SplitExpense';
 import type { PreviewSplit, SplitAssignments, SplitMode } from './split';
@@ -153,7 +153,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     }} />;
 
   return <main className={`expense-screen ${choosing ? '' : 'expense-entry-screen'}`}>
-    <header className="expense-header"><button type="button" aria-label={choosing ? 'Back to expense' : initialSplit ? 'Back to details' : 'Back to group'} onClick={() => choosing ? setChoosing(false) : onBack()}><img src={arrowLeft} alt="" /></button><h1>{choosing ? 'Who paid?' : initialSplit ? 'Edit expense' : 'Add expense'}</h1></header>
+    <header className="expense-header"><button type="button" aria-label={choosing ? 'Back to expense' : initialSplit ? 'Back to details' : 'Back to group'} onClick={() => choosing ? setChoosing(false) : onBack()}><BackArrow /></button><h1>{choosing ? 'Who paid?' : initialSplit ? 'Edit expense' : 'Add expense'}</h1></header>
     {choosing ? <>
       <div className="expense-body payer-body">
         <h2>Choose who paid the original bill.</h2>

@@ -1,4 +1,4 @@
-import arrowLeft from '../../assets/expense-arrow-left.svg';
+import BackArrow from '../../components/common/BackArrow';
 import { formatCents, type PreviewSplit, type SplitMember } from './split';
 import './saved.css';
 
@@ -23,7 +23,7 @@ export default function SplitSaved({ split, members, onBack, currentUserId = 'yo
   const remainder = split.totalCents % split.shares.length;
   const extraNames = split.shares.filter(share => share.totalCents > Math.floor(split.totalCents / split.shares.length)).map(share => name(share.memberId));
   return <main className="expense-screen saved-screen">
-    <header className="expense-header"><button type="button" aria-label="Back to group" onClick={onBack}><img src={arrowLeft} alt="" /></button><h1>Split saved</h1></header>
+    <header className="expense-header"><button type="button" aria-label="Back to group" onClick={onBack}><BackArrow /></button><h1>Split saved</h1></header>
     <div className="expense-body saved-body">
       <section className="split-context"><h2>{split.name}</h2><div><p>Paid by {isPayer ? `you (${payerName})` : payerName} · {new Date(split.date).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })}</p><strong>{formatCents(split.totalCents)} total</strong></div></section>
       <h2 className="saved-added">Expense added to the group</h2>
