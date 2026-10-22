@@ -13,7 +13,7 @@ import HomeDashboard from './pages/dashboard/HomeDashboard';
 import type { FriendFixture, GroupFixture } from './pages/groups/GroupsWorkspace';
 
 type Tab = 'Home' | 'Budget' | 'Groups' | 'Profile';
-type AuthView = 'login' | 'signup';
+type AuthView = 'login' | 'signup' | 'forgot' | 'reset';
 const tabs: { label: Tab; glyph: string }[] = [
   { label: 'Home', glyph: '⌂' }, { label: 'Budget', glyph: '▥' },
   { label: 'Groups', glyph: '◎' }, { label: 'Profile', glyph: '●' },
@@ -24,7 +24,8 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   groupFixtures?: GroupFixture[];
   friendFixtures?: FriendFixture[];
 } = {}) {
-  const [view, setView] = useState<AuthView>('login');
+  const resetToken = new URLSearchParams(window.location.search).get('reset') ?? '';
+  const [view, setView] = useState<AuthView>(resetToken ? 'reset' : 'login');
   const [user, setUser] = useState<AppUser | null>(initialUser ?? null);
   const [loading, setLoading] = useState(!initialUser);
   const [submitting, setSubmitting] = useState(false);
@@ -35,6 +36,8 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   const [groupsAtRoot, setGroupsAtRoot] = useState(true);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [simulatorVisited, setSimulatorVisited] = useState(false);
+  const [googlePhone, setGooglePhone] = useState('');
+  const [resetPasswords, setResetPasswords] = useState({ next: '', confirm: '' });
 
   useEffect(() => {
     if (initialUser) return;
@@ -52,7 +55,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
     event.preventDefault();
     if (googleSubmitting) return;
     const values = new FormData(event.currentTarget);
-    void authenticate(() => authApi.login(String(values.get('email')), String(values.get('password'))));
+    void authenticate(() => authApi.login(String(values.get('identifier')), String(values.get('password'))));
   };
   const register = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -60,7 +63,23 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
     const values = new FormData(event.currentTarget);
     void authenticate(() => authApi.register({
       name: String(values.get('name')), username: String(values.get('username')), email: String(values.get('email')),
-      phone: String(values.get('phone') || '') || undefined, password: String(values.get('password')),
+      phone: String(values.get('phone')), password: String(values.get('password')),
+    }));
+  };
+  const forgotPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const values = new FormData(event.currentTarget);
+    setSubmitting(true); setNotice('');
+    try { setNotice((await authApi.forgotPassword(String(values.get('identifier')))).message); }
+    catch (error) { handleError(error); }
+    finally { setSubmitting(false); }
+  };
+  const resetPassword = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (resetPasswords.next !== resetPasswords.confirm) { setNotice('New passwords do not match.'); return; }
+    void authenticate(() => authApi.resetPassword(resetToken, resetPasswords.next, resetPasswords.confirm).then(result => {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+      return result;
     }));
   };
   const logout = async () => {
@@ -83,9 +102,9 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
     </> : view === 'login' ? <main className="login-screen">
       <div className="login-intro"><div className="logo-tile"><img src={receiptLogo} width="52" height="52" alt="" /></div><h1>Welcome back</h1><p>Keep personal and shared spending in sync.</p></div>
       <form className="login-form" onSubmit={login}>
-        <label>EMAIL<input type="email" name="email" autoComplete="email" required placeholder="you@example.com" /></label>
+        <label>USERNAME, EMAIL, OR PHONE<input name="identifier" autoComplete="username" required placeholder="@username, email, or phone" /></label>
         <label>PASSWORD<input type="password" name="password" autoComplete="current-password" required placeholder="••••••••" /></label>
-        <button type="button" className="forgot-link" onClick={() => setNotice('Password reset is not implemented yet.')}>Forgot password?</button>
+        <button type="button" className="forgot-link" onClick={() => changeView('forgot')}>Forgot password?</button>
         <button type="submit" className="primary-button" disabled={submitting || googleSubmitting}>{submitting ? 'Logging in…' : 'Log in'}</button>
       </form>
       <div className="divider"><span>or</span></div>
@@ -93,15 +112,31 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
       <p className="switch-auth">New here? <button type="button" onClick={() => changeView('signup')}>Create an account</button></p>
       <p className="terms">By continuing, you agree to the Terms and Privacy Policy.</p>
       {notice && <p className="form-notice" role="status">{notice}</p>}
+    </main> : view === 'forgot' ? <main className="signup-screen">
+      <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Reset your password</h1><p>Enter your username, email, or phone number. We will email the account's reset link.</p></header>
+      <form className="signup-form" onSubmit={forgotPassword}>
+        <label>USERNAME, EMAIL, OR PHONE<input name="identifier" autoComplete="username" required placeholder="@username, email, or phone" /></label>
+        <button type="submit" className="primary-button" disabled={submitting}>{submitting ? 'Sending…' : 'Send reset link'}</button>
+      </form>
+      {notice && <p className="form-notice" role="status">{notice}</p>}
+    </main> : view === 'reset' ? <main className="signup-screen">
+      <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Choose a new password</h1><p>Use at least 8 characters, including a number.</p></header>
+      <form className="signup-form" onSubmit={resetPassword}>
+        <label>NEW PASSWORD<input type="password" autoComplete="new-password" required minLength={8} maxLength={72} pattern="(?=.*[0-9]).{8,}" value={resetPasswords.next} onChange={event => setResetPasswords({ ...resetPasswords, next: event.target.value })} /></label>
+        <label>CONFIRM PASSWORD<input type="password" autoComplete="new-password" required value={resetPasswords.confirm} onChange={event => setResetPasswords({ ...resetPasswords, confirm: event.target.value })} /></label>
+        <button type="submit" className="primary-button" disabled={submitting || !resetToken}>{submitting ? 'Updating…' : 'Reset password'}</button>
+      </form>
+      {notice && <p className="form-notice" role="status">{notice}</p>}
     </main> : <main className="signup-screen">
       <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Create your account</h1><p>Start budgeting alone or with friends.</p></header>
-      <GoogleSignInButton signup onBusyChange={setGoogleSubmitting} disabled={submitting} onSuccess={account => { setUser(account); setTab('Home'); setNotice(''); }} />
+      <label className="google-phone-field">PHONE NUMBER · REQUIRED<input type="tel" value={googlePhone} onChange={event => setGooglePhone(event.target.value)} autoComplete="tel" required placeholder="+1 555 010 0000" /></label>
+      <GoogleSignInButton signup phone={googlePhone} onBusyChange={setGoogleSubmitting} disabled={submitting || googlePhone.replace(/\D/g, '').length < 7} onSuccess={account => { setUser(account); setTab('Home'); setNotice(''); }} />
       <p className="manual-divider">or register manually</p>
       <form className="signup-form" onSubmit={register}>
         <label>NAME<input name="name" autoComplete="name" required placeholder="Your name" /></label>
         <label>USERNAME<input name="username" autoComplete="username" required pattern="[A-Za-z0-9_]+" minLength={3} maxLength={30} placeholder="your_username" /></label>
         <label>EMAIL<input type="email" name="email" autoComplete="email" required placeholder="you@example.com" /></label>
-        <label>PHONE · OPTIONAL<input type="tel" name="phone" autoComplete="tel" placeholder="+1 555 010 0000" /></label>
+        <label>PHONE NUMBER<input type="tel" name="phone" autoComplete="tel" required placeholder="+1 555 010 0000" /></label>
         <label>PASSWORD<input type="password" name="password" autoComplete="new-password" minLength={8} pattern="(?=.*[0-9]).{8,}" required title="Use at least 8 characters with a number" placeholder="••••••••" /></label>
         <p className="password-hint">Use at least 8 characters with a number.</p>
         <button type="submit" className="primary-button" disabled={submitting || googleSubmitting}>{submitting ? 'Creating account…' : 'Create account'}</button>

@@ -55,7 +55,10 @@ const clickGoogle = async (page: Page, label: string) => {
 for (const signup of [false, true]) test(`Google ${signup ? 'sign-up' : 'sign-in'} opens a popup and completes its callback`, async ({ page }) => {
   const fixture = await mockGoogle(page);
   await page.goto('/');
-  if (signup) await page.getByRole('button', { name: 'Create an account' }).click();
+  if (signup) {
+    await page.getByRole('button', { name: 'Create an account' }).click();
+    await page.getByRole('textbox', { name: 'PHONE NUMBER · REQUIRED' }).fill('+1 646 555 0101');
+  }
   const popup = await clickGoogle(page, signup ? 'Sign up with Google' : 'Continue with Google');
   await popup.getByRole('button', { name: 'Choose test account' }).click();
   await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
@@ -65,7 +68,7 @@ for (const signup of [false, true]) test(`Google ${signup ? 'sign-up' : 'sign-in
 test('profile connects Google to the password account and both entry points remain usable', async ({ page }) => {
   const fixture = await mockGoogle(page);
   await page.goto('/');
-  await page.getByLabel('EMAIL').fill(fixture.account.email);
+  await page.getByLabel('USERNAME, EMAIL, OR PHONE').fill(fixture.account.email);
   await page.getByLabel('PASSWORD', { exact: true }).fill('password1');
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
@@ -89,7 +92,7 @@ test('closing the Google popup leaves email and password sign-in available', asy
   await page.goto('/');
   const popup = await clickGoogle(page, 'Continue with Google'); await popup.close();
   await expect(page.getByRole('button', { name: 'Continue with Google', exact: true })).toBeEnabled();
-  await page.getByLabel('EMAIL').fill(fixture.account.email);
+  await page.getByLabel('USERNAME, EMAIL, OR PHONE').fill(fixture.account.email);
   await page.getByLabel('PASSWORD', { exact: true }).fill('password1');
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();

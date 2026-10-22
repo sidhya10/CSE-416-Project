@@ -17,7 +17,7 @@ const run = randomUUID().replaceAll('-', '').slice(0, 16);
 
 beforeAll(async () => {
   for (const [index, agent] of [owner, member, outsider].entries()) {
-    const result = await agent.post('/api/auth/register').send({ name: `Expense Test ${index}`, username: `exp_${run}_${index}`, email: `exp_${run}_${index}@example.com`, password: 'password1' }).expect(201);
+    const result = await agent.post('/api/auth/register').send({ name: `Expense Test ${index}`, username: `exp_${run}_${index}`, email: `exp_${run}_${index}@example.com`, phone: `+1206${String(Date.now() + index).slice(-7)}`, password: 'password1' }).expect(201);
     userIds.push(result.body.user.id);
   }
   [ownerId, memberId, outsiderId] = userIds as [string, string, string];
@@ -62,7 +62,7 @@ describe('persisted expenses and settlements', () => {
     expect(repeated.body.expense.id).toBe(expense.id);
     expect(await prisma.expense.count({ where: { clientRequestId: key } })).toBe(1);
     const newSession = request.agent(app);
-    await newSession.post('/api/auth/login').send({ email: `exp_${run}_1@example.com`, password: 'password1' }).expect(200);
+    await newSession.post('/api/auth/login').send({ identifier: `exp_${run}_1@example.com`, password: 'password1' }).expect(200);
     const loaded = await newSession.get(`/api/expenses/${expense.id}`).expect(200);
     expect(loaded.body.expense).toEqual(expense);
     await outsider.get(`/api/expenses/${expense.id}`).expect(404);

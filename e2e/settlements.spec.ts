@@ -8,7 +8,7 @@ test('any member splits only the current period, reports how they paid, and rece
     const run = Date.now().toString(), names = ['Alex', 'Jordan', 'Casey'];
     const users = [];
     for (const [i, context] of contexts.entries()) {
-      const response = await context.request.post('/api/auth/register', { data: { name: names[i], username: `period_${i}_${run}`, email: `period-${i}-${run}@example.com`, password: 'password1' } });
+      const response = await context.request.post('/api/auth/register', { data: { name: names[i], username: `period_${i}_${run}`, email: `period-${i}-${run}@example.com`, phone: `+1316${String(Number(run.slice(-7)) + i).slice(-7).padStart(7, '0')}`, password: 'password1' } });
       expect(response.status()).toBe(201); users.push((await response.json()).user);
     }
     const groupResponse = await ownerContext!.request.post('/api/groups', { data: { name: 'Weekend costs', memberIds: users.slice(1).map(u => u.id) } });
@@ -89,7 +89,7 @@ test('new splits merge into one group card and one payment covers several period
     const [owner, member] = contexts;
     const users = [];
     for (const [i, context] of contexts.entries()) {
-      const response = await context.request.post('/api/auth/register', { data: { name: ['Alex', 'Jordan'][i], username: `merge_${i}_${Date.now()}`, email: `merge-${i}-${randomUUID()}@example.com`, password: 'password1' } });
+      const response = await context.request.post('/api/auth/register', { data: { name: ['Alex', 'Jordan'][i], username: `merge_${i}_${Date.now()}`, email: `merge-${i}-${randomUUID()}@example.com`, phone: `+1317${String(Date.now() + i).slice(-7)}`, password: 'password1' } });
       expect(response.status()).toBe(201); users.push((await response.json()).user);
     }
     const g = await owner!.request.post('/api/groups', { data: { name: 'Merged payment cards', memberIds: [users[1].id] } });

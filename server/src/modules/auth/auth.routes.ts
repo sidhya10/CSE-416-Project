@@ -8,6 +8,8 @@ import { env } from '../../config/env.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { presentUser } from '../users/user.presenter.js';
 import { clearSession, hashPassword, setSession, verifyPassword } from './auth.service.js';
+import { findUserByIdentifier, phoneSchema } from './identity.js';
+import { hashPasswordResetToken, newPasswordResetToken, passwordResetTtlMs, sendPasswordResetEmail } from './password-reset.js';
 
 export const authRouter = Router();
 
@@ -16,10 +18,10 @@ const accountSchema = z.object({
   username: z.string().trim().min(3).max(30).regex(/^[A-Za-z0-9_]+$/).transform(value => value.toLowerCase()),
   password: z.string().min(8).regex(/[0-9]/, 'Password must contain a number'),
   name: z.string().trim().min(1).max(80),
-  phone: z.string().trim().min(7).max(24).optional().or(z.literal('')).transform(value => value || undefined),
+  phone: phoneSchema,
 });
-const loginSchema = z.object({ email: z.email().transform(value => value.toLowerCase()), password: z.string().min(1) });
-const googleSchema = z.object({ credential: z.string().min(1).max(20000), state: z.string().length(64) });
+const loginSchema = z.object({ identifier: z.string().trim().min(1).max(254), password: z.string().min(1) });
+const googleSchema = z.object({ credential: z.string().min(1).max(20000), state: z.string().length(64), phone: phoneSchema.optional() });
 
 const validationError = (issues: { message: string }[]) => ({ error: 'Invalid request', details: issues.map(issue => issue.message) });
 const conflictMessage = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -42,9 +44,9 @@ authRouter.post('/login', async (request, response, next) => {
   const parsed = loginSchema.safeParse(request.body);
   if (!parsed.success) return response.status(400).json(validationError(parsed.error.issues));
   try {
-    const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+    const user = await findUserByIdentifier(parsed.data.identifier);
     if (!user?.passwordHash || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
-      return response.status(401).json({ error: 'Email or password is incorrect' });
+      return response.status(401).json({ error: 'Username, email, phone number, or password is incorrect' });
     }
     setSession(response, user.id);
     return response.json({ user: presentUser(user) });
@@ -53,22 +55,22 @@ authRouter.post('/login', async (request, response, next) => {
 
 authRouter.post('/google/start', (request, response) => {
   if (!env.GOOGLE_CLIENT_ID) return response.status(503).json({ error: 'Google sign-in is not configured on the server. Set GOOGLE_CLIENT_ID and restart the app.' });
-  const parsed = z.object({ nonce: z.string().min(32).max(128).regex(/^[A-Za-z0-9_-]+$/), intent: z.enum(['signin', 'link']) }).safeParse(request.body);
+  const parsed = z.object({ nonce: z.string().min(32).max(128).regex(/^[A-Za-z0-9_-]+$/), intent: z.enum(['signin', 'signup', 'link']) }).safeParse(request.body);
   if (!parsed.success) return response.status(400).json(validationError(parsed.error.issues));
   const userId = currentSession(request);
   if (parsed.data.intent === 'link' && !userId) return response.status(401).json({ error: 'Sign in before connecting a Google account' });
   return response.json(startGoogleAttempt(response, parsed.data.nonce, parsed.data.intent, userId));
 });
 
-// The same verified identity supports new accounts, returning users, and explicit linking.
-// Linking always targets the authenticated user, never whichever email Google returns.
+// The same verified identity endpoint supports sign-in, sign-up, and explicit linking.
+// Linking always targets the authenticated user and requires an exact email match.
 for (const intent of ['signin', 'link'] as const) {
   authRouter.post(intent === 'link' ? '/google/link' : '/google', async (request, response, next) => {
     if (!env.GOOGLE_CLIENT_ID) return response.status(503).json({ error: 'Google sign-in is not configured on the server' });
     if (intent === 'link' && !currentSession(request)) return response.status(401).json({ error: 'Sign in before connecting a Google account' });
     const parsed = googleSchema.safeParse(request.body);
     if (!parsed.success) return response.status(400).json(validationError(parsed.error.issues));
-    const attempt = readGoogleAttempt(request, parsed.data.state, intent);
+    const attempt = readGoogleAttempt(request, parsed.data.state, intent === 'link' ? 'link' : ['signin', 'signup']);
     if (!attempt) return response.status(401).json({ error: 'Google sign-in expired or your session changed. Try again.' });
     try {
       let payload;
@@ -86,10 +88,12 @@ for (const intent of ['signin', 'link'] as const) {
       if (intent === 'link') {
         user = await prisma.user.findUnique({ where: { id: attempt.userId! } });
         if (!user) { clearSession(response); return response.status(401).json({ error: 'Account no longer exists' }); }
+        if (email !== user.email.toLowerCase()) return response.status(409).json({ error: `Connect the Google account that uses ${user.email}.` });
         if (bySubject && bySubject.id !== user.id || byEmail && byEmail.id !== user.id) return response.status(409).json({ error: 'That Google account is already associated with another account. Sign in to that account instead.' });
         if (user.googleSubject && user.googleSubject !== payload.sub) return response.status(409).json({ error: 'A different Google account is already connected' });
       } else {
         user = bySubject ?? byEmail;
+        if (!user && attempt.intent === 'signin') return response.status(404).json({ error: 'No account uses that Google email. Create an account first.' });
         if (user?.googleSubject && user.googleSubject !== payload.sub) return response.status(409).json({ error: 'That email belongs to another Google account' });
         // Google is authoritative for Gmail and Workspace emails, not third-party email ownership.
         if (user && !user.googleSubject && !email.endsWith('@gmail.com') && !payload.hd) return response.status(409).json({ error: 'Sign in with your password first, then connect Google in Account settings.' });
@@ -99,10 +103,11 @@ for (const intent of ['signin', 'link'] as const) {
         if (!updated.count) return response.status(409).json({ error: 'Account connection changed. Refresh and try again.' });
         user = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
       } else if (!user) {
+        if (!parsed.data.phone) return response.status(400).json({ error: 'A phone number is required to create an account.' });
         const base = (email.split('@')[0] ?? 'user').replace(/[^A-Za-z0-9_]/g, '').slice(0, 24).toLowerCase() || 'user';
         let username = base;
         for (let suffix = 1; await prisma.user.findUnique({ where: { username } }); suffix += 1) username = `${base}${suffix}`;
-        user = await prisma.user.create({ data: { email, username, name: payload.name?.trim() || username, googleSubject: payload.sub, photoUrl: payload.picture } });
+        user = await prisma.user.create({ data: { email, username, name: payload.name?.trim() || username, phone: parsed.data.phone, googleSubject: payload.sub, photoUrl: payload.picture } });
       }
       clearGoogleAttempt(response);
       setSession(response, user.id);
@@ -118,6 +123,52 @@ authRouter.get('/me', requireAuth, async (request, response, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: request.userId! } });
     if (!user) { clearSession(response); return response.status(401).json({ error: 'Account no longer exists' }); }
+    return response.json({ user: presentUser(user) });
+  } catch (error) { next(error); }
+});
+
+const forgotPasswordSchema = z.object({ identifier: z.string().trim().min(1).max(254) }).strict();
+authRouter.post('/forgot-password', async (request, response, next) => {
+  const parsed = forgotPasswordSchema.safeParse(request.body);
+  if (!parsed.success) return response.status(400).json(validationError(parsed.error.issues));
+  try {
+    const user = await findUserByIdentifier(parsed.data.identifier);
+    let resetToken: string | undefined;
+    if (user?.passwordHash) {
+      resetToken = newPasswordResetToken();
+      await prisma.$transaction([
+        prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
+        prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash: hashPasswordResetToken(resetToken), expiresAt: new Date(Date.now() + passwordResetTtlMs) } }),
+      ]);
+      try { await sendPasswordResetEmail({ email: user.email, name: user.name, token: resetToken }); }
+      catch (error) { console.error('Could not send password reset email', error); await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }); }
+    }
+    return response.status(202).json({ message: 'If an account matches, a password reset link has been sent.', ...(env.NODE_ENV === 'test' && resetToken ? { resetToken } : {}) });
+  } catch (error) { next(error); }
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(32).max(200),
+  newPassword: z.string().min(8, 'Use at least 8 characters').max(72).regex(/[0-9]/, 'Password must contain a number')
+    .refine(value => Buffer.byteLength(value, 'utf8') <= 72, 'Password must be at most 72 bytes'),
+  confirmPassword: z.string().min(1).max(72),
+}).strict().refine(value => value.newPassword === value.confirmPassword, 'New passwords do not match');
+
+authRouter.post('/reset-password', async (request, response, next) => {
+  const parsed = resetPasswordSchema.safeParse(request.body);
+  if (!parsed.success) return response.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid password reset' });
+  try {
+    const tokenHash = hashPasswordResetToken(parsed.data.token);
+    const reset = await prisma.passwordResetToken.findUnique({ where: { tokenHash }, include: { user: true } });
+    if (!reset || reset.usedAt || reset.expiresAt <= new Date()) return response.status(400).json({ error: 'This password reset link is invalid or has expired.' });
+    const claimed = await prisma.passwordResetToken.updateMany({ where: { id: reset.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+    if (!claimed.count) return response.status(400).json({ error: 'This password reset link is invalid or has expired.' });
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: await hashPassword(parsed.data.newPassword) } }),
+      prisma.passwordResetToken.deleteMany({ where: { userId: reset.userId, id: { not: reset.id } } }),
+    ]);
+    setSession(response, reset.userId);
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: reset.userId } });
     return response.json({ user: presentUser(user) });
   } catch (error) { next(error); }
 });

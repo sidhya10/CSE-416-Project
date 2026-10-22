@@ -88,7 +88,7 @@ describe('Google popup entry points', () => {
     render(<App />);
     await screen.findByRole('heading', { name: 'Welcome back' });
     expect(await screen.findByText(/Google client IDs do not match/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('EMAIL'), { target: { value: account.email } });
+    fireEvent.change(screen.getByLabelText('USERNAME, EMAIL, OR PHONE'), { target: { value: account.email } });
     fireEvent.change(screen.getByLabelText('PASSWORD'), { target: { value: 'password1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
     expect(await screen.findByRole('button', { name: 'Profile' })).toBeInTheDocument();

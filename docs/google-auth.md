@@ -20,21 +20,21 @@ VITE_GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
 
 Restart both frontend and backend with `npm run dev`. Vite now loads the root environment directory, exposing only `VITE_` variables to the browser. The server uses `GOOGLE_CLIENT_ID`, with `VITE_GOOGLE_CLIENT_ID` as a local convenience fallback if the server variable is blank. The server sends the public client ID to the button; a configured frontend ID must match it. In separately deployed services, configure the backend's client ID in its own environment, too. Keep the production browser API URL at `/api` to use the existing frontend proxy and same-origin session cookies.
 
-Email/password registration and sign-in do not depend on Google's configuration or SDK availability. No database migration or new npm dependency is required for this change.
+Phone/password registration and identifier/password sign-in do not depend on Google's configuration or SDK availability. Password accounts require an email, username, and phone number at registration.
 
 ## Account behavior
 
-- A new Google identity creates one account; returning Google sign-in looks up its stable Google subject ID.
+- Google sign-up requires a phone number. A new Google identity creates one account; returning Google sign-in looks up its stable Google subject ID.
 - A Google identity already linked to a password account signs into that same account. Linking never replaces the password hash, app email, username, memberships or budgets.
 - For an existing matching Gmail or Google Workspace address, verified Google sign-in can link to the existing account. For third-party email addresses, sign in with the password first and explicitly connect Google in Account settings.
-- Profile linking targets the currently authenticated app account, even if its email differs from the Google email. It refuses a Google identity/email already associated with another app account, or replacement of a different already-linked identity. It does not merge accounts.
-- Google-only accounts remain Google-only; this change does not introduce password recovery or a set-password flow for those accounts.
+- Profile linking targets the currently authenticated app account and requires the verified Google email to exactly match that account's email. It also refuses a Google identity/email already associated with another app account, or replacement of a different already-linked identity. It does not merge accounts.
+- Google-only accounts remain Google-only. Password reset is available only to accounts that already have a password.
 
 ## Browser/API boundary
 
-`POST /api/auth/google/start` accepts `{ nonce, intent: "signin" | "link" }` and returns `{ clientId, nonce, state }`. Link preparation requires an existing app session. A signed, HttpOnly, ten-minute browser cookie binds the state, nonce, intent and starting app user. The client initializes Google once per page with a random page nonce and uses a separate state for each rendered button/attempt.
+`POST /api/auth/google/start` accepts `{ nonce, intent: "signin" | "signup" | "link" }` and returns `{ clientId, nonce, state }`. Link preparation requires an existing app session. A signed, HttpOnly, ten-minute browser cookie binds the state, nonce, intent and starting app user. The client initializes Google once per page with a random page nonce and uses a separate state for each rendered button/attempt.
 
-`POST /api/auth/google` or authenticated `POST /api/auth/google/link` accepts `{ credential, state }`. The server verifies browser state and intent, validates the Google token signature/audience/expiration with Google's library, checks verified email and nonce, and then creates/signs in/links the appropriate user. A changed app session rejects a late Google response, so a successful normal login cannot be replaced by a pending popup. Completed attempt cookies are cleared. Google ID tokens are not saved in browser storage or the database.
+`POST /api/auth/google` accepts `{ credential, state, phone? }`; Google sign-up requires `phone`. Authenticated `POST /api/auth/google/link` accepts the same browser proof and enforces the account-email match. The server verifies browser state and intent, validates the Google token signature/audience/expiration with Google's library, checks verified email and nonce, and then creates, signs in, or links the appropriate user. A changed app session rejects a late Google response, so a successful normal login cannot be replaced by a pending popup. Completed attempt cookies are cleared. Google ID tokens are not saved in browser storage or the database.
 
 The client handles SDK failure/timeouts and mismatched client IDs with visible errors and retry. Popup cancellation needs no recovery step. Vite and Vercel set `Cross-Origin-Opener-Policy: same-origin-allow-popups` so the Google window can communicate with the app. Preserve this header if hosting the frontend elsewhere; CSPs must also permit Google's GIS script, frames, styles and connections.
 

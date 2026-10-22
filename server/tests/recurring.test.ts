@@ -10,7 +10,7 @@ const userIds: string[] = [], groups: string[] = [];
 const run = randomUUID().slice(0, 8);
 beforeAll(async () => {
   for (const [index, agent] of [owner, member, outsider].entries()) {
-    const response = await agent.post('/api/auth/register').send({ name: `Schedule ${index}`, email: `sched-${index}-${run}@example.com`, username: `sched_${index}_${run}`, password: 'password1' });
+    const response = await agent.post('/api/auth/register').send({ name: `Schedule ${index}`, email: `sched-${index}-${run}@example.com`, username: `sched_${index}_${run}`, phone: `+1204${String(Date.now() + index).slice(-7)}`, password: 'password1' });
     expect(response.status).toBe(201); userIds.push(response.body.user.id);
   }
 });

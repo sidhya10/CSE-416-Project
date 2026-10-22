@@ -16,7 +16,7 @@ const todayIso = today.toISOString().slice(0, 10);
 
 beforeAll(async () => {
   for (const [index, agent] of [owner, member, outsider].entries()) {
-    const result = await agent.post('/api/auth/register').send({ name: `Budget Test ${index}`, username: `bud_${run}_${index}`, email: `bud_${run}_${index}@example.com`, password: 'password1' }).expect(201);
+    const result = await agent.post('/api/auth/register').send({ name: `Budget Test ${index}`, username: `bud_${run}_${index}`, email: `bud_${run}_${index}@example.com`, phone: `+1209${String(Date.now() + index).slice(-7)}`, password: 'password1' }).expect(201);
     userIds.push(result.body.user.id);
   }
   [ownerId, memberId] = userIds as [string, string, string];

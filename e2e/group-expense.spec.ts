@@ -7,15 +7,16 @@ test('an expense persists across reload, edits in place, and updates the group o
   await page.getByRole('textbox', { name: 'NAME', exact: true }).fill('Flow Owner');
   await page.getByRole('textbox', { name: 'USERNAME' }).fill(`flow_owner_${run}`);
   await page.getByRole('textbox', { name: 'EMAIL' }).fill(`flow-owner-${run}@example.com`);
+  await page.locator('form.signup-form input[name="phone"]').fill(`+1310${String(run).slice(-7)}`);
   await page.getByLabel('PASSWORD').fill('password1');
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByRole('button', { name: 'Groups' }).click();
 
   const companion = await page.request.post('/api/auth/register', { data: {
-    name: 'Flow Friend', username: `flow_friend_${run}`, email: `flow-friend-${run}@example.com`, password: 'password1',
+    name: 'Flow Friend', username: `flow_friend_${run}`, email: `flow-friend-${run}@example.com`, phone: `+1311${String(run).slice(-7)}`, password: 'password1',
   } });
   const { user: companionUser } = await companion.json();
-  await page.request.post('/api/auth/login', { data: { email: `flow-owner-${run}@example.com`, password: 'password1' } });
+  await page.request.post('/api/auth/login', { data: { identifier: `flow-owner-${run}@example.com`, password: 'password1' } });
   await page.request.post(`/api/friends/${companionUser.id}`);
   await page.reload();
   await page.getByRole('button', { name: 'Groups', exact: true }).click();
@@ -66,7 +67,7 @@ test('item splits and two-sided payments persist for different signed-in members
   try {
     const run = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
     const register = async (context: typeof ownerContext, label: string) => {
-      const response = await context.request.post('/api/auth/register', { data: { name: label, username: `${label.toLowerCase()}_${run}`, email: `${label}_${run}@example.com`, password: 'password1' } });
+      const response = await context.request.post('/api/auth/register', { data: { name: label, username: `${label.toLowerCase()}_${run}`, email: `${label}_${run}@example.com`, phone: `+1312${String(Number(run.slice(-7)) + label.length).slice(-7).padStart(7, '0')}`, password: 'password1' } });
       expect(response.status()).toBe(201);
       return (await response.json()).user;
     };
@@ -132,7 +133,7 @@ test('recurring plans affect future expenses, deletion retains history, and sett
   try {
     const run = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
     const createUser = async (context: typeof ownerContext, label: string) => {
-      const response = await context.request.post('/api/auth/register', { data: { name: label, username: `${label.slice(-6)}_${run}`, email: `${label}_${run}@example.com`, password: 'password1' } });
+      const response = await context.request.post('/api/auth/register', { data: { name: label, username: `${label.slice(-6)}_${run}`, email: `${label}_${run}@example.com`, phone: `+1313${String(Number(run.slice(-7)) + label.length).slice(-7).padStart(7, '0')}`, password: 'password1' } });
       expect(response.status()).toBe(201); return (await response.json()).user;
     };
     const owner = await createUser(ownerContext, 'scheduleowner');
@@ -209,6 +210,7 @@ test('appearance persists and password changes work through settings and a new l
   await page.getByRole('textbox', { name: 'NAME', exact: true }).fill('Settings User');
   await page.getByRole('textbox', { name: 'USERNAME' }).fill(`settings_${run}`.slice(0, 30));
   await page.getByRole('textbox', { name: 'EMAIL' }).fill(email);
+  await page.locator('form.signup-form input[name="phone"]').fill(`+1318${String(Date.now()).slice(-7)}`);
   await page.getByLabel('PASSWORD').fill('original1');
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
@@ -232,10 +234,10 @@ test('appearance persists and password changes work through settings and a new l
   await expect(page.getByText('Password changed successfully.')).toBeVisible();
   await page.getByRole('button', { name: 'Back to Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Log out' }).click();
-  await page.getByRole('textbox', { name: 'EMAIL' }).fill(email);
+  await page.getByRole('textbox', { name: 'USERNAME, EMAIL, OR PHONE' }).fill(email);
   await page.getByLabel('PASSWORD', { exact: true }).fill('original1');
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await expect(page.getByText('Email or password is incorrect')).toBeVisible();
+  await expect(page.getByText('Username, email, phone number, or password is incorrect')).toBeVisible();
   await page.getByLabel('PASSWORD', { exact: true }).fill('replacement2');
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
   await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), Settings$/ })).toBeVisible();
@@ -245,13 +247,13 @@ test('mobile customization shows all members and Back then Cancel exits creation
   await page.setViewportSize({ width: 375, height: 812 });
   const run = Date.now().toString();
   const ownerEmail = `mobile-owner-${run}@example.com`;
-  await page.request.post('/api/auth/register', { data: { name: 'Mobile Owner', username: `mob_owner_${run}`, email: ownerEmail, password: 'password1' } });
+  await page.request.post('/api/auth/register', { data: { name: 'Mobile Owner', username: `mob_owner_${run}`, email: ownerEmail, phone: `+1314${run.slice(-7)}`, password: 'password1' } });
   const friendIds: string[] = [];
   for (let i = 0; i < 7; i++) {
-    const response = await page.request.post('/api/auth/register', { data: { name: `Mobile Friend ${i}`, username: `mob_${i}_${run}`, email: `mobile-${i}-${run}@example.com`, password: 'password1' } });
+    const response = await page.request.post('/api/auth/register', { data: { name: `Mobile Friend ${i}`, username: `mob_${i}_${run}`, email: `mobile-${i}-${run}@example.com`, phone: `+1315${String(Number(run.slice(-7)) + i).slice(-7).padStart(7, '0')}`, password: 'password1' } });
     expect(response.status()).toBe(201); friendIds.push((await response.json()).user.id);
   }
-  await page.request.post('/api/auth/login', { data: { email: ownerEmail, password: 'password1' } });
+  await page.request.post('/api/auth/login', { data: { identifier: ownerEmail, password: 'password1' } });
   for (const id of friendIds) expect((await page.request.post(`/api/friends/${id}`)).status()).toBe(201);
   await page.goto('/');
   await page.getByRole('button', { name: 'Groups', exact: true }).click();

@@ -20,15 +20,15 @@ beforeAll(async () => {
 });
 beforeEach(() => { google.verifyIdToken.mockReset(); });
 afterAll(async () => { await prisma.user.deleteMany({ where: { email: { in: [...emails] } } }); await prisma.$disconnect(); });
-const start = async (agent: ReturnType<typeof request.agent>, intent: 'signin' | 'link' = 'signin') => {
+const start = async (agent: ReturnType<typeof request.agent>, intent: 'signin' | 'signup' | 'link' = 'signin') => {
   const result = await agent.post('/api/auth/google/start').send({ nonce, intent }).expect(200);
   expect(result.headers['cache-control']).toBe('no-store');
   expect(result.body.clientId).toBe(env.GOOGLE_CLIENT_ID);
   return result.body.state as string;
 };
-const finish = (agent: ReturnType<typeof request.agent>, state: string, intent: 'signin' | 'link' = 'signin') => agent.post(intent === 'link' ? '/api/auth/google/link' : '/api/auth/google').send({ credential: 'google-token', state });
+const finish = (agent: ReturnType<typeof request.agent>, state: string, intent: 'signin' | 'signup' | 'link' = 'signin') => agent.post(intent === 'link' ? '/api/auth/google/link' : '/api/auth/google').send({ credential: 'google-token', state, ...(intent === 'signup' ? { phone: `+1212${String(Date.now()).slice(-7)}` } : {}) });
 const register = async (agent: ReturnType<typeof request.agent>, label: string, gmail = false) => {
-  const result = await agent.post('/api/auth/register').send({ name: label, email: emailFor(label, gmail), username: `${label}_${run}`.slice(0, 30), password: 'password1' }).expect(201);
+  const result = await agent.post('/api/auth/register').send({ name: label, email: emailFor(label, gmail), username: `${label}_${run}`.slice(0, 30), phone: `+1213${String(Date.now() + emails.size).slice(-7)}`, password: 'password1' }).expect(201);
   return result.body.user as { id: string; email: string };
 };
 
@@ -36,7 +36,7 @@ describe('Google popup authentication alongside password login', () => {
   it('creates a Google account, verifies the audience, and signs back into the same account', async () => {
     const agent = request.agent(app); const email = emailFor('new');
     google.verifyIdToken.mockResolvedValue(ticket({ sub: `new-${run}`, email, name: 'Google User' }));
-    const first = await finish(agent, await start(agent)).expect(200);
+    const first = await finish(agent, await start(agent, 'signup'), 'signup').expect(200);
     expect(first.body.user).toMatchObject({ email, hasGoogle: true, hasPassword: false });
     expect(first.body.user.passwordHash).toBeUndefined();
     expect(google.verifyIdToken).toHaveBeenCalledWith({ idToken: 'google-token', audience: env.GOOGLE_CLIENT_ID });
@@ -55,7 +55,7 @@ describe('Google popup authentication alongside password login', () => {
     expect(result.body.user).toMatchObject({ id: owner.id, hasGoogle: true, hasPassword: true });
     expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).passwordHash).toBe(before.passwordHash);
     await agent.post('/api/auth/logout').expect(204);
-    const passwordLogin = await agent.post('/api/auth/login').send({ email: owner.email, password: 'password1' }).expect(200);
+    const passwordLogin = await agent.post('/api/auth/login').send({ identifier: owner.email, password: 'password1' }).expect(200);
     expect(passwordLogin.body.user.id).toBe(owner.id);
   });
   it('requires password-first linking for a third-party email, then accepts either login method', async () => {
@@ -63,24 +63,21 @@ describe('Google popup authentication alongside password login', () => {
     await agent.post('/api/auth/logout').expect(204);
     google.verifyIdToken.mockResolvedValue(ticket({ sub: `third-${run}`, email: owner.email }));
     await finish(agent, await start(agent)).expect(409);
-    await agent.post('/api/auth/login').send({ email: owner.email, password: 'password1' }).expect(200);
+    await agent.post('/api/auth/login').send({ identifier: owner.email, password: 'password1' }).expect(200);
     const linked = await finish(agent, await start(agent, 'link'), 'link').expect(200);
     expect(linked.body.user).toMatchObject({ id: owner.id, hasGoogle: true, hasPassword: true });
     await agent.post('/api/auth/logout').expect(204);
     const googleLogin = await finish(agent, await start(agent)).expect(200);
     expect(googleLogin.body.user.id).toBe(owner.id);
   });
-  it('connects a different Google email to the signed-in account without replacing its identity or password', async () => {
+  it('rejects linking a Google account with a different email', async () => {
     const agent = request.agent(app); const owner = await register(agent, 'different');
     const googleEmail = emailFor('differentgoogle');
     google.verifyIdToken.mockResolvedValue(ticket({ sub: `different-${run}`, email: googleEmail }));
-    const linked = await finish(agent, await start(agent, 'link'), 'link').expect(200);
-    expect(linked.body.user).toMatchObject({ id: owner.id, email: owner.email, hasGoogle: true, hasPassword: true });
+    const linked = await finish(agent, await start(agent, 'link'), 'link').expect(409);
+    expect(linked.body.error).toContain(owner.email);
     expect(await prisma.user.count({ where: { email: googleEmail } })).toBe(0);
-    await agent.post('/api/auth/logout').expect(204);
-    expect((await finish(agent, await start(agent)).expect(200)).body.user.id).toBe(owner.id);
-    await agent.post('/api/auth/logout').expect(204);
-    await agent.post('/api/auth/login').send({ email: owner.email, password: 'password1' }).expect(200);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).googleSubject).toBeNull();
   });
   it('rejects a Google identity or email belonging to another account without changing either user', async () => {
     const agent = request.agent(app); const other = request.agent(app);
@@ -125,7 +122,7 @@ describe('Google popup authentication alongside password login', () => {
     const agent = request.agent(app); const owner = await register(agent, 'parallel');
     await agent.post('/api/auth/logout').expect(204);
     const state = await start(agent);
-    await agent.post('/api/auth/login').send({ email: owner.email, password: 'password1' }).expect(200);
+    await agent.post('/api/auth/login').send({ identifier: owner.email, password: 'password1' }).expect(200);
     await finish(agent, state).expect(401);
     expect((await agent.get('/api/auth/me')).body.user.id).toBe(owner.id);
     expect(google.verifyIdToken).not.toHaveBeenCalled();
@@ -140,9 +137,9 @@ describe('Google popup authentication alongside password login', () => {
   it('clears a completed attempt so the response cannot be submitted again', async () => {
     const agent = request.agent(app);
     google.verifyIdToken.mockResolvedValue(ticket({ sub: `once-${run}`, email: emailFor('once') }));
-    const state = await start(agent);
-    await finish(agent, state).expect(200);
-    await finish(agent, state).expect(401);
+    const state = await start(agent, 'signup');
+    await finish(agent, state, 'signup').expect(200);
+    await finish(agent, state, 'signup').expect(401);
   });
   it('returns a clear configuration error while password login still works', async () => {
     const clientId = env.GOOGLE_CLIENT_ID;
@@ -151,7 +148,7 @@ describe('Google popup authentication alongside password login', () => {
       await request(app).post('/api/auth/google/start').send({ nonce, intent: 'signin' }).expect(503);
       const agent = request.agent(app); const owner = await register(agent, 'disabled');
       await agent.post('/api/auth/logout').expect(204);
-      await agent.post('/api/auth/login').send({ email: owner.email, password: 'password1' }).expect(200);
+      await agent.post('/api/auth/login').send({ identifier: owner.email, password: 'password1' }).expect(200);
     } finally { env.GOOGLE_CLIENT_ID = clientId; }
   });
 });

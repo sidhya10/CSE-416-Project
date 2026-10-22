@@ -22,7 +22,7 @@ beforeAll(async () => {
   if (!/test|integration/i.test(new URL(env.DATABASE_URL).pathname)) throw new Error('Receipt integration tests require a dedicated test database (name must contain test or integration).');
   for (const client of [agent, other]) {
     const id = randomUUID().replaceAll('-', '').slice(0, 12);
-    const res = await client.post('/api/auth/register').send({ name: 'Receipt Test', username: `r_${id}`, email: `${id}@example.com`, password: 'password1' }).expect(201);
+    const res = await client.post('/api/auth/register').send({ name: 'Receipt Test', username: `r_${id}`, email: `${id}@example.com`, phone: `+1201${String(Date.now()).slice(-7)}`, password: 'password1' }).expect(201);
     users.push(res.body.user.id);
   }
 });

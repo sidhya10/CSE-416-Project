@@ -5,6 +5,7 @@ import { prisma } from '../../config/database.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { clearSession, hashPassword, setSession } from '../auth/auth.service.js';
 import { presentUser } from './user.presenter.js';
+import { normalizePhone, phoneSchema } from '../auth/identity.js';
 
 export const usersRouter = Router();
 const updateSchema = z.object({
@@ -16,7 +17,7 @@ const updateSchema = z.object({
 }).strict();
 const createSchema = z.object({
   email: z.email().transform(value => value.toLowerCase()), username: z.string().trim().min(3).max(30).regex(/^[A-Za-z0-9_]+$/).transform(value => value.toLowerCase()),
-  password: z.string().min(8).regex(/[0-9]/), name: z.string().trim().min(1).max(80), phone: z.string().trim().min(7).max(24).optional(),
+  password: z.string().min(8).regex(/[0-9]/), name: z.string().trim().min(1).max(80), phone: phoneSchema,
 });
 const isConflict = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
@@ -39,6 +40,7 @@ usersRouter.get('/', async (request, response, next) => {
   const search = z.object({ query: z.string().max(200).default(''), field: z.enum(['all', 'name', 'username', 'email', 'phone']).default('all'), sort: z.enum(['name', 'username', 'email']).default('name') }).parse(request.query);
   const query = search.query.trim();
   try {
+    if (!query) return response.json({ users: [] });
     const [users, friendships] = await Promise.all([
       prisma.user.findMany({ where: { id: { not: currentUserId } } }),
       prisma.friendship.findMany({ where: { OR: [{ userOneId: currentUserId }, { userTwoId: currentUserId }] } }),
@@ -51,6 +53,22 @@ usersRouter.get('/', async (request, response, next) => {
       return value.toLowerCase().includes(field === 'username' ? lower.replace(/^@/, '') : lower) || field === 'phone' && digits.length > 0 && /^[+\d\s().-]+$/.test(query) && value.replace(/\D/g, '').includes(digits);
     }));
     return response.json({ users: filtered.map(user => ({ ...presentUser(user), isFriend: friendIds.has(user.id) })).sort((a, b) => Number(b.isFriend) - Number(a.isFriend) || a[search.sort].localeCompare(b[search.sort])) });
+  } catch (error) { next(error); }
+});
+
+usersRouter.post('/contacts', async (request, response, next) => {
+  const parsed = z.object({ emails: z.array(z.email()).max(500).default([]), phones: z.array(z.string().min(1).max(40)).max(500).default([]) }).strict().safeParse(request.body);
+  if (!parsed.success) return response.status(400).json({ error: 'Invalid contacts list' });
+  const emails = new Set(parsed.data.emails.map(value => value.trim().toLowerCase()));
+  const phones = new Set(parsed.data.phones.map(normalizePhone).filter((value): value is string => Boolean(value)));
+  try {
+    if (!emails.size && !phones.size) return response.json({ users: [] });
+    const [users, friendships] = await Promise.all([
+      prisma.user.findMany({ where: { id: { not: request.userId! }, OR: [{ email: { in: [...emails] } }, { phone: { in: [...phones] } }] } }),
+      prisma.friendship.findMany({ where: { OR: [{ userOneId: request.userId! }, { userTwoId: request.userId! }] } }),
+    ]);
+    const friendIds = new Set(friendships.map(item => item.userOneId === request.userId! ? item.userTwoId : item.userOneId));
+    return response.json({ users: users.map(user => ({ ...presentUser(user), isFriend: friendIds.has(user.id) })).sort((a, b) => a.name.localeCompare(b.name)) });
   } catch (error) { next(error); }
 });
 

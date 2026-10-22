@@ -67,6 +67,9 @@
 
 /* Full member lists wrap into as many rows as needed, with a separate edit action. */
 .selected-friends { flex-wrap: wrap; }
+.contact-match-button { width: 100%; margin: 10px 0 4px; }
+.contact-privacy { line-height: 1.45; }
+.friend-remove-inline { color: var(--danger-strong) !important; }
 .member-preview-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 16px 8px; padding: 16px; }
 .member-preview-card > div { min-width: 0; }
 .member-preview-card small { overflow-wrap: anywhere; text-align: center; }
