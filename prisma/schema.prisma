@@ -35,6 +35,19 @@ model User {
   groupMemberships     GroupMembership[]
   groupInvitations     GroupInvitation[] @relation("GroupInvitationRecipient")
   sentGroupInvitations GroupInvitation[] @relation("GroupInvitationSender")
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }
 
 model Friendship {

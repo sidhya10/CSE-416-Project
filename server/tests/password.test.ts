@@ -13,7 +13,7 @@ const owner = request.agent(app);
 let id: string;
 const valid = { currentPassword: 'original1', newPassword: 'replacement2', confirmPassword: 'replacement2' };
 beforeAll(async () => {
-  const result = await owner.post('/api/auth/register').send({ name: 'Password User', username: `pw_${run}`.slice(0, 30), email, password: 'original1' }).expect(201);
+  const result = await owner.post('/api/auth/register').send({ name: 'Password User', username: `pw_${run}`.slice(0, 30), email, phone: `+1207${String(Date.now()).slice(-7)}`, password: 'original1' }).expect(201);
   id = result.body.user.id;
 });
 afterAll(async () => {
@@ -44,8 +44,8 @@ describe('password changes', () => {
     expect(await verifyPassword(valid.newPassword, stored.passwordHash!)).toBe(true);
     await owner.get('/api/auth/me').expect(200);
     await owner.post('/api/auth/logout').expect(204);
-    await owner.post('/api/auth/login').send({ email, password: 'original1' }).expect(401);
-    await owner.post('/api/auth/login').send({ email, password: valid.newPassword }).expect(200);
+    await owner.post('/api/auth/login').send({ identifier: email, password: 'original1' }).expect(401);
+    await owner.post('/api/auth/login').send({ identifier: email, password: valid.newPassword }).expect(200);
   });
   it('does not set a password on a Google-only account', async () => {
     const google = await prisma.user.create({ data: { email: googleEmail, username: `gpw_${run}`.slice(0, 30), name: 'Google Only', googleSubject: run } });

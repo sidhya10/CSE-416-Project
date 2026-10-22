@@ -7,12 +7,17 @@ const agent = request.agent(app), other = request.agent(app);
 const run = randomUUID().slice(0, 8), ids: string[] = [];
 const target = { name: 'Alex Morgan Smith', username: `alex_${run}`, email: `alex.${run}@example.com`, phone: `+1 (212) 555-${String(Date.now()).slice(-4)}`, password: 'password1' };
 beforeAll(async () => {
-  const owner = await agent.post('/api/auth/register').send({ name: 'Searcher', username: `search_${run}`, email: `search_${run}@example.com`, password: 'password1' }); expect(owner.status).toBe(201); ids.push(owner.body.user.id);
+  const owner = await agent.post('/api/auth/register').send({ name: 'Searcher', username: `search_${run}`, email: `search_${run}@example.com`, phone: `+1203${String(Date.now()).slice(-7)}`, password: 'password1' }); expect(owner.status).toBe(201); ids.push(owner.body.user.id);
   const created = await other.post('/api/auth/register').send(target); expect(created.status).toBe(201); ids.push(created.body.user.id);
-  const second = await request(app).post('/api/auth/register').send({ name: 'Zoe Lee', username: `aaa_${run}`, email: `zzz.${run}@example.com`, password: 'password1' }); expect(second.status).toBe(201); ids.push(second.body.user.id);
+  const second = await request(app).post('/api/auth/register').send({ name: 'Zoe Lee', username: `aaa_${run}`, email: `zzz.${run}@example.com`, phone: `+1203${String(Date.now() + 2).slice(-7)}`, password: 'password1' }); expect(second.status).toBe(201); ids.push(second.body.user.id);
 });
 afterAll(async () => { await prisma.user.deleteMany({ where: { id: { in: ids } } }); await prisma.$disconnect(); });
 describe('automatic user search and optional field filters', () => {
+  it('returns nobody until the user provides a search', async () => {
+    const response = await agent.get('/api/users');
+    expect(response.status).toBe(200);
+    expect(response.body.users).toEqual([]);
+  });
   it.each(['Alex Morgan Smith', 'alex morgan', target.username, `@${target.username}`, target.email, target.email.toUpperCase(), target.phone, target.phone.replace(/\D/g, '')])('finds an account using %s without specifying a field', async query => {
     const response = await agent.get('/api/users').query({ query }); expect(response.status).toBe(200);
     expect(response.body.users).toEqual([expect.objectContaining({ id: ids[1] })]);
@@ -31,5 +36,13 @@ describe('automatic user search and optional field filters', () => {
     await request(app).get('/api/users').query({ query: target.email }).expect(401);
     await agent.get('/api/users').query({ field: 'invalid' }).expect(400);
     expect((await agent.get('/api/users').query({ query: `search_${run}` })).body.users).toEqual([]);
+  });
+  it('matches only explicitly supplied contacts and does not create friendships', async () => {
+    const byEmail = await agent.post('/api/users/contacts').send({ emails: [target.email], phones: [] }).expect(200);
+    expect(byEmail.body.users).toEqual([expect.objectContaining({ id: ids[1], isFriend: false })]);
+    const byPhone = await agent.post('/api/users/contacts').send({ emails: [], phones: [target.phone] }).expect(200);
+    expect(byPhone.body.users).toEqual([expect.objectContaining({ id: ids[1], isFriend: false })]);
+    expect((await agent.post('/api/users/contacts').send({ emails: ['nobody@example.com'], phones: [] })).body.users).toEqual([]);
+    expect((await agent.get('/api/friends')).body.friends).toEqual([]);
   });
 });

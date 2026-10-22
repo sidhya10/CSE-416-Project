@@ -2,7 +2,7 @@
 
 **Team:** Eva · Vivian · Nicole · Sidhya  
 **Course:** CSE 416 · Software Engineering  
-**Implementation status:** October 18, 2026
+**Implementation status:** October 22, 2026
 
 ## Project Overview
 
@@ -16,20 +16,21 @@ The app records that payments were sent and received, but it does not move money
 
 ### Accounts and profiles
 
-- Register and sign in with email and password.
-- Sign in with Google Identity Services when Google OAuth is configured.
+- Register with a required phone number and sign in using a username, email address, or phone number plus password.
+- Request an expiring, one-time password-reset link and change a password from Profile after verifying the current password.
+- Sign up or sign in with Google Identity Services when Google OAuth is configured.
 - Use signed httpOnly session cookies for authentication.
 - View and update profile photo, username, name, birthday, and bio.
 - View read-only email and phone information.
-- Change a password after verifying the current password.
-- Link Google authentication to an existing account.
+- Link Google authentication to an existing account only when the verified Google email exactly matches the account email.
 - Delete an account when doing so would not erase protected financial history.
 - Switch between Light and Dark appearance modes. The preference is stored in the browser and synchronized between tabs.
 
 ### Friends and group access
 
-- Search registered users by name, username, email, or phone number.
-- Add users as friends and persist friendships in PostgreSQL.
+- Search registered users by name, username, email, or phone number. No accounts are displayed before the user searches.
+- Add or remove friends and persist friendships in PostgreSQL.
+- On browsers that support the Contact Picker API, explicitly select contacts and privately match their email addresses or phone numbers to registered users. Selected contact details are checked but not stored.
 - Create groups using members from the authenticated user's friend list.
 - Assign Owner, Admin, and Member roles.
 - Restrict group data and actions to authenticated group members.
@@ -168,7 +169,7 @@ Possible future features also include CSV export, exportable trip summaries, sav
 | Styling and charts | CSS | Responsive layouts, theme support, progress bars, and chart-like visualizations |
 | Backend | Node.js, Express, TypeScript | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts |
 | Database | PostgreSQL, Prisma | Relational persistence and transactional financial operations |
-| Authentication | bcrypt, Google Identity Services, signed httpOnly cookies | Password and Google login with server-managed sessions |
+| Authentication | bcrypt, Google Identity Services, signed httpOnly cookies | Identifier/password login, password recovery, Google authentication, and server-managed sessions |
 | Bank data | Plaid | Account connection, balance retrieval, and transaction synchronization |
 | Receipt processing | Azure Document Intelligence, `heic-convert`, `sharp` | Receipt extraction, HEIC conversion, and image processing |
 | File storage | PostgreSQL `bytea` through Prisma `Bytes` | Authenticated storage of selected receipt attachments |
@@ -227,7 +228,9 @@ npm ci --include=optional
 
 ### Optional provider configuration
 
-Email/password authentication and manual expense entry work without Google, Plaid, or Azure credentials.
+Password authentication and manual expense entry work without Google, Plaid, Azure, or email-provider credentials. In development, password-reset links are logged by the server when email delivery is not configured.
+
+To deliver password-reset emails, set `APP_ORIGIN` to the public client origin and configure `RESEND_API_KEY` plus `PASSWORD_RESET_FROM` as documented in `.env.example`.
 
 To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth Web client ID and configure the local and deployed browser origins in Google Cloud.
 

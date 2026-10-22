@@ -9,7 +9,7 @@ const ids: string[] = [], groups: string[] = [];
 const run = randomUUID().slice(0, 8);
 beforeAll(async () => {
   for (const [index, agent] of [owner, member, observer, outsider].entries()) {
-    const response = await agent.post('/api/auth/register').send({ name: `Lifecycle ${index}`, email: `lifecycle-${index}-${run}@example.com`, username: `life_${index}_${run}`, password: 'password1' }).expect(201);
+    const response = await agent.post('/api/auth/register').send({ name: `Lifecycle ${index}`, email: `lifecycle-${index}-${run}@example.com`, username: `life_${index}_${run}`, phone: `+1208${String(Date.now() + index).slice(-7)}`, password: 'password1' }).expect(201);
     ids.push(response.body.user.id);
   }
 });

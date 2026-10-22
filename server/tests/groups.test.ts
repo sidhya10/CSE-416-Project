@@ -20,6 +20,7 @@ describe('groups, memberships, roles, and invitations', () => {
         name: ['Owner', 'Member', 'Admin', 'Outsider'][index],
         username: `group_${index}_${run.replace(/-/g, '').slice(-10)}`,
         email,
+        phone: `+1211${String(Date.now() + index).slice(-7)}`,
         password: 'password1',
       });
       expect(created.status).toBe(201);

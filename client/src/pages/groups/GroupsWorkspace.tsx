@@ -228,6 +228,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   }, [initialGroupsData]);
   useEffect(() => {
     if (screen !== 'friends') return;
+    if (!query.trim()) { setSearchResults([]); setPeopleLoading(false); return; }
     setPeopleLoading(true);
     let cancelled = false;
     const timeout = window.setTimeout(() => {
@@ -350,6 +351,23 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       setSearchResults(previous => previous.map(item => item.id === friend.id ? { ...item, isFriend: false } : item));
       setActiveFriend(previous => previous?.id === friend.id ? { ...previous, isFriend: false } : previous);
     } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not remove this friend.'); }
+  };
+  const matchContacts = async () => {
+    const contacts = (navigator as Navigator & { contacts?: { select: (properties: ('email' | 'tel')[], options: { multiple: boolean }) => Promise<{ email?: string[]; tel?: string[] }[]> } }).contacts;
+    if (!contacts) { setMessage('Contact matching is not supported by this browser. You can still search by name, username, email, or phone.'); return; }
+    setPeopleLoading(true); setMessage('');
+    try {
+      const selectedContacts = await contacts.select(['email', 'tel'], { multiple: true });
+      const result = await usersApi.matchContacts({
+        emails: selectedContacts.flatMap(contact => contact.email ?? []),
+        phones: selectedContacts.flatMap(contact => contact.tel ?? []),
+      });
+      setSearchResults(result.users.map(toFriend));
+      if (!result.users.length) setMessage('No app accounts matched the contacts you selected.');
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setMessage(error instanceof ApiError ? error.message : 'Could not match your selected contacts.');
+    } finally { setPeopleLoading(false); }
   };
   const saveGroupSettings = async () => {
     if (!active) return;
@@ -585,16 +603,19 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     {screen === 'friends' && <>
       <Header title="Find friends" subtitle="Search by full name, username, email, or phone number" back={() => go('list')} />
       <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, @username, email, or phone" aria-label="Search friends" /></label>
+      <button className="group-secondary contact-match-button" type="button" onClick={() => void matchContacts()}>Find people from selected contacts</button>
+      <p className="group-caption contact-privacy">Your address book is never uploaded or stored. Only contacts you explicitly select are checked for email or phone matches.</p>
       <div className="group-form filter-grid">
       <label>Sort people by<select value={friendSort} onChange={event => setFriendSort(event.target.value)}><option value="name">Name</option><option value="username">Username</option><option value="email">Email</option></select></label></div>
-      <h2 className="group-overline">{query ? 'SEARCH RESULTS' : `ALL PEOPLE · FRIENDS FIRST`}</h2>
+      <h2 className="group-overline">SEARCH RESULTS</h2>
       {peopleLoading && <p className="group-caption" role="status">Searching accounts…</p>}
-      {!peopleLoading && searchResults.length === 0 && <p className="group-caption">No matching accounts found.</p>}
+      {!peopleLoading && !query.trim() && searchResults.length === 0 && <p className="group-caption">People are not shown until you search or select contacts.</p>}
+      {!peopleLoading && query.trim() && searchResults.length === 0 && <p className="group-caption">No matching accounts found.</p>}
       {searchResults.map(friend => <div className="friend-card" key={friend.id}>
         <button type="button" className="friend-profile-link" onClick={() => void openFriend(friend)}>
           <Avatar name={friend.name} color={friend.color} photo={friend.photoUrl} /><span><strong>{friend.name}</strong><small>{friend.handle} · {friend.email}</small></span>
         </button>
-        {friend.isFriend ? <span className="friend-status">Friends</span> : <button type="button" onClick={() => void addFriend(friend)}>Add</button>}
+        {friend.isFriend ? <button type="button" className="friend-remove-inline" onClick={() => void removeFriend(friend)}>Remove</button> : <button type="button" onClick={() => void addFriend(friend)}>Add</button>}
       </div>)}
       {message && <p className="group-notice" role="status">{message}</p>}
     </>}

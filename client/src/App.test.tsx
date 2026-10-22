@@ -26,11 +26,13 @@ describe('App account integration', () => {
       if (url.endsWith('/auth/me')) return authenticated ? response({ user: account }) : response({ error: 'Authentication required' }, 401);
       if (url.endsWith('/auth/register')) { authenticated = true; return response({ user: account }, 201); }
       if (url.endsWith('/auth/login')) return response({ user: account });
+      if (url.endsWith('/auth/forgot-password')) return response({ message: 'If an account matches, a password reset link has been sent.' }, 202);
       if (url.endsWith('/auth/logout') || (url.endsWith('/users/me') && init?.method === 'DELETE')) return response(null, 204);
       if (url.endsWith('/users/me') && init?.method === 'PATCH') return response({ user: { ...account, ...JSON.parse(String(init.body)) } });
       if (url.includes('/users?query=')) return response({ users: [friend, stranger] });
       if (url.endsWith('/users/friend-1')) return response({ user: { ...friend, sharedGroups: [] } });
       if (url.endsWith('/friends')) return response({ friends: [friend] });
+      if (url.endsWith('/friends/friend-1') && init?.method === 'DELETE') return response(null, 204);
       if (url.endsWith('/groups')) return response({ groups: [] });
       if (url.endsWith('/friends/user-2')) return response({ friend: { ...stranger, isFriend: true } }, 201);
       return response({ error: 'Not found' }, 404);
@@ -44,7 +46,7 @@ describe('App account integration', () => {
     try {
       render(<App />);
       await screen.findByRole('heading', { name: 'Welcome back' });
-      fireEvent.change(screen.getByRole('textbox', { name: 'EMAIL' }), { target: { value: account.email } });
+      fireEvent.change(screen.getByRole('textbox', { name: 'USERNAME, EMAIL, OR PHONE' }), { target: { value: account.email } });
       fireEvent.change(screen.getByLabelText('PASSWORD'), { target: { value: 'password1' } });
       fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
       expect(await screen.findByRole('heading', { name: homeGreeting })).toBeInTheDocument();
@@ -61,9 +63,21 @@ describe('App account integration', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'NAME' }), { target: { value: 'Account Owner' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'USERNAME' }), { target: { value: 'owner' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'EMAIL' }), { target: { value: 'owner@example.com' } });
+    fireEvent.change(screen.getAllByRole('textbox', { name: 'PHONE NUMBER' }).at(-1)!, { target: { value: '+1 555 010 0000' } });
     fireEvent.change(screen.getByLabelText('PASSWORD'), { target: { value: 'password1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     expect(await screen.findByRole('heading', { name: homeGreeting })).toBeInTheDocument();
+  });
+
+  it('requests password recovery without exposing whether the identifier exists', async () => {
+    authenticated = false;
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Welcome back' });
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'USERNAME, EMAIL, OR PHONE' }), { target: { value: '@owner' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+    expect(await screen.findByText('If an account matches, a password reset link has been sent.')).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/forgot-password'), expect.objectContaining({ body: JSON.stringify({ identifier: '@owner' }) }));
   });
 
   it('shows backend profile data and persists editable fields', async () => {
@@ -80,11 +94,13 @@ describe('App account integration', () => {
     expect(screen.getByText('+1 555 0100')).toBeInTheDocument();
   });
 
-  it('loads all accounts, keeps friends visible by default, and opens friend details', async () => {
+  it('shows nobody until search, then supports opening and removing a friend', async () => {
     render(<App />);
     await screen.findByRole('heading', { name: homeGreeting });
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     fireEvent.click(screen.getByRole('button', { name: /find friends/i }));
+    expect(screen.queryByText('Existing Friend')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Search friends'), { target: { value: 'Existing' } });
     const existing = await screen.findByText('Existing Friend');
     expect(existing).toBeInTheDocument();
     expect(screen.getByText('New Person')).toBeInTheDocument();
@@ -92,6 +108,8 @@ describe('App account integration', () => {
     expect(await screen.findByRole('heading', { name: 'Friend profile' })).toBeInTheDocument();
     expect(screen.getByText('friend@example.com')).toBeInTheDocument();
     expect(screen.getByText('+1 555 0101')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove friend' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/friends/friend-1'), expect.objectContaining({ method: 'DELETE' })));
   });
 
   it('starts groups empty instead of rendering placeholder records', async () => {

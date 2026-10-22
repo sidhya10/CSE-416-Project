@@ -27,6 +27,8 @@ describe('group and friend filter controls', () => {
     vi.stubGlobal('fetch', vi.fn(async () => response({ users: [] })));
     render(<GroupsWorkspace currentUser={currentUser} onRootChange={() => {}} initialFriendsData={[]} initialGroupsData={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /find friends/i }));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByText(/People are not shown until/)).toBeInTheDocument();
     for (const query of ['Alex Morgan', '@alex', 'alex@example.com', '+1 (212) 555-1234']) {
       fireEvent.change(screen.getByLabelText('Search friends'), { target: { value: query } });
       await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining(`query=${encodeURIComponent(query)}&field=all&sort=name`), expect.anything()));

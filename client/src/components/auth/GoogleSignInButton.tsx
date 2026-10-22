@@ -4,8 +4,8 @@ import { ApiError } from '../../api/client';
 import type { AppUser } from '../../api/types';
 import { loadGoogleIdentity, prepareGoogle, renderGoogleButton } from './googleIdentity';
 
-export default function GoogleSignInButton({ intent = 'signin', signup = false, onSuccess, onBusyChange, disabled = false }: {
-  intent?: 'signin' | 'link'; signup?: boolean; onSuccess: (user: AppUser) => void; onBusyChange?: (busy: boolean) => void; disabled?: boolean;
+export default function GoogleSignInButton({ intent = 'signin', signup = false, phone, onSuccess, onBusyChange, disabled = false }: {
+  intent?: 'signin' | 'link'; signup?: boolean; phone?: string; onSuccess: (user: AppUser) => void; onBusyChange?: (busy: boolean) => void; disabled?: boolean;
 }) {
   const target = useRef<HTMLDivElement>(null);
   const onBusyChangeRef = useRef(onBusyChange);
@@ -26,7 +26,7 @@ export default function GoogleSignInButton({ intent = 'signin', signup = false, 
     setMessage(''); setReady(false); setBusy(false);
     void (async () => {
       try {
-        const attempt = await prepareGoogle(intent);
+        const attempt = await prepareGoogle(signup ? 'signup' : intent);
         if (cancelled) return;
         const configured = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
         if (configured && configured !== attempt.clientId) throw new Error('Google client IDs do not match. Set GOOGLE_CLIENT_ID and VITE_GOOGLE_CLIENT_ID to the same Web client ID, then restart.');
@@ -35,7 +35,7 @@ export default function GoogleSignInButton({ intent = 'signin', signup = false, 
         dispose = renderGoogleButton(id, target.current, { ...attempt, signup, dark: document.documentElement.dataset.theme === 'dark', onCredential: credential => {
           if (cancelled || submitting) return;
           submitting = true; setBusy(true); onBusyChangeRef.current?.(true); setMessage('');
-          void (intent === 'link' ? authApi.linkGoogle(credential, attempt.state) : authApi.google(credential, attempt.state))
+          void (intent === 'link' ? authApi.linkGoogle(credential, attempt.state) : authApi.google(credential, attempt.state, signup ? phone : undefined))
             .then(result => { if (!cancelled) onSuccessRef.current(result.user); })
             .catch(error => { if (!cancelled) setMessage(error instanceof ApiError ? error.message : 'Could not finish Google sign-in. Try again.'); })
             .finally(() => { if (!cancelled) { submitting = false; setBusy(false); onBusyChangeRef.current?.(false); } });
@@ -47,7 +47,7 @@ export default function GoogleSignInButton({ intent = 'signin', signup = false, 
       }
     })();
     return () => { cancelled = true; dispose?.(); clearTimeout(refresh); onBusyChangeRef.current?.(false); };
-  }, [intent, signup, disabled, attemptNumber]);
+  }, [intent, signup, phone, disabled, attemptNumber]);
 
   return <section className="google-auth-control" aria-label={label} aria-busy={busy}>
     {intent === 'link' && <p className="google-connect-label">Connect Google account</p>}

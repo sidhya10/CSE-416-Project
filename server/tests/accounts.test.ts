@@ -25,7 +25,8 @@ describe('accounts and friendships', () => {
     expect(registered.headers['set-cookie']?.[0]).toContain('HttpOnly');
 
     const createdFriend = await friend.post('/api/users').send({
-      name: 'Friend Account', username: `friend_${run.replace(/-/g, '').slice(-13)}`, email: friendEmail, password: 'password2',
+      name: 'Friend Account', username: `friend_${run.replace(/-/g, '').slice(-13)}`, email: friendEmail,
+      phone: `+1205${String(Date.now() + 1).slice(-7)}`, password: 'password2',
     });
     expect(createdFriend.status).toBe(201);
 
@@ -52,8 +53,12 @@ describe('accounts and friendships', () => {
     const detail = await owner.get(`/api/users/${createdFriend.body.user.id}`);
     expect(detail.body.user).toMatchObject({ email: friendEmail, isFriend: true, sharedGroups: [] });
 
+    await owner.delete(`/api/friends/${createdFriend.body.user.id}`).expect(204);
+    expect((await owner.get('/api/friends')).body.friends).toEqual([]);
+    expect((await owner.get(`/api/users/${createdFriend.body.user.id}`)).body.user.isFriend).toBe(false);
+
     await owner.post('/api/auth/logout').expect(204);
-    const login = await owner.post('/api/auth/login').send({ email: ownerEmail, password: 'password1' });
+    const login = await owner.post('/api/auth/login').send({ identifier: ownerEmail, password: 'password1' });
     expect(login.status).toBe(200);
     await owner.delete('/api/users/me').expect(204);
     await owner.get('/api/auth/me').expect(401);

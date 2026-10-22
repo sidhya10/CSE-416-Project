@@ -9,7 +9,7 @@ const ids: string[] = [], groups: string[] = [];
 const run = randomUUID().slice(0, 8);
 beforeAll(async () => {
   for (const [index, agent] of agents.entries()) {
-    const created = await agent!.post('/api/auth/register').send({ name: ['Alex', 'Jordan', 'Casey', 'Outside'][index], username: `settle_${index}_${run}`, email: `settle-${index}-${run}@example.com`, password: 'password1' }).expect(201);
+    const created = await agent!.post('/api/auth/register').send({ name: ['Alex', 'Jordan', 'Casey', 'Outside'][index], username: `settle_${index}_${run}`, email: `settle-${index}-${run}@example.com`, phone: `+1202${String(Date.now() + index).slice(-7)}`, password: 'password1' }).expect(201);
     ids.push(created.body.user.id);
   }
 });
@@ -158,7 +158,7 @@ it('keeps opposite-direction obligations even when every member has a zero net b
 it('retains a period when its non-financial initiator deletes their account', async () => {
   const id = await group(); await expense(id, 'Others paid', ids[0]!, 6000, ids.slice(0, 2));
   const initiator = request.agent(app);
-  const created = await initiator.post('/api/auth/register').send({ name: 'Initiator', username: `initiator_${run}`, email: `initiator-${run}@example.com`, password: 'password1' }).expect(201);
+  const created = await initiator.post('/api/auth/register').send({ name: 'Initiator', username: `initiator_${run}`, email: `initiator-${run}@example.com`, phone: `+1202${String(Date.now() + 9).slice(-7)}`, password: 'password1' }).expect(201);
   const initiatorId = created.body.user.id as string;
   ids.push(initiatorId);
   await owner!.post(`/api/groups/${id}/invitations`).send({ userIds: [initiatorId] }).expect(201);
