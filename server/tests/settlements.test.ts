@@ -51,6 +51,17 @@ it('allows any member to initialize only unpaid, unbatched transactions, preserv
   expect(created.body.batch.pairs.map((p: { amountCents: number }) => p.amountCents).sort()).toEqual([1500, 2000]);
   const repeat = await observer!.post(`/api/groups/${id}/settlements`).send(payload).expect(201);
   expect(repeat.body.batch.id).toBe(created.body.batch.id);
+  const notices = await prisma.settlementNotice.findMany({ where: { batchId: created.body.batch.id, kind: 'SPLIT_CREATED' } });
+  expect(notices).toHaveLength(3);
+  expect(notices.find(n => n.recipientId === ids[0])?.message).toContain('You are owed $35.00');
+  expect(notices.find(n => n.recipientId === ids[1])?.message).toContain('You owe $15.00');
+  expect(notices.find(n => n.recipientId === ids[2])?.message).toContain('You owe $20.00');
+  await request(app).get('/api/settlement-notices').expect(401);
+  const history = await observer!.get('/api/settlement-notices').expect(200);
+  expect(history.body.notices.find((n: { id: string }) => n.id === notices.find(n => n.recipientId === ids[2])!.id)).toMatchObject({ groupId: id, kind: 'SPLIT_CREATED', readAt: null });
+  const outsiders = await outsider!.get('/api/settlement-notices').expect(200);
+  expect(outsiders.body.notices.some((n: { groupId: string }) => n.groupId === id)).toBe(false);
+
   expect(await prisma.settlementBatch.count({ where: { groupId: id } })).toBe(1);
   expect((await member!.get(`/api/groups/${id}/settlements/preview`).expect(200)).body.expenseIds).toEqual([]);
   await owner!.put(`/api/expenses/${current.id}`).send({ version: 1, expense: current.input }).expect(409);
@@ -86,6 +97,11 @@ it('reports how money was sent atomically across expenses, confirms only as reci
   expect(pair.pendingPayments).toHaveLength(2);
   expect(pair.pendingPayments.every((p: { method: string }) => p.method === 'Venmo')).toBe(true);
   await member!.post(`/api/settlements/${batchId}/payments`).send({ ...payload, clientRequestId: randomUUID() }).expect(409);
+  const sentNotices = await prisma.settlementNotice.findMany({ where: { batchId, kind: 'PAYMENT_SENT' } });
+  expect(sentNotices).toHaveLength(1);
+  expect(sentNotices[0]).toMatchObject({ recipientId: ids[0], actorId: ids[1], readAt: null });
+  expect(sentNotices[0]!.message).toContain('Jordan reported sending you $30.00');
+  expect(sentNotices[0]!.message).toContain('Please confirm');
   const confirm = { senderId: ids[1], paymentIds: pair.pendingPayments.map((p: { id: string }) => p.id), status: 'CONFIRMED' };
   await observer!.post(`/api/settlements/${batchId}/confirm`).send(confirm).expect(403);
   await member!.post(`/api/settlements/${batchId}/confirm`).send(confirm).expect(403);
@@ -154,6 +170,10 @@ it('keeps opposite-direction obligations even when every member has a zero net b
   expect(batch.totalCents).toBe(6000);
   expect(batch.completed).toBe(false);
   expect(batch.pairs).toHaveLength(2);
+  const notices = await prisma.settlementNotice.findMany({ where: { batchId: batch.id, kind: 'SPLIT_CREATED' } });
+  expect(notices.find(n => n.recipientId === ids[0])?.message).toContain('You owe $30.00 and are owed $30.00');
+  expect(notices.find(n => n.recipientId === ids[2])?.message).toContain('You owe nothing and have nothing to collect');
+
 });
 it('retains a period when its non-financial initiator deletes their account', async () => {
   const id = await group(); await expense(id, 'Others paid', ids[0]!, 6000, ids.slice(0, 2));
@@ -180,6 +200,14 @@ it('reports and confirms one combined group payment across periods atomically an
   await member!.post(`/api/groups/${id}/settlement-payments`).send(payload).expect(200);
   expect(await prisma.expensePayment.count({ where: { senderUserId: ids[1], share: { expense: { groupId: id } } } })).toBe(2);
   await member!.post(`/api/groups/${id}/settlement-payments`).send({ ...payload, allocations: payload.allocations.slice(0, 1) }).expect(409);
+  const sentNotices = await prisma.settlementNotice.findMany({ where: { batch: { groupId: id }, kind: 'PAYMENT_SENT' } });
+  expect(sentNotices).toHaveLength(1);
+  expect(sentNotices[0]).toMatchObject({ recipientId: ids[0], actorId: ids[1], readAt: null });
+  expect(sentNotices[0]!.message).toContain('Jordan reported sending you $30.00');
+  const ownerHistory = (await owner!.get('/api/settlement-notices').expect(200)).body.notices;
+  expect(ownerHistory.find((n: { id: string }) => n.id === sentNotices[0]!.id)).toMatchObject({ groupId: id, kind: 'PAYMENT_SENT', readAt: null });
+  const senderHistory = (await member!.get('/api/settlement-notices').expect(200)).body.notices;
+  expect(senderHistory.some((n: { id: string }) => n.id === sentNotices[0]!.id)).toBe(false);
   const boxes = (await owner!.get('/api/settlements')).body.batches.filter((b: { groupId: string }) => b.groupId === id);
   const allocations = boxes.map((b: { id: string; pairs: { senderId: string; pendingPayments: { id: string }[] }[] }) => ({ batchId: b.id, paymentIds: b.pairs.find(p => p.senderId === ids[1])!.pendingPayments.map(p => p.id) }));
   const confirmation = { senderId: ids[1], status: 'CONFIRMED', allocations };
@@ -189,8 +217,10 @@ it('reports and confirms one combined group payment across periods atomically an
   expect(await prisma.expensePayment.count({ where: { senderUserId: ids[1], status: 'CONFIRMED', share: { expense: { groupId: id } } } })).toBe(0);
   await owner!.post(`/api/groups/${id}/settlement-confirmations`).send(confirmation).expect(200);
   await owner!.post(`/api/groups/${id}/settlement-confirmations`).send(confirmation).expect(200);
-  const notices = await prisma.settlementNotice.findMany({ where: { batch: { groupId: id }, recipientId: ids[1] } });
-  expect(notices).toHaveLength(1); expect(notices[0]!.message).toContain('$30.00');
+  const notices = await prisma.settlementNotice.findMany({ where: { batch: { groupId: id }, recipientId: ids[1], kind: 'CONFIRMED' } });
+  expect(notices).toHaveLength(1); expect(notices[0]!.message).toContain('Alex confirmed receiving $30.00');
+  const history = (await member!.get('/api/settlement-notices').expect(200)).body.notices;
+  expect(history.find((n: { id: string }) => n.id === notices[0]!.id)).toMatchObject({ groupId: id, kind: 'CONFIRMED', readAt: null });
 });
 it('rejects stale group totals and payments from another group without partial writes', async () => {
   const id = await group(); await expense(id); const first = (await initialize(id)).body.batch;
@@ -206,9 +236,23 @@ it('sends one reminder with the combined group total and enforces cooldown acros
   await expense(id, 'New split', ids[0]!, 3000); await initialize(id);
   await member!.post(`/api/groups/${id}/settlement-reminders`).send({ recipientId: ids[2] }).expect(409);
   await owner!.post(`/api/groups/${id}/settlement-reminders`).send({ recipientId: ids[1] }).expect(204);
-  const notices = await prisma.settlementNotice.findMany({ where: { batch: { groupId: id }, recipientId: ids[1] } });
+  const notices = await prisma.settlementNotice.findMany({ where: { batch: { groupId: id }, recipientId: ids[1], kind: 'REMINDER' } });
   expect(notices).toHaveLength(1); expect(notices[0]!.message).toContain('$30.00');
   await member!.post(`/api/settlement-notices/${notices[0]!.id}/read`).expect(204);
   await expense(id, 'Another split'); await initialize(id);
   await owner!.post(`/api/groups/${id}/settlement-reminders`).send({ recipientId: ids[1] }).expect(429);
+});
+
+it('notifies both parties when a split expense is paid from its details, without duplicating retries', async () => {
+  const id = await group(), item = await expense(id);
+  const batchId = (await initialize(id)).body.batch.id;
+  const payload = { amountCents: 2000, clientRequestId: randomUUID() };
+  const sent = await member!.post(`/api/expenses/${item.id}/payments`).send(payload).expect(201);
+  await member!.post(`/api/expenses/${item.id}/payments`).send(payload).expect(201);
+  const notices = await prisma.settlementNotice.findMany({ where: { batchId, kind: 'PAYMENT_SENT' } });
+  expect(notices).toHaveLength(1);
+  expect(notices[0]).toMatchObject({ recipientId: ids[0], actorId: ids[1] });
+  expect(notices[0]!.message).toContain('Jordan reported sending you $20.00');
+  for (let retry = 0; retry < 2; retry++) await owner!.patch(`/api/expenses/${item.id}/payments/${sent.body.payment.id}`).send({ status: 'CONFIRMED' }).expect(200);
+  expect(await prisma.settlementNotice.count({ where: { batchId, recipientId: ids[1], kind: 'CONFIRMED' } })).toBe(1);
 });

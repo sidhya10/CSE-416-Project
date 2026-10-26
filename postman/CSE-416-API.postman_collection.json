@@ -18,7 +18,8 @@
           "    pm.collectionVariables.set(role + 'Email', role + '.' + run + '@example.test');",
           "    pm.collectionVariables.set(role + 'Username', role + '_' + run.slice(-10));",
           "  });",
-          "}"
+          "}",
+          "pm.collectionVariables.set('phoneSuffix', pm.collectionVariables.get('run').slice(-9));"
         ],
         "type": "text/javascript"
       }
@@ -35,27 +36,27 @@
     },
     {
       "name": "Register owner",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{ownerEmail}}\",\"username\":\"{{ownerUsername}}\",\"password\":\"{{password}}\",\"name\":\"Group Owner\"}" }, "url": "{{baseUrl}}/api/auth/register" },
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\": \"{{ownerEmail}}\", \"username\": \"{{ownerUsername}}\", \"password\": \"{{password}}\", \"name\": \"Group Owner\", \"phone\": \"+11{{phoneSuffix}}\"}" }, "url": "{{baseUrl}}/api/auth/register" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner registered', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('ownerId', pm.response.json().user.id);"], "type": "text/javascript" } }]
     },
     {
       "name": "Register member",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{memberEmail}}\",\"username\":\"{{memberUsername}}\",\"password\":\"{{password}}\",\"name\":\"Group Member\"}" }, "url": "{{baseUrl}}/api/auth/register" },
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\": \"{{memberEmail}}\", \"username\": \"{{memberUsername}}\", \"password\": \"{{password}}\", \"name\": \"Group Member\", \"phone\": \"+12{{phoneSuffix}}\"}" }, "url": "{{baseUrl}}/api/auth/register" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Member registered', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('memberId', pm.response.json().user.id);"], "type": "text/javascript" } }]
     },
     {
       "name": "Register admin",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{adminEmail}}\",\"username\":\"{{adminUsername}}\",\"password\":\"{{password}}\",\"name\":\"Group Admin\"}" }, "url": "{{baseUrl}}/api/auth/register" },
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\": \"{{adminEmail}}\", \"username\": \"{{adminUsername}}\", \"password\": \"{{password}}\", \"name\": \"Group Admin\", \"phone\": \"+13{{phoneSuffix}}\"}" }, "url": "{{baseUrl}}/api/auth/register" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Admin registered', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('adminId', pm.response.json().user.id);"], "type": "text/javascript" } }]
     },
     {
       "name": "Register outsider",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{outsiderEmail}}\",\"username\":\"{{outsiderUsername}}\",\"password\":\"{{password}}\",\"name\":\"Outside User\"}" }, "url": "{{baseUrl}}/api/auth/register" },
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\": \"{{outsiderEmail}}\", \"username\": \"{{outsiderUsername}}\", \"password\": \"{{password}}\", \"name\": \"Outside User\", \"phone\": \"+14{{phoneSuffix}}\"}" }, "url": "{{baseUrl}}/api/auth/register" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Outsider registered', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('outsiderId', pm.response.json().user.id);"], "type": "text/javascript" } }]
     },
     {
       "name": "Login owner",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{ownerEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"password\": \"{{password}}\", \"identifier\": \"{{ownerEmail}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Owner logged in', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().user.id).to.eql(pm.collectionVariables.get('ownerId')); });"], "type": "text/javascript" } }]
     },
     {
@@ -95,7 +96,7 @@
     },
     {
       "name": "Login member",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{memberEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"password\": \"{{password}}\", \"identifier\": \"{{memberEmail}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Member logged in', () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
     },
     {
@@ -123,7 +124,7 @@
     },
     {
       "name": "Login admin",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{adminEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"password\": \"{{password}}\", \"identifier\": \"{{adminEmail}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('Admin logged in', () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
     },
     {
@@ -133,7 +134,7 @@
     },
     {
       "name": "Login outsider",
-      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"{{outsiderEmail}}\",\"password\":\"{{password}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"password\": \"{{password}}\", \"identifier\": \"{{outsiderEmail}}\"}" }, "url": "{{baseUrl}}/api/auth/login" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('New member logged in', () => pm.response.to.have.status(200));"], "type": "text/javascript" } }]
     },
     {
@@ -153,7 +154,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"email\":\"{{ownerEmail}}\",\"password\":\"{{password}}\"}"
+          "raw": "{\"password\": \"{{password}}\", \"identifier\": \"{{ownerEmail}}\"}"
         },
         "url": "{{baseUrl}}/api/auth/login"
       },

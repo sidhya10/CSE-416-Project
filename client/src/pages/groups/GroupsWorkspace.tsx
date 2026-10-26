@@ -93,7 +93,8 @@ function Header({ title, subtitle, back, trailing }: { title: string; subtitle?:
   </header>;
 }
 
-export default function GroupsWorkspace({ onRootChange, currentUser, initialGroupsData, initialFriendsData, visible = true }: {
+export default function GroupsWorkspace({ onRootChange, currentUser, initialGroupsData, initialFriendsData, notificationTarget, visible = true }: {
+  notificationTarget?: { groupId: string; request: number } | null;
   visible?: boolean;
   onRootChange: (atRoot: boolean) => void;
   currentUser: AppUser;
@@ -254,6 +255,18 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     if (!initialGroupsData) void groupsApi.get(String(id)).then(() => refreshGroups()).catch(error => setMessage(error.message));
     else setGroups(previous => previous.map(group => group.id === id ? { ...group, lastAccessedAt: new Date().toISOString() } : group));
   };
+  const openedNotification = useRef<number | null>(null);
+  useEffect(() => {
+    if (!notificationTarget || !visible || expensesLoading || openedNotification.current === notificationTarget.request) return;
+    openedNotification.current = notificationTarget.request;
+    const target = groups.find(g => String(g.id) === notificationTarget.groupId);
+    setViewedExpense(null); setEditing(false); setQuery('');
+    if (target) {
+      setActiveId(target.id); setScreen('detail'); screenRef.current = 'detail'; onRootChange(false); setMessage('');
+    } else {
+      setActiveId(null); setScreen('list'); screenRef.current = 'list'; onRootChange(true); setMessage('This group is no longer available to your account.');
+    }
+  }, [notificationTarget, visible, expensesLoading, groups, onRootChange]);
   const canArchive = (group: Group) => group.canArchive ?? !(group.hasUnresolved || group.balance !== 0 ||
     (previewSplits[group.id] ?? []).some(split => split.shares.some(share => share.memberId !== split.payerId &&
       share.totalCents > (split.payments ?? []).filter(payment => payment.memberId === share.memberId).reduce((sum, payment) => sum + payment.receivedCents, 0))));
@@ -676,6 +689,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         <Avatar name={active.name} color={active.color} photo={active.photo} /><span><h1>{active.name}</h1><small>{active.type}{active.type === 'Trip' && active.startDate ? ` · ${dateLabel(active.startDate)}–${dateLabel(active.endDate)}` : ''} · {active.members.length + 1} members</small></span>
         <button type="button" className="group-more" onClick={() => { setEditing(true); go('settings'); }} aria-label="Group settings">•••</button></div>
       {active.type === 'Recurring' ? <>
+        {!initialGroupsData && <SettlementInbox key={active.id} groupId={String(active.id)} active={visible} onChanged={() => void refreshGroups()} />}
         <p className="detail-description">{active.description || 'Add a description in group settings.'}</p>
         <section className="recurring-calendar"><div><h2>{monthLabel(calendarMonth)}</h2><span>
           <button type="button" aria-label="Previous month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>‹</button>
@@ -712,12 +726,12 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         <section className="group-hero"><small>{active.type === 'Trip' ? 'YOUR TRIP OVERVIEW' : 'CURRENT RUNNING BALANCE'}</small>
           <div><span><small>{active.type === 'Trip' ? 'Current total' : 'You owe'}</small><strong>{active.type === 'Trip' ? formatCents(currentRunningTotal) : balanceMoney(Math.max(-active.balance, 0))}</strong></span>
             <span><small>{active.type === 'Trip' ? 'Your current expenses' : 'Owed to you'}</small><strong>{active.type === 'Trip' ? formatCents(yourCurrentExpenses) : balanceMoney(Math.max(active.balance, 0))}</strong></span></div></section>
+        {!initialGroupsData && <SettlementInbox key={active.id} groupId={String(active.id)} active={visible} onChanged={() => void refreshGroups()} />}
         <div className="group-split-actions"><button type="button" disabled={active.archived} onClick={() => { requestId.current = createRequestId(); go('expense'); }}>+ Add expense</button>
           <button type="button" disabled={active.archived || !activeSplits.some(unresolved)} title={!activeSplits.some(unresolved) ? 'Add an unresolved transaction before starting a split' : undefined}
             onClick={() => go(initialGroupsData ? 'running-split' : 'settlement-review')}>{active.type === 'Trip' ? 'Split Current Total' : 'Split current expenses'}</button></div>
         {message && <p className="group-notice" role="status">{message}</p>}
-        <section className="group-info"><strong>{active.type === 'Trip' ? active.description || 'Trip with friends' : 'Any member can add expenses and split when ready.'}</strong>
-          <small>{active.type === 'Trip' ? `Trip dates · ${dateLabel(active.startDate)} – ${dateLabel(active.endDate)}` : `About · ${active.description || 'No description yet'}`}</small></section>
+
         {active.type === 'Trip' && <>
           <div className="group-section-line"><h2 className="group-section-title">Planned expenses</h2><button type="button" onClick={() => go('plan')}>+ Plan expense</button></div>
           {active.plans.length === 0 ? <p className="group-caption">Estimate future costs before adding actual expenses.</p>
@@ -736,7 +750,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         {!currentSplits.length && <p className="group-caption">No new unresolved transactions in this period.</p>}
         </section>
         {waitingSplits.length > 0 && <section aria-label="Transactions awaiting settlement"><h2 className="group-section-title">Awaiting settlement</h2>
-          <p className="group-caption">Already split. Finish these repayments from Group payments.</p>
+          <p className="group-caption">Already split. Use Your payments above to send or confirm repayments.</p>
           {[...waitingSplits].reverse().map(split => <button type="button" className="group-transaction expense-list-row" key={split.expenseId} onClick={() => { setViewedExpense({ title: split.name, subtitle: 'Awaiting settlement', amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>Split initialized · View payments</small></span><b>{formatCents(split.totalCents)}</b></button>)}
         </section>}
         <section aria-label="Resolved transactions"><h2 className="group-section-title">Resolved transactions</h2>

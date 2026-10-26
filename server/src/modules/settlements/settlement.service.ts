@@ -67,6 +67,17 @@ export async function initializeSettlement(groupId: string, userId: string, inpu
       expenses: { connect: rows.map(r => ({ id: r.expense.id })) },
       shares: { create: rows.flatMap(r => r.shares.map(s => ({ ...s, expenseId: r.expense.id }))) },
     }, include: batchInclude });
+    const members = await tx.groupMembership.findMany({ where: { groupId }, select: { userId: true } });
+    const pairs = presentBatch(batch).pairs;
+    await tx.settlementNotice.createMany({ data: members.map(member => {
+      const owed = pairs.filter(p => p.senderId === member.userId).reduce((sum, p) => sum + p.amountCents, 0);
+      const collecting = pairs.filter(p => p.recipientId === member.userId).reduce((sum, p) => sum + p.amountCents, 0);
+      // Keep obligations in both directions; do not silently net different payees.
+      const summary = owed > 0
+        ? `You owe ${currency(owed)}${collecting > 0 ? ` and are owed ${currency(collecting)}` : ''}.`
+        : collecting > 0 ? `You are owed ${currency(collecting)}. You owe nothing.` : 'You owe nothing and have nothing to collect.';
+      return { batchId: batch.id, recipientId: member.userId, actorId: userId, kind: 'SPLIT_CREATED', message: `A new split is ready for ${group.name}. ${summary}` };
+    }) });
     await tx.group.update({ where: { id: groupId }, data: { lastActivityAt: new Date() } });
     return presentBatch(batch);
   });
@@ -81,7 +92,7 @@ export async function settlementInbox(userId: string) {
 export async function reportSettlementPayment(batchId: string, userId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }) {
   return transaction(tx => reportPayment(tx, batchId, userId, input));
 }
-async function reportPayment(tx: Transaction, batchId: string, userId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }) {
+async function reportPayment(tx: Transaction, batchId: string, userId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }, notify = true) {
     await lockMaintenance(tx);
     const batch = await readBatch(tx, batchId, userId);
     if (input.recipientId === userId) throw new ExpenseError(400, 'You cannot pay yourself');
@@ -99,8 +110,15 @@ async function reportPayment(tx: Transaction, batchId: string, userId: string, i
       const amount = Math.max(0, s.source.totalCents - committed);
       if (amount) await tx.expensePayment.create({ data: { expenseId: s.expenseId, senderUserId: userId, amountCents: amount, method: input.method, clientRequestId: `${prefix}${s.expenseId}` } });
     }
+    if (notify) await notifyPaymentSent(tx, batchId, userId, input.recipientId, input.amountCents, batch.group.name);
     await tx.group.update({ where: { id: batch.groupId }, data: { lastActivityAt: new Date() } });
     return presentBatch(await readBatch(tx, batchId, userId));
+}
+
+async function notifyPaymentSent(tx: Transaction, batchId: string, senderId: string, recipientId: string, amountCents: number, groupName: string) {
+  const sender = await tx.user.findUniqueOrThrow({ where: { id: senderId }, select: { name: true } });
+  await tx.settlementNotice.create({ data: { batchId, actorId: senderId, recipientId, kind: 'PAYMENT_SENT',
+    message: `${sender.name} reported sending you ${currency(amountCents)} for ${groupName}. Please confirm once you have received the money.` } });
 }
 
 export async function confirmSettlementPayments(batchId: string, userId: string, input: { senderId: string; paymentIds: string[]; status: 'CONFIRMED' | 'ISSUE' }) {
@@ -157,7 +175,9 @@ export async function reportGroupPayment(groupId: string, userId: string, input:
       if (!expected.length || key(expected) !== key(input.allocations)) throw new ExpenseError(409, 'Group payments changed. Close and reopen this card to review the updated total.');
     }
     // Every allocation commits together; retries reuse each period's original payment keys.
-    for (const allocation of input.allocations) await reportPayment(tx, allocation.batchId, userId, { ...input, clientRequestId: requestKey, amountCents: allocation.amountCents });
+    for (const allocation of input.allocations) await reportPayment(tx, allocation.batchId, userId, { ...input, clientRequestId: requestKey, amountCents: allocation.amountCents }, false);
+    if (!previous.length) await notifyPaymentSent(tx, input.allocations[0]!.batchId, userId, input.recipientId,
+      input.allocations.reduce((sum, a) => sum + a.amountCents, 0), batches[0]!.group.name);
     return { saved: true };
   });
 }

@@ -57,3 +57,5 @@
 .home-error p{margin:0}
 .home-retry{margin-top:8px;min-height:34px;padding:6px 12px;border:1px solid var(--danger);border-radius:10px;background:var(--surface);color:var(--danger);font-size:11px;font-weight:700}
 .home-empty{margin:12px 0 0;color:var(--muted);font-size:12px}
+
+.home-header-actions{display:flex;gap:6px;flex:none}.home-header-actions .home-gear{width:40px;height:44px;cursor:pointer}.home-header-actions button:focus-visible{outline:3px solid var(--focus);outline-offset:3px}

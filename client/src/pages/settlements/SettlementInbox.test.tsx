@@ -42,14 +42,16 @@ it('shows real sent/confirmed progress and lets only the recipient confirm or re
   fireEvent.click(within(dialog).getByRole('button', { name: 'Remind Jordan' }));
   await waitFor(() => expect(remind).toHaveBeenCalledWith('group', 'member'));
 });
-it('does not fetch hidden notifications and dismisses only the selected notice', async () => {
+it('does not fetch while hidden or duplicate notices on the payments screen', async () => {
   const current = { ...data(), batches: [], notices: [{ id: 'notice', batchId: 'batch', message: 'Alex confirmed receiving $30.', kind: 'CONFIRMED', createdAt: '' }] };
   const load = vi.spyOn(settlementsApi, 'inbox').mockResolvedValue(current);
   const dismiss = vi.spyOn(settlementsApi, 'dismiss').mockResolvedValue(undefined);
   const view = render(<SettlementInbox active={false} />);
   expect(load).not.toHaveBeenCalled(); view.rerender(<SettlementInbox active />);
-  fireEvent.click(await screen.findByRole('button', { name: /Dismiss Alex confirmed/ }));
-  await waitFor(() => expect(dismiss).toHaveBeenCalledWith('notice'));
+  await waitFor(() => expect(load).toHaveBeenCalled());
+  expect(screen.queryByText(current.notices[0]!.message)).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Group payments' })).not.toBeInTheDocument();
+  expect(dismiss).not.toHaveBeenCalled();
 });
 it('does not offer reminders when every debtor has reported sent, and never offers another payment while awaiting confirmation', async () => {
   const current = data('owner');
@@ -116,4 +118,17 @@ it('blocks a stale payment popup when a new split changes its allocations', asyn
   expect(await screen.findByRole('alert')).toHaveTextContent('The amount changed');
   expect(screen.getByRole('button', { name: 'I sent $60.00' })).toBeDisabled();
   expect(report).not.toHaveBeenCalled();
+});
+
+it('limits group-page payment cards and actions to the selected group', async () => {
+  const current = data();
+  current.batches.push({ ...structuredClone(batch), id: 'other-batch', groupId: 'other', groupName: 'Other group', pairs: [{ ...pair, recipientName: 'Someone else' }] });
+  vi.spyOn(settlementsApi, 'inbox').mockResolvedValue(current);
+  render(<SettlementInbox groupId="group" />);
+  expect(await screen.findByRole('heading', { name: 'Your payments' })).toBeVisible();
+  expect(screen.queryByText(/Other group/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Someone else/ })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Send Alex/ }));
+  expect(screen.getByRole('dialog', { name: 'Confirm money sent' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'I sent $30.00' })).toBeVisible();
 });

@@ -1,3 +1,5 @@
+import NotificationsPage from './pages/notifications/NotificationsPage';
+import NotificationsNavButton from './pages/notifications/NotificationsNavButton';
 import { useEffect, useState, type FormEvent } from 'react';
 import GoogleSignInButton from './components/auth/GoogleSignInButton';
 import { disableGoogleAutoSelect } from './components/auth/googleIdentity';
@@ -12,11 +14,11 @@ import WhatIfSimulator from './pages/budgets/WhatIfSimulator';
 import HomeDashboard from './pages/dashboard/HomeDashboard';
 import type { FriendFixture, GroupFixture } from './pages/groups/GroupsWorkspace';
 
-type Tab = 'Home' | 'Budget' | 'Groups' | 'Profile';
+type Tab = 'Home' | 'Budget' | 'Groups' | 'Notifications' | 'Profile';
 type AuthView = 'login' | 'signup' | 'forgot' | 'reset';
 const tabs: { label: Tab; glyph: string }[] = [
   { label: 'Home', glyph: '⌂' }, { label: 'Budget', glyph: '▥' },
-  { label: 'Groups', glyph: '◎' }, { label: 'Profile', glyph: '●' },
+  { label: 'Groups', glyph: '◎' }, { label: 'Notifications', glyph: '' }, { label: 'Profile', glyph: '●' },
 ];
 
 export default function App({ initialUser, groupFixtures, friendFixtures }: {
@@ -31,6 +33,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [tab, setTab] = useState<Tab>('Home');
+  const [notificationTarget, setNotificationTarget] = useState<{ groupId: string; request: number } | null>(null);
   const [notice, setNotice] = useState('');
   const [profileAtRoot, setProfileAtRoot] = useState(true);
   const [groupsAtRoot, setGroupsAtRoot] = useState(true);
@@ -92,12 +95,13 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   return <div className="device">
     {user ? <>
       <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} /></div>
+      <div hidden={tab !== 'Notifications'} className="profile-content"><NotificationsPage key={user.id} active={tab === 'Notifications'} onBack={() => setTab('Home')} onOpenGroup={groupId => { setNotificationTarget({ groupId, request: Date.now() }); setTab('Groups'); }} /></div>
       <div hidden={tab !== 'Budget' || simulatorOpen} className="profile-content"><CategoryBudgets active={tab === 'Budget'} onOpenSimulator={() => { setSimulatorVisited(true); setSimulatorOpen(true); }} /></div>
       <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator active={tab === 'Budget' && simulatorOpen} onBack={() => setSimulatorOpen(false)} />}</div>
       <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>
-      <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace visible={tab === 'Groups'} currentUser={user} onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>
-      {(tab === 'Home' || (tab === 'Budget' && !simulatorOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
-        {tabs.map(({ label, glyph }) => <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'} aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}><span className="tab-glyph" aria-hidden="true">{glyph}</span><span>{label}</span></button>)}
+      <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace notificationTarget={notificationTarget} visible={tab === 'Groups'} currentUser={user} onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>
+      {(tab === 'Home' || tab === 'Notifications' || (tab === 'Budget' && !simulatorOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
+        {tabs.map(({ label, glyph }) => label === 'Notifications' ? <NotificationsNavButton key={`${user.id}-notifications`} selected={tab === label} onClick={() => setTab(label)} /> : <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'} aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}><span className="tab-glyph" aria-hidden="true">{glyph}</span><span>{label}</span></button>)}
       </nav>}
     </> : view === 'login' ? <main className="login-screen">
       <div className="login-intro"><div className="logo-tile"><img src={receiptLogo} width="52" height="52" alt="" /></div><h1>Welcome back</h1><p>Keep personal and shared spending in sync.</p></div>
