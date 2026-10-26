@@ -23,6 +23,8 @@ export const phoneSchema = z.string().trim().min(1, 'Phone number is required').
 export async function findUserByIdentifier(raw: string) {
   const identifier = raw.trim();
   if (!identifier) return null;
+  // A leading @ denotes a username, not an email address.
+  if (/^@[A-Za-z0-9_]+$/.test(identifier)) return prisma.user.findUnique({ where: { username: identifier.slice(1).toLowerCase() } });
   if (identifier.includes('@')) return prisma.user.findUnique({ where: { email: identifier.toLowerCase() } });
 
   const normalizedPhone = normalizePhone(identifier);
