@@ -17,7 +17,8 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "if (!pm.collectionVariables.get('run')) { pm.collectionVariables.set('run', String(Date.now())); pm.collectionVariables.set('date', new Date().toISOString().slice(0,10)); ['expenseKey','splitKey','paymentKey'].forEach(key => pm.collectionVariables.set(key, pm.variables.replaceIn('{{$guid}}'))); }"
+          "if (!pm.collectionVariables.get('run')) { pm.collectionVariables.set('run', String(Date.now())); pm.collectionVariables.set('date', new Date().toISOString().slice(0,10)); ['expenseKey','splitKey','paymentKey'].forEach(key => pm.collectionVariables.set(key, pm.variables.replaceIn('{{$guid}}'))); }",
+          "pm.collectionVariables.set('phoneSuffix', pm.collectionVariables.get('run').slice(-9));"
         ]
       }
     }
@@ -36,7 +37,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"name\": \"Owner\", \"username\": \"settle_owner_{{run}}\", \"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+          "raw": "{\"name\": \"Owner\", \"username\": \"settle_owner_{{run}}\", \"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\", \"phone\": \"+11{{phoneSuffix}}\"}"
         }
       },
       "event": [
@@ -65,7 +66,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"name\": \"Member\", \"username\": \"settle_member_{{run}}\", \"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+          "raw": "{\"name\": \"Member\", \"username\": \"settle_member_{{run}}\", \"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\", \"phone\": \"+12{{phoneSuffix}}\"}"
         }
       },
       "event": [
@@ -94,7 +95,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+          "raw": "{\"password\": \"Testpass123\", \"identifier\": \"settle-owner-{{run}}@example.test\"}"
         }
       },
       "event": [
@@ -179,7 +180,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+          "raw": "{\"password\": \"Testpass123\", \"identifier\": \"settle-member-{{run}}@example.test\"}"
         }
       },
       "event": [
@@ -285,7 +286,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+          "raw": "{\"password\": \"Testpass123\", \"identifier\": \"settle-owner-{{run}}@example.test\"}"
         }
       },
       "event": [
@@ -388,7 +389,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+          "raw": "{\"password\": \"Testpass123\", \"identifier\": \"settle-member-{{run}}@example.test\"}"
         }
       },
       "event": [
@@ -550,7 +551,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"email\": \"settle-owner-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+          "raw": "{\"password\": \"Testpass123\", \"identifier\": \"settle-owner-{{run}}@example.test\"}"
         }
       },
       "event": [
@@ -645,7 +646,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"email\": \"settle-member-{{run}}@example.test\", \"password\": \"Testpass123\"}"
+          "raw": "{\"password\": \"Testpass123\", \"identifier\": \"settle-member-{{run}}@example.test\"}"
         }
       },
       "event": [
