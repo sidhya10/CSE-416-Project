@@ -26,7 +26,7 @@ form input::placeholder{color:var(--muted);opacity:1}
 .password-hint{display:flex;align-items:center;height:54px;padding:0 14px;border-radius:14px;background:var(--soft-green);color:var(--accent);font-size:10px;margin-top:2px}
 .signup-form .primary-button{margin-top:14px}.signup-screen .switch-auth{margin-top:27px}.signup-screen .preview-link{margin-bottom:10px}
 .placeholder-page{flex:1;padding:7px 23px}.placeholder-page h1{font-size:24px}
-.bottom-nav{height:64px;flex:none;display:grid;grid-template-columns:repeat(4,1fr);margin:0 23px 24px;border:1px solid var(--border);border-radius:22px;background:var(--surface);overflow:hidden}
+.bottom-nav{height:64px;flex:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:0 23px 24px;border:1px solid var(--border);border-radius:22px;background:var(--surface);overflow:hidden}
 .tab{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:var(--muted);font-size:9px}.tab.active{color:var(--accent);font-weight:600}.tab-glyph{height:28px;font-size:20px;line-height:25px}
 .profile-content{display:flex;flex:1;min-width:0;width:100%;min-height:0}.profile-content[hidden]{display:none}
 .settings-screen{width:100%;min-height:0;overflow-y:auto;padding:56px 23px 20px;scrollbar-width:thin}
@@ -61,3 +61,7 @@ button:disabled { cursor: not-allowed; }
 .google-button-target[hidden] { display: none; }
 .google-connect-label { margin: 14px 0 10px; color: var(--accent); font-size: 13px; font-weight: 600; }
 .google-retry { margin: 8px 0; padding: 8px 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
+
+.notifications-nav-icon{position:relative;display:grid;place-items:center}
+.notifications-nav-badge{position:absolute;top:-2px;right:-10px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:10px;background:var(--danger-strong);color:#fff;border:2px solid var(--surface);font-size:9px;font-weight:700;line-height:13px;text-align:center}
+.bottom-nav .tab{min-width:0;cursor:pointer}.bottom-nav .tab:focus-visible{outline:2px solid var(--focus);outline-offset:-4px;border-radius:16px}

@@ -29,13 +29,15 @@ export default function HomeDashboard({ userName, onNavigate, active = true }: {
   const monthLabel = personal.data ? budgetPeriod(personal.data).monthLabel : new Date().toLocaleDateString('en-US', { month: 'long' });
   const latest = home.data?.latestExpense;
 
+
   return <main className="home-screen">
     <header className="home-header">
       <div>
         <h1>{greetingFor(new Date().getHours())}, {firstName(userName)}</h1>
         <p>{monthLabel}</p>
       </div>
-      <button type="button" className="home-gear" aria-label="Settings" onClick={() => onNavigate('Profile')}>⚙</button>
+      <div className="home-header-actions">
+      <button type="button" className="home-gear" aria-label="Settings" onClick={() => onNavigate('Profile')}>⚙</button></div>
     </header>
     {personal.data && <span className="home-synced-badge">{personal.data.lastSyncedAt ? `↻ Synced ${relativeTime(personal.data.lastSyncedAt)}` : '↻ No bank synced yet'}</span>}
 

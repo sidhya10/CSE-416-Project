@@ -7,7 +7,7 @@ import { useLiveData } from '../dashboard/useLiveData';
 import { confirmAllocations, groupPayments, reportAllocations, type GroupPaymentPair, type GroupPayments } from './group-payments';
 import './settlements.css';
 
-export default function SettlementInbox({ active = true, onChanged }: { active?: boolean; onChanged?: () => void }) {
+export default function SettlementInbox({ active = true, onChanged, groupId }: { active?: boolean; onChanged?: () => void; groupId?: string }) {
   const { data, error: loadError, refresh } = useLiveData(settlementsApi.inbox, active);
   const [selection, setSelection] = useState<{ kind: 'send' | 'collect'; groupId: string; batchIds: string[] } | null>(null);
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false);
@@ -21,21 +21,20 @@ export default function SettlementInbox({ active = true, onChanged }: { active?:
   const run = async (work: () => Promise<unknown>, success: string) => {
     if (busy) return false;
     setBusy(true); setError('');
-    try { await work(); await refresh(); changed.current?.(); setMessage(success); return true; }
+    try { await work(); await refresh(); window.dispatchEvent(new Event('cse416:settlements')); changed.current?.(); setMessage(success); return true; }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not save. Please try again.'); return false; }
     finally { setBusy(false); }
   };
   const open = (kind: 'send' | 'collect', groupId: string) => { setError(''); setMessage(''); setSelection({ kind, groupId, batchIds: data?.batches.filter(b => b.groupId === groupId && !b.completed).map(b => b.id) ?? [] }); };
   if (!active) return null;
   if (!data) return loadError ? <p className="settlement-status">Could not load group payments. <button type="button" onClick={() => void refresh()}>Reload payments</button></p> : null;
-  const groups = groupPayments(data.batches);
+  const groups = groupPayments(data.batches).filter(group => !groupId || group.id === groupId);
   const selected = selection ? groupPayments(data.batches, selection.batchIds).find(g => g.id === selection.groupId) : undefined;
   const outgoing = selected?.pairs.filter(p => p.senderId === data.userId && p.confirmedCents < p.amountCents) ?? [];
   const collection = selected?.pairs.filter(p => p.recipientId === data.userId) ?? [];
   const visible = groups.filter(g => g.pairs.some(p => (p.senderId === data.userId || p.recipientId === data.userId) && p.confirmedCents < p.amountCents));
-  return <section className="settlement-inbox" aria-label="Group payment notifications">
-    {!!(visible.length || data.notices.length) && <h2>Group payments</h2>}
-    {data.notices.map(notice => <div className="settlement-notice" key={notice.id}><p>{notice.message}</p><button type="button" aria-label={`Dismiss ${notice.message}`} disabled={busy} onClick={() => void run(() => settlementsApi.dismiss(notice.id), '')}>Dismiss</button></div>)}
+  return <section className="settlement-inbox" aria-label={groupId ? 'Your payments' : 'Group payment notifications'}>
+    {!!visible.length && <h2>{groupId ? 'Your payments' : 'Group payments'}</h2>}
     {visible.map(group => {
       const owes = group.pairs.filter(p => p.senderId === data.userId && p.confirmedCents < p.amountCents);
       const incoming = group.pairs.filter(p => p.recipientId === data.userId);

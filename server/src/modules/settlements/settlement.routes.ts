@@ -8,6 +8,14 @@ export const settlementsRouter = Router();
 settlementsRouter.use(requireAuth);
 const id = z.string().min(1).max(100);
 const cents = z.number().int().positive().max(2_000_000_000);
+settlementsRouter.get('/settlement-notices', async (req, res) => {
+  const notices = await prisma.settlementNotice.findMany({
+    where: { recipientId: req.userId!, batch: { group: { memberships: { some: { userId: req.userId! } } } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, message: true, kind: true, createdAt: true, readAt: true, batch: { select: { groupId: true } } },
+  });
+  res.json({ notices: notices.map(({ batch, ...notice }) => ({ ...notice, groupId: batch.groupId })) });
+});
 settlementsRouter.get('/settlements', async (req, res) => { res.json(await settlementInbox(req.userId!)); });
 settlementsRouter.get('/groups/:id/settlements/preview', async (req, res) => { res.json(await previewSettlement(req.params.id, req.userId!)); });
 settlementsRouter.post('/groups/:id/settlements', async (req, res) => {

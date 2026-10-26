@@ -121,7 +121,13 @@ export function sendPayment(expenseId: string, userId: string, amountCents: numb
     const committed = share.payments.filter(payment => payment.status !== 'ISSUE').reduce((sum, payment) => sum + payment.amountCents, 0);
     if (amountCents > share.totalCents - committed) throw new ExpenseError(409, 'Payment exceeds the remaining unreported amount');
     await tx.group.update({ where: { id: expense.groupId }, data: { lastActivityAt: new Date() } });
-    return tx.expensePayment.create({ data: { expenseId, senderUserId: userId, amountCents, clientRequestId } });
+    const payment = await tx.expensePayment.create({ data: { expenseId, senderUserId: userId, amountCents, clientRequestId } });
+    if (expense.settlementBatchId) {
+      const sender = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true } });
+      await tx.settlementNotice.create({ data: { batchId: expense.settlementBatchId, recipientId: expense.paidByUserId, actorId: userId, kind: 'PAYMENT_SENT',
+        message: `${sender.name} reported sending you $${(amountCents / 100).toFixed(2)} for ${expense.title}. Please confirm once you have received the money.` } });
+    }
+    return payment;
   });
 }
 

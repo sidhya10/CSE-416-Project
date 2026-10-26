@@ -38,6 +38,7 @@ function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]
     if (url.endsWith('/budgets/personal')) return json(data.personal ?? personal());
     if (url.endsWith('/budgets/groups')) return json({ groups: data.groups ?? groups() });
     if (url.endsWith('/budgets/home')) return json(data.home ?? home());
+    if (url.endsWith('/settlement-notices')) return json({ notices: [] });
     throw new Error(`Unexpected request ${url}`);
   }));
   return urls;

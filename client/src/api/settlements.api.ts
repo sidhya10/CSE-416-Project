@@ -4,7 +4,9 @@ export type SettlementBatch = { id: string; groupId: string; groupName: string; 
 export type SettlementPreview = { expenseIds: string[]; totalCents: number; expenses: { id: string; title: string; outstandingCents: number }[] };
 export type SettlementInboxData = { userId: string; batches: SettlementBatch[]; notices: { id: string; batchId: string; message: string; kind: string; createdAt: string }[] };
 export const paymentMethods = ['Venmo', 'Zelle', 'PayPal', 'Cash', 'Bank transfer', 'Other'] as const;
+export type AppNotice = { groupId: string; id: string; message: string; kind: string; createdAt: string; readAt: string | null };
 export const settlementsApi = {
+  notifications: () => apiRequest<{ notices: AppNotice[] }>('/settlement-notices'),
   inbox: async () => {
     const result = await apiRequest<SettlementInboxData>('/settlements');
     if (!result || !Array.isArray(result.batches) || !Array.isArray(result.notices) || typeof result.userId !== 'string') throw new Error('Unable to load payment notifications');
