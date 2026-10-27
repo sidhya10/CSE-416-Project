@@ -12,6 +12,7 @@ const envSchema = z.object({
   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: z.preprocess(value => value || undefined, z.string().url().refine(value => { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password && url.hostname.endsWith('.cognitiveservices.azure.com'); }, 'Use the HTTPS endpoint from your Azure Document Intelligence resource').optional()),
   AZURE_DOCUMENT_INTELLIGENCE_KEY: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   RECEIPT_MONTHLY_PAGE_LIMIT: z.coerce.number().int().min(0).max(500).default(450),
+  RECEIPT_GUEST_DAILY_LIMIT: z.coerce.number().int().min(0).max(100).default(20),
   RECEIPT_DAILY_USER_LIMIT: z.coerce.number().int().min(0).max(100).default(20),
   GOOGLE_CLIENT_ID: z.preprocess(value => value || process.env.VITE_GOOGLE_CLIENT_ID || undefined, z.string().trim().min(1).optional()),
   APP_ORIGIN: z.string().url().default('http://localhost:5173'),

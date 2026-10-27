@@ -1,3 +1,4 @@
+import GuestSplit from './pages/expenses/GuestSplit';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import NotificationsNavButton from './pages/notifications/NotificationsNavButton';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -27,6 +28,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   friendFixtures?: FriendFixture[];
 } = {}) {
   const resetToken = new URLSearchParams(window.location.search).get('reset') ?? '';
+  const [guest, setGuest] = useState(false);
   const [view, setView] = useState<AuthView>(resetToken ? 'reset' : 'login');
   const [user, setUser] = useState<AppUser | null>(initialUser ?? null);
   const [loading, setLoading] = useState(!initialUser);
@@ -92,6 +94,8 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
 
   if (loading) return <div className="device"><main className="login-screen"><p className="form-notice" role="status">Loading your account…</p></main></div>;
 
+  if (guest && !user) return <div className="device"><GuestSplit onClose={() => setGuest(false)} /></div>;
+
   return <div className="device">
     {user ? <>
       <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} /></div>
@@ -114,6 +118,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
       <div className="divider"><span>or</span></div>
       <GoogleSignInButton onBusyChange={setGoogleSubmitting} disabled={submitting} onSuccess={account => { setUser(account); setTab('Home'); setNotice(''); }} />
       <p className="switch-auth">New here? <button type="button" onClick={() => changeView('signup')}>Create an account</button></p>
+      <button className="guest-login-link" type="button" disabled={submitting || googleSubmitting} onClick={() => setGuest(true)}>Continue as guest · Quick split</button>
       <p className="terms">By continuing, you agree to the Terms and Privacy Policy.</p>
       {notice && <p className="form-notice" role="status">{notice}</p>}
     </main> : view === 'forgot' ? <main className="signup-screen">

@@ -65,3 +65,14 @@ button:disabled { cursor: not-allowed; }
 .notifications-nav-icon{position:relative;display:grid;place-items:center}
 .notifications-nav-badge{position:absolute;top:-2px;right:-10px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:10px;background:var(--danger-strong);color:#fff;border:2px solid var(--surface);font-size:9px;font-weight:700;line-height:13px;text-align:center}
 .bottom-nav .tab{min-width:0;cursor:pointer}.bottom-nav .tab:focus-visible{outline:2px solid var(--focus);outline-offset:-4px;border-radius:16px}
+
+.guest-login-link { display:block; width:fit-content; margin:14px auto 0; padding:10px 12px; border:0; border-radius:8px; background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:500; cursor:pointer; }
+.guest-login-link:hover:not(:disabled) { color:var(--text); text-decoration:underline; text-underline-offset:3px; }
+.guest-login-link:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.guest-login-link:disabled { opacity:.5; cursor:default; }
+
+/* Consistent compact scrollbars for every app scroll container. */
+* { scrollbar-width:thin; scrollbar-color:var(--muted) transparent; }
+*::-webkit-scrollbar { width:6px; height:6px; }
+*::-webkit-scrollbar-track { background:transparent; }
+*::-webkit-scrollbar-thumb { background:var(--muted); border-radius:999px; }

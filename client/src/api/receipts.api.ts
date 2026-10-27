@@ -10,14 +10,31 @@ export function receiptMimeType(file: File) {
   if ((!file.type || file.type === 'application/octet-stream') && /\.hei[cf]$/i.test(file.name)) return /\.heif$/i.test(file.name) ? 'image/heif' : 'image/heic';
   return file.type;
 }
-export async function scanReceipt(file: File, signal: AbortSignal): Promise<{ receipt: ParsedReceipt; cached: boolean }> {
+export type GuestReceiptCache = Map<string, ParsedReceipt>;
+
+export async function scanReceipt(file: File, signal: AbortSignal, guest = false, guestCache?: GuestReceiptCache): Promise<{ receipt: ParsedReceipt; cached: boolean }> {
   const base64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
     reader.onerror = () => reject(new Error('Could not read the receipt file.'));
     reader.readAsDataURL(file);
   });
-  return apiRequest('/receipts/parse', { method: 'POST', body: JSON.stringify({ base64, mimeType: receiptMimeType(file) }), signal });
+  signal.throwIfAborted();
+  const mimeType = receiptMimeType(file);
+  // Content, not filename, identifies a receipt. Only the guest component owns this map.
+  let key = '';
+  if (guest && guestCache) {
+    key = globalThis.crypto?.subtle
+      ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(base64))), byte => byte.toString(16).padStart(2, '0')).join('')
+      : base64;
+    key = `${mimeType}:${key}`;
+    signal.throwIfAborted();
+    const cached = guestCache.get(key);
+    if (cached) return { receipt: structuredClone(cached), cached: true };
+  }
+  const result = await apiRequest<{ receipt: ParsedReceipt; cached: boolean }>(guest ? '/receipts/guest/parse' : '/receipts/parse', { method: 'POST', body: JSON.stringify({ base64, mimeType }), signal });
+  if (guest && guestCache && !signal.aborted) guestCache.set(key, structuredClone(result.receipt));
+  return result;
 }
 
 export type ReceiptAttachment = { name: string; mimeType: 'image/jpeg' | 'application/pdf'; base64: string };
