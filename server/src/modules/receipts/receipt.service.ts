@@ -1,7 +1,7 @@
 import { validateReceipt } from './receipt.validation.js';
 export { validateReceipt } from './receipt.validation.js';
 import { prepareReceiptImage } from './receipt.image.js';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { prisma } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { ExpenseError } from '../expenses/expense.service.js';
@@ -44,5 +44,34 @@ export async function parseReceipt(userId: string, base64: string, mimeType: str
     throw new ExpenseError(502, error instanceof Error && error.name === 'Error' ? error.message : 'Receipt scanning could not finish. Your draft is unchanged; enter items manually.');
   } finally {
     await prisma.receiptUsage.updateMany({ where: { id: 'azure-receipts', activeScanId: reservation.scanId }, data: { busyUntil: new Date(Date.now() + 1500), activeScanId: null } });
+  }
+}
+
+// Anonymous scans retain only aggregate quota counters, never receipt contents or results.
+export async function parseGuestReceipt(base64: string, mimeType: string) {
+  const bytes = validateReceipt(base64, mimeType);
+  const now = new Date(), month = now.toISOString().slice(0, 7), day = now.toISOString().slice(0, 10);
+  const scanId = `guest:${randomUUID()}`;
+  await prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(416, 9001)`;
+    if (!env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT || !env.AZURE_DOCUMENT_INTELLIGENCE_KEY) throw new ExpenseError(503, 'Receipt scanning is not configured yet. You can still enter items manually.');
+    const usage = await tx.receiptUsage.upsert({ where: { id: 'azure-receipts' }, create: { id: 'azure-receipts', month }, update: {} });
+    if (usage.busyUntil && usage.busyUntil > now) throw new ExpenseError(429, 'Another receipt is scanning. Please try again in a moment.');
+    const used = usage.month === month ? usage.attempts : 0;
+    if (used >= env.RECEIPT_MONTHLY_PAGE_LIMIT) throw new ExpenseError(429, 'The app monthly receipt scan limit has been reached. You can still enter items manually.');
+    const guests = await tx.receiptUsage.upsert({ where: { id: 'guest-receipts-daily' }, create: { id: 'guest-receipts-daily', month: day }, update: {} });
+    const daily = guests.month === day ? guests.attempts : 0;
+    if (daily >= env.RECEIPT_GUEST_DAILY_LIMIT) throw new ExpenseError(429, 'Guest scanning has reached its daily limit. You can still enter items manually.');
+    await tx.receiptUsage.update({ where: { id: guests.id }, data: { month: day, attempts: daily + 1 } });
+    await tx.receiptUsage.update({ where: { id: usage.id }, data: { month, attempts: used + 1, busyUntil: new Date(now.getTime() + 150_000), activeScanId: scanId } });
+  }, { timeout: 10_000 });
+  try {
+    const prepared = await prepareReceiptImage(bytes, mimeType);
+    return { receipt: await analyzeReceipt(prepared.toString('base64')), cached: false };
+  } catch (error) {
+    if (error instanceof ExpenseError) throw error;
+    throw new ExpenseError(502, 'Could not scan this receipt. Your entries are unchanged; try manual entry.');
+  } finally {
+    await prisma.receiptUsage.updateMany({ where: { id: 'azure-receipts', activeScanId: scanId }, data: { busyUntil: new Date(Date.now() + 1500), activeScanId: null } });
   }
 }

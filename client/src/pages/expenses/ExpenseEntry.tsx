@@ -1,4 +1,4 @@
-import { prepareReceiptAttachment, receiptMimeType, scanReceipt, type ParsedReceipt } from '../../api/receipts.api';
+import { prepareReceiptAttachment, receiptMimeType, scanReceipt, type ParsedReceipt, type GuestReceiptCache } from '../../api/receipts.api';
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react';
 import BackArrow from '../../components/common/BackArrow';
 import './expenses.css';
@@ -43,7 +43,7 @@ function AmountInput({ label, value, onChange, suffix }: { label: string; value:
   return <span className="expense-money"><span aria-hidden="true">$</span><input aria-label={label} inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} />{suffix && <span>{suffix}</span>}</span>;
 }
 
-export default function ExpenseEntry({ groupName, members, onBack, onConfirm, initialSplit }: { initialSplit?: PreviewSplit; groupName: string; members: Member[]; onBack: () => void; onConfirm: (split: PreviewSplit) => void | Promise<void> }) {
+export default function ExpenseEntry({ groupName, members, onBack, onConfirm, initialSplit, guest = false, guestReceiptCache }: { guestReceiptCache?: GuestReceiptCache; guest?: boolean; initialSplit?: PreviewSplit; groupName: string; members: Member[]; onBack: () => void; onConfirm: (split: PreviewSplit) => void | Promise<void> }) {
   const [splitting, setSplitting] = useState(false);
   const [splitMode, setSplitMode] = useState<SplitMode>(initialSplit?.mode ?? 'equal');
   const [assignments, setAssignments] = useState<SplitAssignments>(initialSplit?.assignments ?? {});
@@ -52,7 +52,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [items, setItems] = useState<Item[]>(initialSplit?.items.map(item => ({ id: item.id, name: item.name, amount: ((item.unitCents ?? item.cents) / 100).toFixed(2), quantity: String(item.quantity ?? 1) })) ?? [{ id: 0, name: '', amount: '', quantity: '1' }]);
   const nextId = useRef(Math.max(0, ...items.map(item => item.id)) + 1);
   const [fees, setFees] = useState({ Tax: ((initialSplit?.feeBreakdown?.tax ?? 0) / 100).toFixed(2), Tip: ((initialSplit?.feeBreakdown?.tip ?? 0) / 100).toFixed(2), Other: ((initialSplit?.feeBreakdown?.other ?? initialSplit?.feeCents ?? 0) / 100).toFixed(2) });
-  const [payer, setPayer] = useState(initialSplit?.payerId ?? 'you');
+  const [payer, setPayer] = useState(initialSplit?.payerId ?? (guest ? members[0]!.id : 'you'));
   const [choice, setChoice] = useState(payer);
   const [choosing, setChoosing] = useState(false);
   const [message, setMessage] = useState('');
@@ -61,6 +61,13 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [receiptFile, setReceiptFile] = useState<File>();
   const [scanning, setScanning] = useState(false);
   const [parsedReceipt, setParsedReceipt] = useState<ParsedReceipt>();
+  const [localReceiptUrl, setLocalReceiptUrl] = useState('');
+  useEffect(() => {
+    if (!receiptFile || !URL.createObjectURL) return;
+    const url = URL.createObjectURL(receiptFile);
+    setLocalReceiptUrl(url);
+    return () => { URL.revokeObjectURL(url); setLocalReceiptUrl(''); };
+  }, [receiptFile]);
   const scanController = useRef<AbortController | null>(null);
   useEffect(() => () => scanController.current?.abort(), []);
   const camera = useRef<HTMLInputElement>(null);
@@ -96,7 +103,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     setParsedReceipt(undefined);
     setReceiptFile(file);
     setReceiptName(file.name);
-    setMessage('Receipt selected. Scan with Azure to extract items, or enter them manually. Only the first page is scanned.');
+    setMessage(guest ? 'Receipt selected. Scan with Azure to extract items, or enter them manually. Guest scans are not saved in Divvy. Only the first page is scanned.' : 'Receipt selected. Scan with Azure to extract items, or enter them manually. Only the first page is scanned.');
   };
   const readReceipt = async () => {
     if (!receiptFile || scanning) return;
@@ -106,10 +113,10 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     setScanning(true);
     setMessage('Reading receipt… Your current entries will stay unchanged until you apply the result.');
     try {
-      const result = await scanReceipt(receiptFile, controller.signal);
+      const result = await (guest ? scanReceipt(receiptFile, controller.signal, true, guestReceiptCache) : scanReceipt(receiptFile, controller.signal));
       if (controller.signal.aborted) return;
       setParsedReceipt(result.receipt);
-      setMessage(result.cached ? 'Loaded saved scan — no new Azure scan was used.' : 'Receipt scanned. Review the result before replacing your entries.');
+      setMessage(result.cached ? (guest ? 'Reused this guest session’s scan — no new Azure scan was used.' : 'Loaded saved scan — no new Azure scan was used.') : 'Receipt scanned. Review the result before replacing your entries.');
     } catch (error) {
       if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : 'Could not scan receipt. You can enter items manually.');
     } finally {
@@ -147,13 +154,13 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     feeCents={Object.values(fees).reduce((sum, value) => sum + (cents(value) ?? 0), 0)} members={members} payerId={payer} date={date}
     mode={splitMode} assignments={assignments} onModeChange={setSplitMode} onAssignmentsChange={setAssignments}
     onBack={() => setSplitting(false)} onConfirm={async split => {
-      const receiptAttachment = receiptFile ? await prepareReceiptAttachment(receiptFile) : !receiptName && initialSplit?.receiptName ? null : undefined;
+      const receiptAttachment = guest ? undefined : receiptFile ? await prepareReceiptAttachment(receiptFile) : !receiptName && initialSplit?.receiptName ? null : undefined;
       await onConfirm({ ...split, receiptAttachment, payments: initialSplit?.payments,
       feeBreakdown: { tax: cents(fees.Tax)!, tip: cents(fees.Tip)!, other: cents(fees.Other)! }, receiptName });
     }} />;
 
   return <main className={`expense-screen ${choosing ? '' : 'expense-entry-screen'}`}>
-    <header className="expense-header"><button type="button" aria-label={choosing ? 'Back to expense' : initialSplit ? 'Back to details' : 'Back to group'} onClick={() => choosing ? setChoosing(false) : onBack()}><BackArrow /></button><h1>{choosing ? 'Who paid?' : initialSplit ? 'Edit expense' : 'Add expense'}</h1></header>
+    <header className="expense-header"><button type="button" aria-label={choosing ? 'Back to expense' : guest ? 'Back to participants' : initialSplit ? 'Back to details' : 'Back to group'} onClick={() => choosing ? setChoosing(false) : onBack()}><BackArrow /></button><h1>{choosing ? 'Who paid?' : guest ? 'Quick split' : initialSplit ? 'Edit expense' : 'Add expense'}</h1></header>
     {choosing ? <>
       <div className="expense-body payer-body">
         <h2>Choose who paid the original bill.</h2>
@@ -179,6 +186,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           <button className="expense-outline" type="button" onClick={() => camera.current?.click()}>Take photo</button>
           <button className="expense-outline" type="button" onClick={() => upload.current?.click()}>Upload receipt</button>
         </div><input ref={camera} hidden type="file" accept="image/*" capture="environment" onChange={selectReceipt} /><input ref={upload} hidden type="file" accept="image/*,application/pdf,.heic,.heif" onChange={selectReceipt} />
+          {localReceiptUrl && <a className="receipt-preview" href={localReceiptUrl} target="_blank" rel="noreferrer"><span className="receipt-preview-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 7h6M9 11h6M9 15h3" /></svg></span><span className="receipt-preview-copy"><strong>View receipt</strong><small>Open original in a new tab</small></span><span aria-hidden="true">↗</span></a>}
           {uploadWarning && <p className="receipt-upload-warning" role="status">{uploadWarning}</p>}
           {receiptName && <p className="expense-receipt-name">{receiptName}<button type="button" onClick={() => { scanController.current?.abort(); setScanning(false); setReceiptName(undefined); setReceiptFile(undefined); setParsedReceipt(undefined); setUploadWarning(''); setMessage(''); }}>Remove receipt</button></p>}
           {receiptFile && <button className="expense-outline" type="button" disabled={scanning} onClick={() => void readReceipt()}>{scanning ? 'Scanning…' : 'Scan receipt with Azure'}</button>}

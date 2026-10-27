@@ -129,3 +129,30 @@ it('does not call Azure when conversion fails', async () => {
   await agent.post('/api/receipts/parse').send({ base64: bytes.toString('base64'), mimeType: 'image/heic' }).expect(400);
   expect(analyzeReceipt).not.toHaveBeenCalled();
 });
+
+it('allows anonymous scanning without saving receipts, and shares the Azure quota', async () => {
+  const before = await prisma.receiptScan.count();
+  const response = await request(app).post('/api/receipts/guest/parse').send(input()).expect(200);
+  expect(response.body).toEqual({ receipt: result, cached: false });
+  expect(response.headers['cache-control']).toBe('no-store');
+  expect(await prisma.receiptScan.count()).toBe(before);
+  expect((await prisma.receiptUsage.findUniqueOrThrow({ where: { id: 'azure-receipts' } })).attempts).toBe(1);
+  await prisma.receiptUsage.updateMany({ data: { busyUntil: null } });
+  env.RECEIPT_MONTHLY_PAGE_LIMIT = 1;
+  await agent.post('/api/receipts/parse').send(input()).expect(429);
+  expect(analyzeReceipt).toHaveBeenCalledTimes(1);
+});
+it('validates guest files and enforces the global guest daily limit', async () => {
+  await request(app).post('/api/receipts/guest/parse').send({ base64: 'YmFk', mimeType: 'image/png' }).expect(400);
+  env.RECEIPT_GUEST_DAILY_LIMIT = 0;
+  await request(app).post('/api/receipts/guest/parse').send(input()).expect(429);
+  expect(analyzeReceipt).not.toHaveBeenCalled();
+});
+it('does not persist guest results on failure and releases the shared scan slot', async () => {
+  vi.mocked(analyzeReceipt).mockRejectedValue(new Error('provider details'));
+  const before = await prisma.receiptScan.count();
+  const response = await request(app).post('/api/receipts/guest/parse').send(input()).expect(502);
+  expect(response.body.error).not.toContain('provider details');
+  expect(await prisma.receiptScan.count()).toBe(before);
+  expect((await prisma.receiptUsage.findUniqueOrThrow({ where: { id: 'azure-receipts' } })).activeScanId).toBeNull();
+});

@@ -1,0 +1,30 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { apiRequest } from './client';
+import { scanReceipt, type GuestReceiptCache } from './receipts.api';
+vi.mock('./client', () => ({ apiRequest: vi.fn() }));
+afterEach(() => vi.resetAllMocks());
+const receipt = { merchant: 'Cafe', items: [], taxCents: 0, tipCents: 0, totalCents: 100, warnings: [] };
+it('reuses identical contents within a guest session, but not changed files or new sessions', async () => {
+  vi.mocked(apiRequest).mockResolvedValue({ receipt, cached: false });
+  const cache: GuestReceiptCache = new Map();
+  const signal = new AbortController().signal;
+  const file = (data: string, name = 'receipt.png') => new File([data], name, { type: 'image/png' });
+  await scanReceipt(file('one'), signal, true, cache);
+  expect((await scanReceipt(file('one', 'renamed.png'), signal, true, cache)).cached).toBe(true);
+  expect(apiRequest).toHaveBeenCalledTimes(1);
+  await scanReceipt(file('two'), signal, true, cache);
+  expect(apiRequest).toHaveBeenCalledTimes(2);
+  await scanReceipt(file('one'), signal, true, new Map());
+  expect(apiRequest).toHaveBeenCalledTimes(3);
+});
+it('does not cache failed or aborted guest scans', async () => {
+  const cache: GuestReceiptCache = new Map();
+  const file = new File(['receipt'], 'receipt.png', { type: 'image/png' });
+  vi.mocked(apiRequest).mockRejectedValueOnce(new Error('Scan failed'));
+  await expect(scanReceipt(file, new AbortController().signal, true, cache)).rejects.toThrow('Scan failed');
+  expect(cache.size).toBe(0);
+  const controller = new AbortController();
+  controller.abort();
+  await expect(scanReceipt(file, controller.signal, true, cache)).rejects.toThrow();
+  expect(apiRequest).toHaveBeenCalledTimes(1);
+});

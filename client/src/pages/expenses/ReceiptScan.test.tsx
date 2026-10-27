@@ -66,3 +66,19 @@ it('accepts an iPhone HEIC with missing MIME type and keeps oversized files out'
   expect(screen.getByRole('status')).toHaveTextContent('12 MB');
   expect(screen.getByText('IMG_1234.HEIC')).toBeInTheDocument();
 });
+
+it('scans as a guest and applies items without preparing a saved attachment', async () => {
+  vi.stubGlobal('URL', class extends URL { static createObjectURL() { return 'blob:guest'; } static revokeObjectURL() {} });
+  vi.mocked(scanReceipt).mockResolvedValue({ receipt, cached: false });
+  const confirm = vi.fn();
+  const { unmount } = render(<ExpenseEntry {...props} guest members={[{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]} onConfirm={confirm} />);
+  choose();
+  fireEvent.click(screen.getByRole('button', { name: 'Scan receipt with Azure' }));
+  await screen.findByRole('region', { name: 'Receipt scan review' });
+  expect(scanReceipt).toHaveBeenCalledWith(expect.any(File), expect.any(AbortSignal), true, undefined);
+  fireEvent.click(screen.getByRole('button', { name: 'Replace entries with scanned items' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $6.40' }));
+  await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ totalCents: 640, receiptAttachment: undefined })));
+  unmount(); vi.unstubAllGlobals();
+});
