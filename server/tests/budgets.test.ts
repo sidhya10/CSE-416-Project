@@ -193,7 +193,8 @@ describe('home summary', () => {
     const { body } = await owner.get('/api/budgets/home').expect(200);
     expect(body.history.map((month: { month: string }) => month.month)).toEqual([monthKey(-3), monthKey(-2), monthKey(-1), monthKey(0)]);
     // Seeded earlier: spending excludes the transfer, refund, hidden account and next month; income is only the INCOME deposit.
-    expect(body.history[3]).toEqual({ month: monthKey(0), spendingCents: 7300, incomeCents: 5000 });
+    // The owner also fronted the cabin and was repaid $50.00 by then, which offsets that month's spending.
+    expect(body.history[3]).toEqual({ month: monthKey(0), spendingCents: 7300 - 5000, incomeCents: 5000 });
     expect(body.history[2]).toEqual({ month: monthKey(-1), spendingCents: 9999, incomeCents: 0 });
     expect(body.history[0]).toEqual({ month: monthKey(-3), spendingCents: 0, incomeCents: 0 });
     const other = await outsider.get('/api/budgets/home').expect(200);
@@ -214,5 +215,36 @@ describe('home summary', () => {
     expect(sender.body.pendingPayments).toEqual({ count: 0, cents: 0 });
     expect(sender.body.latestExpense).toMatchObject({ isYou: false });
     expect((await outsider.get('/api/budgets/home').expect(200)).body.latestExpense).toBeNull();
+  });
+});
+
+describe('personal budget and group settlements', () => {
+  it('counts money the user sent to settle a group expense, unless the recipient flags an issue', async () => {
+    const created = await owner.post(`/api/groups/${groupId}/expenses`).send({ clientRequestId: randomUUID(), expense: {
+      title: 'Settle me', expenseDate: todayIso, paidByUserId: ownerId, splitMode: 'EQUAL', participantIds: [ownerId, memberId],
+      items: [{ name: 'Settle me', unitPriceCents: 4000, quantity: 1 }], taxCents: 0, tipCents: 0, otherCents: 0 } }).expect(201);
+    const before = (await member.get('/api/budgets/personal').expect(200)).body.categories.find((category: Category) => category.key === 'other').spentCents;
+    const payment = await prisma.expensePayment.create({ data: { expenseId: created.body.expense.id, senderUserId: memberId, amountCents: 2000, method: 'Venmo', clientRequestId: `budget-${run}` } });
+
+    const sent = (await member.get('/api/budgets/personal').expect(200)).body;
+    expect(byKey(sent.categories).other.spentCents).toBe(before + 2000);
+    expect(sent.transactions.other).toContainEqual({ id: `payment-${payment.id}`, merchant: 'Payment to Budget Test 0 (Budget test group)', date: todayIso, amountCents: 2000, pending: true });
+    // The recipient did not send anything, so their budget is unchanged.
+    expect((await owner.get('/api/budgets/personal').expect(200)).body.transactions.other.some((item: { id: string }) => item.id.startsWith('payment-'))).toBe(false);
+
+    const ownerBefore = byKey((await owner.get('/api/budgets/personal').expect(200)).body.categories).other.spentCents;
+    await prisma.expensePayment.update({ where: { id: payment.id }, data: { status: 'CONFIRMED', resolvedAt: new Date() } });
+    const repaid = (await owner.get('/api/budgets/personal').expect(200)).body;
+    expect(repaid.transactions.other).toContainEqual({ id: `repayment-${payment.id}`, merchant: 'Repayment from Budget Test 1 (Budget test group)', date: todayIso, amountCents: -2000, pending: false });
+    expect(byKey(repaid.categories).other.spentCents).toBe(Math.max(0, ownerBefore - 2000));
+    expect((await member.get('/api/budgets/personal').expect(200)).body.transactions.other).toContainEqual(expect.objectContaining({ id: `payment-${payment.id}`, pending: false }));
+
+    const thisMonth = (home: { history: { month: string; spendingCents: number }[] }) => home.history.at(-1)!.spendingCents;
+    const homeSender = thisMonth((await member.get('/api/budgets/home').expect(200)).body);
+    const homeRecipient = thisMonth((await owner.get('/api/budgets/home').expect(200)).body);
+    await prisma.expensePayment.update({ where: { id: payment.id }, data: { status: 'ISSUE' } });
+    expect(thisMonth((await member.get('/api/budgets/home').expect(200)).body)).toBe(homeSender - 2000);
+    expect(thisMonth((await owner.get('/api/budgets/home').expect(200)).body)).toBe(homeRecipient + 2000);
+    expect(byKey((await member.get('/api/budgets/personal').expect(200)).body.categories).other.spentCents).toBe(before);
   });
 });

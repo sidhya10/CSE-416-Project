@@ -13,7 +13,7 @@ type CategoryTransaction = { id: string; merchant: string; date: string; amountC
 /** This month's personal budget: category limits plus spending from the user's visible bank accounts. */
 export async function personalBudget(userId: string, now = new Date()) {
   const window = monthWindow(now);
-  const [limits, rows, connections] = await Promise.all([
+  const [limits, rows, connections, payments, repayments] = await Promise.all([
     prisma.categoryLimit.findMany({ where: { userId } }),
     // Plaid reports money leaving an account as a positive amount; refunds and deposits are negative.
     prisma.bankTransaction.findMany({
@@ -21,6 +21,17 @@ export async function personalBudget(userId: string, now = new Date()) {
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }),
     prisma.bankConnection.findMany({ where: { userId }, select: { lastSyncedAt: true } }),
+    // Money the user sent to settle group expenses. Payments the recipient flagged as an issue do not count.
+    prisma.expensePayment.findMany({
+      where: { senderUserId: userId, status: { not: 'ISSUE' }, sentAt: { gte: window.start, lt: window.end } },
+      select: { id: true, amountCents: true, status: true, sentAt: true, share: { select: { expense: { select: { payer: { select: { name: true } }, group: { select: { name: true } } } } } } },
+      orderBy: [{ sentAt: 'desc' }, { id: 'desc' }],
+    }),
+    // Money the user fronted and has confirmed receiving back from group members.
+    prisma.expensePayment.findMany({
+      where: { status: 'CONFIRMED', resolvedAt: { gte: window.start, lt: window.end }, share: { expense: { paidByUserId: userId } } },
+      select: { id: true, amountCents: true, resolvedAt: true, share: { select: { user: { select: { name: true } }, expense: { select: { group: { select: { name: true } } } } } } },
+    }),
   ]);
   const transactions = Object.fromEntries(CATEGORY_KEYS.map(key => [key, [] as CategoryTransaction[]])) as Record<CategoryKey, CategoryTransaction[]>;
   const spent = Object.fromEntries(CATEGORY_KEYS.map(key => [key, 0])) as Record<CategoryKey, number>;
@@ -30,6 +41,19 @@ export async function personalBudget(userId: string, now = new Date()) {
     transactions[key].push({ id: row.id, merchant: row.merchant ?? row.name, date: isoDate(row.date), amountCents: row.amountCents, pending: row.pending });
     spent[key] += row.amountCents;
   }
+  // A group payment is an outflow with no merchant category, so it counts under Other until the recipient flags an issue.
+  for (const payment of payments) {
+    const { payer, group } = payment.share.expense;
+    transactions.other.push({ id: `payment-${payment.id}`, merchant: `Payment to ${payer.name} (${group.name})`, date: isoDate(payment.sentAt), amountCents: payment.amountCents, pending: payment.status === 'SENT' });
+    spent.other += payment.amountCents;
+  }
+  // Confirmed repayments offset what the user fronted, shown as negative amounts like bank refunds.
+  for (const repayment of repayments) {
+    transactions.other.push({ id: `repayment-${repayment.id}`, merchant: `Repayment from ${repayment.share.user.name} (${repayment.share.expense.group.name})`, date: isoDate(repayment.resolvedAt!), amountCents: -repayment.amountCents, pending: false });
+    spent.other -= repayment.amountCents;
+  }
+  spent.other = Math.max(0, spent.other);
+  transactions.other.sort((a, b) => b.date.localeCompare(a.date));
   const limitFor = new Map(limits.map(limit => [limit.category, limit.limitCents]));
   const synced = connections.flatMap(connection => connection.lastSyncedAt ? [connection.lastSyncedAt.getTime()] : []);
   return {
@@ -98,7 +122,7 @@ export async function homeSummary(userId: string, now = new Date()) {
   const window = monthWindow(now);
   const { keys, start } = recentMonths(now, 4);
   const inGroup = { memberships: { some: { userId } }, archivedAt: null };
-  const [rows, pending, latest] = await Promise.all([
+  const [rows, pending, latest, sent, repaid] = await Promise.all([
     prisma.bankTransaction.findMany({
       where: { date: { gte: start, lt: window.end }, account: { hidden: false, connection: { userId } } },
       select: { date: true, amountCents: true, category: true, name: true, merchant: true },
@@ -108,6 +132,9 @@ export async function homeSummary(userId: string, now = new Date()) {
       where: { group: inGroup }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { title: true, totalCents: true, createdAt: true, creator: { select: { id: true, name: true } }, group: { select: { name: true } } },
     }),
+    // Group settlements move the same money as on the Budget tab: payments sent add to spending, confirmed repayments offset it.
+    prisma.expensePayment.findMany({ where: { senderUserId: userId, status: { not: 'ISSUE' }, sentAt: { gte: start, lt: window.end } }, select: { sentAt: true, amountCents: true } }),
+    prisma.expensePayment.findMany({ where: { status: 'CONFIRMED', resolvedAt: { gte: start, lt: window.end }, share: { expense: { paidByUserId: userId } } }, select: { resolvedAt: true, amountCents: true } }),
   ]);
   const months = new Map(keys.map(key => [key, { month: key, spendingCents: 0, incomeCents: 0 }]));
   for (const row of rows) {
@@ -117,6 +144,9 @@ export async function homeSummary(userId: string, now = new Date()) {
     if (row.amountCents > 0) { if (categorize(row)) month.spendingCents += row.amountCents; }
     else if (row.category === 'INCOME') month.incomeCents += -row.amountCents;
   }
+  for (const payment of sent) { const month = months.get(payment.sentAt.toISOString().slice(0, 7)); if (month) month.spendingCents += payment.amountCents; }
+  for (const payment of repaid) { const month = months.get(payment.resolvedAt!.toISOString().slice(0, 7)); if (month) month.spendingCents -= payment.amountCents; }
+  for (const month of months.values()) month.spendingCents = Math.max(0, month.spendingCents);
   return {
     history: keys.map(key => months.get(key)!),
     pendingPayments: { count: pending.length, cents: pending.reduce((sum, payment) => sum + payment.amountCents, 0) },
