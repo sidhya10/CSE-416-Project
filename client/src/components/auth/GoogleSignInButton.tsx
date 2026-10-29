@@ -4,19 +4,21 @@ import { ApiError } from '../../api/client';
 import type { AppUser } from '../../api/types';
 import { loadGoogleIdentity, prepareGoogle, renderGoogleButton } from './googleIdentity';
 
-export default function GoogleSignInButton({ intent = 'signin', signup = false, phone, onSuccess, onBusyChange, disabled = false }: {
-  intent?: 'signin' | 'link'; signup?: boolean; phone?: string; onSuccess: (user: AppUser) => void; onBusyChange?: (busy: boolean) => void; disabled?: boolean;
+export default function GoogleSignInButton({ intent = 'signin', signup = false, phone, onSuccess, onRecovery, onBusyChange, disabled = false }: {
+  intent?: 'signin' | 'link' | 'recover'; signup?: boolean; phone?: string; onSuccess?: (user: AppUser) => void; onRecovery?: (resetToken: string) => void; onBusyChange?: (busy: boolean) => void; disabled?: boolean;
 }) {
   const target = useRef<HTMLDivElement>(null);
   const onBusyChangeRef = useRef(onBusyChange);
   onBusyChangeRef.current = onBusyChange;
   const onSuccessRef = useRef(onSuccess);
   onSuccessRef.current = onSuccess;
+  const onRecoveryRef = useRef(onRecovery);
+  onRecoveryRef.current = onRecovery;
   const [message, setMessage] = useState('');
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [attemptNumber, setAttemptNumber] = useState(0);
-  const label = intent === 'link' ? 'Connect Google account' : signup ? 'Sign up with Google' : 'Continue with Google';
+  const label = intent === 'link' ? 'Connect Google account' : intent === 'recover' ? 'Recover with Google' : signup ? 'Sign up with Google' : 'Continue with Google';
   useEffect(() => {
     if (disabled) return;
     let cancelled = false;
@@ -35,8 +37,14 @@ export default function GoogleSignInButton({ intent = 'signin', signup = false, 
         dispose = renderGoogleButton(id, target.current, { ...attempt, signup, dark: document.documentElement.dataset.theme === 'dark', onCredential: credential => {
           if (cancelled || submitting) return;
           submitting = true; setBusy(true); onBusyChangeRef.current?.(true); setMessage('');
-          void (intent === 'link' ? authApi.linkGoogle(credential, attempt.state) : authApi.google(credential, attempt.state, signup ? phone : undefined))
-            .then(result => { if (!cancelled) onSuccessRef.current(result.user); })
+          const work = intent === 'link' ? authApi.linkGoogle(credential, attempt.state)
+            : intent === 'recover' ? authApi.recoverGoogle(credential, attempt.state)
+            : authApi.google(credential, attempt.state, signup ? phone : undefined);
+          void work.then(result => {
+            if (cancelled) return;
+            if ('resetToken' in result) onRecoveryRef.current?.(result.resetToken);
+            else onSuccessRef.current?.(result.user);
+          })
             .catch(error => { if (!cancelled) setMessage(error instanceof ApiError ? error.message : 'Could not finish Google sign-in. Try again.'); })
             .finally(() => { if (!cancelled) { submitting = false; setBusy(false); onBusyChangeRef.current?.(false); } });
         } });

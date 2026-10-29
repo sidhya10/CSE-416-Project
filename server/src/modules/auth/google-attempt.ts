@@ -8,8 +8,8 @@ import { cookieName, readSession } from './auth.service.js';
 const attemptCookie = 'cse416_google_attempt';
 const audience = 'cse416-google-popup';
 const options = { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/api/auth/google' };
-export type GoogleIntent = 'signin' | 'signup' | 'link';
-const attemptSchema = z.object({ nonce: z.string(), state: z.string(), intent: z.enum(['signin', 'signup', 'link']), userId: z.string().nullable() });
+export type GoogleIntent = 'signin' | 'signup' | 'link' | 'recover';
+const attemptSchema = z.object({ nonce: z.string(), state: z.string(), intent: z.enum(['signin', 'signup', 'link', 'recover']), userId: z.string().nullable() });
 export const currentSession = (request: Request) => readSession(request.cookies?.[cookieName]);
 
 export function startGoogleAttempt(response: Response, nonce: string, intent: GoogleIntent, userId: string | null) {

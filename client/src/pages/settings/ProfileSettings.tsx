@@ -9,7 +9,7 @@ import ConnectedAccounts from '../banking/ConnectedAccounts';
 
 type Profile = Pick<AppUser, 'name' | 'username' | 'birthday' | 'bio' | 'photoUrl'>;
 
-type Screen = 'settings' | 'password' | 'edit' | 'account' | 'banking' | 'notifications' | 'appearance' | 'privacy' | 'help';
+type Screen = 'settings' | 'password' | 'recovery' | 'edit' | 'account' | 'banking' | 'notifications' | 'appearance' | 'privacy' | 'help';
 
 function SettingsRow({ title, subtitle, action, onClick }: {
   title: string;
@@ -37,11 +37,16 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
   const [saving, setSaving] = useState(false);
   const [theme, setTheme] = useAppearance();
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
+  const [recoveryPassword, setRecoveryPassword] = useState('');
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [reminders, setReminders] = useState(true);
   const photoInput = useRef<HTMLInputElement>(null);
   useEffect(() => setDraft(profile), [user.name, user.username, user.birthday, user.bio, user.photoUrl]);
 
-  const open = (next: Screen) => { setMessage(''); setPasswords({ current: '', next: '', confirm: '' }); setScreen(next); onRootChange(next === 'settings'); };
+  const open = (next: Screen) => {
+    setMessage(''); setPasswords({ current: '', next: '', confirm: '' });
+    setRecoveryPassword(''); setRecoveryCodes([]); setScreen(next); onRootChange(next === 'settings');
+  };
   const edit = () => { setDraft(profile); open('edit'); };
   const back = () => open('settings');
   const update = (field: keyof Pick<Profile, 'name' | 'username' | 'birthday' | 'bio'>, value: string) =>
@@ -140,6 +145,32 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       </form> : <p className="setting-info">This account uses Google sign-in and has no password to change. Manage your Google password through your Google account.</p>}
       {message && <p className="setting-notice" role="status">{message}</p>}
     </>}
+    {screen === 'recovery' && <>
+      <header className="subscreen-heading"><button type="button" onClick={() => open('account')} aria-label="Back to Account settings">‹</button><h1>Recovery codes</h1><p>Use a code if you forget your password and cannot use Google.</p></header>
+      {recoveryCodes.length ? <section className="recovery-code-panel" aria-label="New recovery codes">
+        <p className="recovery-warning"><strong>Save these now.</strong> They will not be shown again. Generating another set replaces all of these codes.</p>
+        <ol className="recovery-code-list">{recoveryCodes.map(code => <li key={code}><code>{code}</code></li>)}</ol>
+        <div className="recovery-code-actions">
+          <button type="button" onClick={() => void navigator.clipboard?.writeText(recoveryCodes.join('\n')).then(() => setMessage('Recovery codes copied.')).catch(() => setMessage('Could not copy automatically. Select and copy the codes above.'))}>Copy codes</button>
+          <button type="button" onClick={() => {
+            const href = URL.createObjectURL(new Blob([`Account recovery codes\n\n${recoveryCodes.join('\n')}\n\nEach code can be used once. Keep these private.\n`], { type: 'text/plain' }));
+            const anchor = document.createElement('a'); anchor.href = href; anchor.download = 'account-recovery-codes.txt'; anchor.click(); URL.revokeObjectURL(href);
+          }}>Download</button>
+        </div>
+        <button className="primary-button" type="button" onClick={() => open('account')}>Done</button>
+      </section> : <form className="profile-form password-form" onSubmit={async event => {
+        event.preventDefault(); if (saving) return; setSaving(true); setMessage('');
+        try { setRecoveryCodes((await authApi.generateRecoveryCodes(user.hasPassword ? recoveryPassword : undefined)).codes); setRecoveryPassword(''); }
+        catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not generate recovery codes. Try again.'); }
+        finally { setSaving(false); }
+      }}>
+        <p className="setting-info">A recovery code can reset your password without email. Each code works once. Creating a new set invalidates the previous set.</p>
+        {user.hasPassword && <label>Current password<input type="password" autoComplete="current-password" required disabled={saving} value={recoveryPassword} onChange={event => setRecoveryPassword(event.target.value)} /></label>}
+        <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Generating…' : 'Generate new codes'}</button>
+        <button className="password-cancel" type="button" disabled={saving} onClick={() => open('account')}>Cancel</button>
+      </form>}
+      {message && <p className="setting-notice" role="status">{message}</p>}
+    </>}
     {screen === 'account' && <>
       <header className="subscreen-heading"><button type="button" onClick={back} aria-label="Back to Settings">‹</button>
         <h1>Account settings</h1><p>Login methods and account recovery</p></header>
@@ -151,6 +182,7 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
       {!user.hasGoogle && <GoogleSignInButton intent="link" onSuccess={updated => { onUserChange(updated); setMessage('Google account connected. You can sign in with Google or your existing password.'); }} />}
       <h2 className="settings-overline spaced">SECURITY</h2>
       <SettingsRow title="Password" subtitle={user.hasPassword ? 'Password login enabled' : 'Google sign-in only'} onClick={() => open('password')} />
+      <SettingsRow title="Recovery codes" subtitle="Generate one-time codes for password recovery" onClick={() => open('recovery')} />
       <button className="delete-account" type="button" onClick={() => {
         if (!window.confirm('Delete your account and friendships permanently?')) return;
         void usersApi.deleteMe().then(onLogout).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not delete your account.'));

@@ -49,6 +49,25 @@ describe('password settings', () => {
   });
 });
 
+describe('recovery codes', () => {
+  it('requires the current password and shows newly generated codes once', async () => {
+    const codes = ['ABCD-EFGH-JKLM-NPQR', 'BCDE-FGHJ-KLMN-PQRS'];
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ codes }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: /Account settings/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Recovery codes/ }));
+    enter('Current password', 'password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Generate new codes' }));
+    expect(await screen.findByText(codes[0]!)).toBeInTheDocument();
+    expect(screen.getByText(codes[1]!)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/auth/recovery-codes'), expect.objectContaining({ body: JSON.stringify({ currentPassword: 'password1' }) }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    fireEvent.click(screen.getByRole('button', { name: /Recovery codes/ }));
+    expect(screen.queryByText(codes[0]!)).not.toBeInTheDocument();
+  });
+});
+
 function AppearanceHarness() { useApplyAppearance(); return <ProfileSettings user={user} onUserChange={() => {}} onLogout={() => {}} onRootChange={() => {}} />; }
 describe('appearance', () => {
   it('defaults to light even on dark devices and persists the explicit choice', () => {

@@ -28,7 +28,7 @@ usersRouter.post('/', async (request, response, next) => {
   try {
     const { password, ...data } = parsed.data;
     const user = await prisma.user.create({ data: { ...data, passwordHash: await hashPassword(password) } });
-    setSession(response, user.id);
+    setSession(response, user.id, user.sessionVersion);
     return response.status(201).json({ user: presentUser(user) });
   } catch (error) { if (isConflict(error)) return response.status(409).json({ error: 'That email, username, or phone number is already in use' }); next(error); }
 });

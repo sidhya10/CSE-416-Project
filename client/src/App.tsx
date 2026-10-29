@@ -27,9 +27,10 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   groupFixtures?: GroupFixture[];
   friendFixtures?: FriendFixture[];
 } = {}) {
-  const resetToken = new URLSearchParams(window.location.search).get('reset') ?? '';
+  const initialResetToken = new URLSearchParams(window.location.search).get('reset') ?? '';
+  const [resetToken, setResetToken] = useState(initialResetToken);
   const [guest, setGuest] = useState(false);
-  const [view, setView] = useState<AuthView>(resetToken ? 'reset' : 'login');
+  const [view, setView] = useState<AuthView>(initialResetToken ? 'reset' : 'login');
   const [user, setUser] = useState<AppUser | null>(initialUser ?? null);
   const [loading, setLoading] = useState(!initialUser);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +53,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   const [simulatorVisited, setSimulatorVisited] = useState(false);
   const [googlePhone, setGooglePhone] = useState('');
   const [resetPasswords, setResetPasswords] = useState({ next: '', confirm: '' });
+  const [recovery, setRecovery] = useState({ identifier: '', code: '', next: '', confirm: '' });
 
   useEffect(() => {
     if (initialUser) return;
@@ -80,11 +82,16 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
       phone: String(values.get('phone')), password: String(values.get('password')),
     }));
   };
-  const forgotPassword = async (event: FormEvent<HTMLFormElement>) => {
+  const recoverWithCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const values = new FormData(event.currentTarget);
+    if (recovery.next !== recovery.confirm) { setNotice('New passwords do not match.'); return; }
     setSubmitting(true); setNotice('');
-    try { setNotice((await authApi.forgotPassword(String(values.get('identifier')))).message); }
+    try {
+      const result = await authApi.resetWithRecoveryCode(recovery.identifier, recovery.code, recovery.next, recovery.confirm);
+      setRecovery({ identifier: '', code: '', next: '', confirm: '' });
+      setView('login');
+      setNotice(result.message);
+    }
     catch (error) { handleError(error); }
     finally { setSubmitting(false); }
   };
@@ -93,6 +100,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
     if (resetPasswords.next !== resetPasswords.confirm) { setNotice('New passwords do not match.'); return; }
     void authenticate(() => authApi.resetPassword(resetToken, resetPasswords.next, resetPasswords.confirm).then(result => {
       window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+      setResetToken('');
       return result;
     }));
   };
@@ -116,7 +124,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
       {(tab === 'Home' || tab === 'Notifications' || (tab === 'Budget' && !simulatorOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
         {tabs.map(({ label, glyph }) => label === 'Notifications' ? <NotificationsNavButton key={`${user.id}-notifications`} selected={tab === label} onClick={() => setTab(label)} /> : <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'} aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}><span className="tab-glyph" aria-hidden="true">{glyph}</span><span>{label}</span></button>)}
       </nav>}
-    </> : view === 'login' ? <main className="login-screen">
+    </> : view === 'login' ? <main key="login" className="login-screen">
       <div className="login-intro"><div className="logo-tile"><img src={receiptLogo} width="52" height="52" alt="" /></div><h1>Welcome back</h1><p>Keep personal and shared spending in sync.</p></div>
       <form className="login-form" onSubmit={login}>
         <label>USERNAME, EMAIL, OR PHONE<input name="identifier" autoComplete="username" required placeholder="@username, email, or phone" /></label>
@@ -130,14 +138,19 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
       <button className="guest-login-link" type="button" disabled={submitting || googleSubmitting} onClick={() => setGuest(true)}>Continue as guest · Quick split</button>
       <p className="terms">By continuing, you agree to the Terms and Privacy Policy.</p>
       {notice && <p className="form-notice" role="status">{notice}</p>}
-    </main> : view === 'forgot' ? <main className="signup-screen">
-      <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Reset your password</h1><p>Enter your username, email, or phone number. We will email the account's reset link.</p></header>
-      <form className="signup-form" onSubmit={forgotPassword}>
-        <label>USERNAME, EMAIL, OR PHONE<input name="identifier" autoComplete="username" required placeholder="@username, email, or phone" /></label>
-        <button type="submit" className="primary-button" disabled={submitting}>{submitting ? 'Sending…' : 'Send reset link'}</button>
+    </main> : view === 'forgot' ? <main key="forgot" className="signup-screen">
+      <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Reset your password</h1><p>Use one of the recovery codes you saved from Account settings.</p></header>
+      <form className="signup-form" onSubmit={recoverWithCode}>
+        <label>USERNAME, EMAIL, OR PHONE<input autoComplete="username" required placeholder="@username, email, or phone" value={recovery.identifier} onChange={event => setRecovery(previous => ({ ...previous, identifier: event.target.value }))} /></label>
+        <label>RECOVERY CODE<input autoComplete="one-time-code" required placeholder="XXXX-XXXX-XXXX-XXXX" value={recovery.code} onChange={event => setRecovery(previous => ({ ...previous, code: event.target.value.toUpperCase() }))} /></label>
+        <label>NEW PASSWORD<input type="password" autoComplete="new-password" required minLength={8} maxLength={72} pattern="(?=.*[0-9]).{8,}" value={recovery.next} onChange={event => setRecovery(previous => ({ ...previous, next: event.target.value }))} /></label>
+        <label>CONFIRM PASSWORD<input type="password" autoComplete="new-password" required value={recovery.confirm} onChange={event => setRecovery(previous => ({ ...previous, confirm: event.target.value }))} /></label>
+        <button type="submit" className="primary-button" disabled={submitting}>{submitting ? 'Resetting…' : 'Reset with recovery code'}</button>
       </form>
+      <div className="divider"><span>or</span></div>
+      <GoogleSignInButton intent="recover" disabled={submitting} onBusyChange={setGoogleSubmitting} onRecovery={token => { setResetToken(token); setResetPasswords({ next: '', confirm: '' }); changeView('reset'); }} />
       {notice && <p className="form-notice" role="status">{notice}</p>}
-    </main> : view === 'reset' ? <main className="signup-screen">
+    </main> : view === 'reset' ? <main key="reset" className="signup-screen">
       <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Choose a new password</h1><p>Use at least 8 characters, including a number.</p></header>
       <form className="signup-form" onSubmit={resetPassword}>
         <label>NEW PASSWORD<input type="password" autoComplete="new-password" required minLength={8} maxLength={72} pattern="(?=.*[0-9]).{8,}" value={resetPasswords.next} onChange={event => setResetPasswords({ ...resetPasswords, next: event.target.value })} /></label>
@@ -145,7 +158,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
         <button type="submit" className="primary-button" disabled={submitting || !resetToken}>{submitting ? 'Updating…' : 'Reset password'}</button>
       </form>
       {notice && <p className="form-notice" role="status">{notice}</p>}
-    </main> : <main className="signup-screen">
+    </main> : <main key="signup" className="signup-screen">
       <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Create your account</h1><p>Start budgeting alone or with friends.</p></header>
       <label className="google-phone-field">PHONE NUMBER · REQUIRED<input type="tel" value={googlePhone} onChange={event => setGooglePhone(event.target.value)} autoComplete="tel" required placeholder="+1 555 010 0000" /></label>
       <GoogleSignInButton signup phone={googlePhone} onBusyChange={setGoogleSubmitting} disabled={submitting || googlePhone.replace(/\D/g, '').length < 7} onSuccess={account => { setUser(account); setTab('Home'); setNotice(''); }} />

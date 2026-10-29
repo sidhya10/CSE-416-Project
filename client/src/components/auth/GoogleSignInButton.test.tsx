@@ -26,6 +26,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/auth/google/start')) return response({ clientId: 'test-client', nonce: JSON.parse(String(init?.body)).nonce, state: String(++startNumber).padStart(64, '0') });
+    if (url.endsWith('/auth/google/recover')) return response({ resetToken: 'google-recovery-token-1234567890123456' });
     if (url.endsWith('/auth/google') || url.endsWith('/auth/google/link')) return response({ user: { ...account, hasGoogle: true } });
     if (url.endsWith('/auth/me')) return response({ error: 'Not signed in' }, 401);
     if (url.endsWith('/auth/login')) return response({ user: account });
@@ -69,6 +70,26 @@ describe('Google popup entry points', () => {
     await waitFor(() => expect(onUserChange).toHaveBeenCalledWith(expect.objectContaining({ id: account.id, hasGoogle: true, hasPassword: true })));
     expect(onLogout).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/google/link'), expect.objectContaining({ method: 'POST' }));
+  });
+  it('returns a reset token only through the Google recovery flow', async () => {
+    const onRecovery = vi.fn();
+    render(<GoogleSignInButton intent="recover" onRecovery={onRecovery} />);
+    await renderedGoogle();
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/google/start'), expect.objectContaining({ body: expect.stringContaining('"intent":"recover"') }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
+    await waitFor(() => expect(onRecovery).toHaveBeenCalledWith('google-recovery-token-1234567890123456'));
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/google/recover'), expect.objectContaining({ method: 'POST' }));
+  });
+  it('shows the exact email mismatch returned when profile linking fails', async () => {
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation((input, init) => String(input).endsWith('/auth/google/link')
+      ? Promise.resolve(response({ error: 'Email mismatch: this app account uses owner@example.com, but the selected Google account uses other@example.com. Choose the Google account with the same email.' }, 409))
+      : original(input, init));
+    render(<ProfileSettings user={account} onUserChange={() => {}} onLogout={() => {}} onRootChange={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Account settings/ }));
+    await renderedGoogle();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
+    expect(await screen.findByText(/Email mismatch: this app account uses owner@example.com/)).toBeInTheDocument();
   });
   it('initializes once and ignores callbacks from a previous screen', async () => {
     const old = vi.fn(); const current = vi.fn();

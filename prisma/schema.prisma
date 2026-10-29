@@ -13,6 +13,7 @@ model User {
   email                 String               @unique
   username              String               @unique
   passwordHash          String?
+  sessionVersion        Int                  @default(0)
   googleSubject         String?              @unique
   name                  String
   phone                 String?              @unique
@@ -38,6 +39,7 @@ model User {
   groupInvitations      GroupInvitation[]    @relation("GroupInvitationRecipient")
   sentGroupInvitations  GroupInvitation[]    @relation("GroupInvitationSender")
   passwordResetTokens   PasswordResetToken[]
+  recoveryCodes         RecoveryCode[]
 }
 
 model PasswordResetToken {
@@ -50,6 +52,16 @@ model PasswordResetToken {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
+}
+
+model RecoveryCode {
+  id        String   @id @default(cuid())
+  userId    String
+  codeHash  String   @unique
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Friendship {

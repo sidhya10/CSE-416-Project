@@ -36,7 +36,7 @@ export function loadGoogleIdentity(): Promise<GoogleIdClient> {
   return loading;
 }
 
-export async function prepareGoogle(intent: 'signin' | 'signup' | 'link') {
+export async function prepareGoogle(intent: 'signin' | 'signup' | 'link' | 'recover') {
   // Serialize preparations so a superseded screen cannot overwrite a newer flow's cookie.
   const result = startQueue.catch(() => undefined).then(() => authApi.googleStart(pageNonce(), intent));
   startQueue = result;

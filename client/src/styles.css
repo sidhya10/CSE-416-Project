@@ -51,6 +51,7 @@ form input::placeholder{color:var(--muted);opacity:1}
 
 .password-form { gap: 16px; }
 .password-form .primary-button { margin-top: 8px; }
+.recovery-code-panel{display:grid;gap:16px}.recovery-warning{margin:0;padding:14px;border-radius:14px;background:var(--soft-green);color:var(--text);font-size:12px;line-height:1.5}.recovery-code-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0;padding:0;list-style:none}.recovery-code-list li{padding:10px 6px;border-radius:10px;background:var(--surface);text-align:center}.recovery-code-list code{font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--text)}.recovery-code-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.recovery-code-actions button{min-height:42px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-weight:700}
 .password-cancel { padding: 12px; border: 0; background: transparent; color: var(--muted); }
 button:disabled { cursor: not-allowed; }
 .primary-button:disabled { opacity: .6; }

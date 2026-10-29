@@ -17,12 +17,14 @@ The app records that payments were sent and received, but it does not move money
 ### Accounts and profiles
 
 - Register with a required phone number and sign in using a username, email address, or phone number plus password.
-- Request an expiring, one-time password-reset link and change a password from Profile after verifying the current password.
+- Generate one-time recovery codes from Profile and use a saved code to reset a forgotten password without email. Generating a new set replaces the old set, and only hashed codes are stored.
+- Recover through an already-connected Google identity, or optionally request an expiring email reset link when email delivery is configured.
+- Change a password from Profile after verifying the current password. A successful recovery or password change invalidates older sessions.
 - Sign up or sign in with Google Identity Services when Google OAuth is configured.
 - Use signed httpOnly session cookies for authentication.
 - View and update profile photo, username, name, birthday, and bio.
 - View read-only email and phone information.
-- Link Google authentication to an existing account only when the verified Google email exactly matches the account email.
+- Link Google authentication to an existing account only when the verified Google email exactly matches the account email. A mismatch is rejected and both addresses are identified on screen so the user can choose the correct Google account.
 - Delete an account when doing so would not erase protected financial history.
 - Switch between Light and Dark appearance modes. The preference is stored in the browser and synchronized between tabs.
 
@@ -180,7 +182,7 @@ Possible future features also include CSV export, exportable trip summaries, sav
 | Styling and charts | CSS | Responsive layouts, theme support, progress bars, and chart-like visualizations |
 | Backend | Node.js, Express, TypeScript, Render | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts; the production API runs as a Render web service |
 | Database | Neon PostgreSQL, Prisma | Serverless PostgreSQL persistence and transactional financial operations; Prisma migrations are applied when the Render service starts |
-| Authentication | bcrypt, Google Identity Services, signed httpOnly cookies | Identifier/password login, password recovery, Google authentication, and server-managed sessions |
+| Authentication | bcrypt, Google Identity Services, signed httpOnly cookies | Identifier/password login, hashed one-time recovery codes, optional email reset links, Google authentication/recovery, and revocable server-managed sessions |
 | Bank data | Plaid | Account connection, balance retrieval, and transaction synchronization |
 | Receipt processing | Azure Document Intelligence, `heic-convert`, `sharp` | Receipt extraction, HEIC conversion, and image processing |
 | File storage | PostgreSQL `bytea` through Prisma `Bytes` | Authenticated storage of selected receipt attachments |
@@ -241,9 +243,9 @@ npm ci --include=optional
 
 ### Optional provider configuration
 
-Password authentication and manual expense entry work without Google, Plaid, Azure, or email-provider credentials. In development, password-reset links are logged by the server when email delivery is not configured.
+Password authentication, saved recovery codes, and manual expense entry work without Google, Plaid, Azure, or email-provider credentials. Users should generate and securely save recovery codes from **Profile → Account settings → Recovery codes** while they can access their account.
 
-To deliver password-reset emails, set `APP_ORIGIN` to the public client origin and configure `RESEND_API_KEY` plus `PASSWORD_RESET_FROM` as documented in `.env.example`. The From address must use a Resend-verified sending domain. `PASSWORD_RESET_REPLY_TO` may optionally point to a monitored personal or school inbox.
+Email reset links remain an optional backend capability. To deliver them, set `APP_ORIGIN` to the public client origin and configure `RESEND_API_KEY` plus `PASSWORD_RESET_FROM` as documented in `.env.example`. The From address must use a Resend-verified sending domain. `PASSWORD_RESET_REPLY_TO` may optionally point to a monitored personal or school inbox.
 
 To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth Web client ID and configure the local and deployed browser origins in Google Cloud.
 

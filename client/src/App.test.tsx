@@ -26,7 +26,7 @@ describe('App account integration', () => {
       if (url.endsWith('/auth/me')) return authenticated ? response({ user: account }) : response({ error: 'Authentication required' }, 401);
       if (url.endsWith('/auth/register')) { authenticated = true; return response({ user: account }, 201); }
       if (url.endsWith('/auth/login')) return response({ user: account });
-      if (url.endsWith('/auth/forgot-password')) return response({ message: 'If an account matches, a password reset link has been sent.' }, 202);
+      if (url.endsWith('/auth/recovery-code/reset')) return response({ message: 'Password reset successfully. Sign in with your new password.' });
       if (url.endsWith('/auth/logout') || (url.endsWith('/users/me') && init?.method === 'DELETE')) return response(null, 204);
       if (url.endsWith('/users/me') && init?.method === 'PATCH') return response({ user: { ...account, ...JSON.parse(String(init.body)) } });
       if (url.includes('/users?query=')) return response({ users: [friend, stranger] });
@@ -69,15 +69,18 @@ describe('App account integration', () => {
     expect(await screen.findByRole('heading', { name: homeGreeting })).toBeInTheDocument();
   });
 
-  it('requests password recovery without exposing whether the identifier exists', async () => {
+  it('resets a forgotten password with a saved recovery code without email', async () => {
     authenticated = false;
     render(<App />);
     await screen.findByRole('heading', { name: 'Welcome back' });
     fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'USERNAME, EMAIL, OR PHONE' }), { target: { value: '@owner' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
-    expect(await screen.findByText('If an account matches, a password reset link has been sent.')).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/forgot-password'), expect.objectContaining({ body: JSON.stringify({ identifier: '@owner' }) }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'RECOVERY CODE' }), { target: { value: 'ABCD-EFGH-JKLM-NPQR' } });
+    fireEvent.change(screen.getByLabelText('NEW PASSWORD'), { target: { value: 'replacement2' } });
+    fireEvent.change(screen.getByLabelText('CONFIRM PASSWORD'), { target: { value: 'replacement2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reset with recovery code' }));
+    expect(await screen.findByText('Password reset successfully. Sign in with your new password.')).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/recovery-code/reset'), expect.objectContaining({ body: JSON.stringify({ identifier: '@owner', code: 'ABCD-EFGH-JKLM-NPQR', newPassword: 'replacement2', confirmPassword: 'replacement2' }) }));
   });
 
   it('shows backend profile data and persists editable fields', async () => {

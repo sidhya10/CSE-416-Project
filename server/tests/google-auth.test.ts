@@ -20,13 +20,13 @@ beforeAll(async () => {
 });
 beforeEach(() => { google.verifyIdToken.mockReset(); });
 afterAll(async () => { await prisma.user.deleteMany({ where: { email: { in: [...emails] } } }); await prisma.$disconnect(); });
-const start = async (agent: ReturnType<typeof request.agent>, intent: 'signin' | 'signup' | 'link' = 'signin') => {
+const start = async (agent: ReturnType<typeof request.agent>, intent: 'signin' | 'signup' | 'link' | 'recover' = 'signin') => {
   const result = await agent.post('/api/auth/google/start').send({ nonce, intent }).expect(200);
   expect(result.headers['cache-control']).toBe('no-store');
   expect(result.body.clientId).toBe(env.GOOGLE_CLIENT_ID);
   return result.body.state as string;
 };
-const finish = (agent: ReturnType<typeof request.agent>, state: string, intent: 'signin' | 'signup' | 'link' = 'signin') => agent.post(intent === 'link' ? '/api/auth/google/link' : '/api/auth/google').send({ credential: 'google-token', state, ...(intent === 'signup' ? { phone: `+1212${String(Date.now()).slice(-7)}` } : {}) });
+const finish = (agent: ReturnType<typeof request.agent>, state: string, intent: 'signin' | 'signup' | 'link' | 'recover' = 'signin') => agent.post(intent === 'link' ? '/api/auth/google/link' : intent === 'recover' ? '/api/auth/google/recover' : '/api/auth/google').send({ credential: 'google-token', state, ...(intent === 'signup' ? { phone: `+1212${String(Date.now()).slice(-7)}` } : {}) });
 const register = async (agent: ReturnType<typeof request.agent>, label: string, gmail = false) => {
   const result = await agent.post('/api/auth/register').send({ name: label, email: emailFor(label, gmail), username: `${label}_${run}`.slice(0, 30), phone: `+1213${String(Date.now() + emails.size).slice(-7)}`, password: 'password1' }).expect(201);
   return result.body.user as { id: string; email: string };
@@ -75,9 +75,26 @@ describe('Google popup authentication alongside password login', () => {
     const googleEmail = emailFor('differentgoogle');
     google.verifyIdToken.mockResolvedValue(ticket({ sub: `different-${run}`, email: googleEmail }));
     const linked = await finish(agent, await start(agent, 'link'), 'link').expect(409);
+    expect(linked.body.error).toContain('Email mismatch');
     expect(linked.body.error).toContain(owner.email);
+    expect(linked.body.error).toContain(googleEmail);
     expect(await prisma.user.count({ where: { email: googleEmail } })).toBe(0);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).googleSubject).toBeNull();
+  });
+  it('recovers only an account that already has the exact Google identity connected', async () => {
+    const agent = request.agent(app); const owner = await register(agent, 'recover');
+    const subject = `recover-${run}`;
+    await prisma.user.update({ where: { id: owner.id }, data: { googleSubject: subject } });
+    await agent.post('/api/auth/logout').expect(204);
+    google.verifyIdToken.mockResolvedValue(ticket({ sub: subject, email: owner.email }));
+    const recovered = await finish(agent, await start(agent, 'recover'), 'recover').expect(200);
+    expect(recovered.body.resetToken).toEqual(expect.any(String));
+    await agent.get('/api/auth/me').expect(401);
+    await request(app).post('/api/auth/reset-password').send({ token: recovered.body.resetToken, newPassword: 'recovered2', confirmPassword: 'recovered2' }).expect(200);
+    await request(app).post('/api/auth/login').send({ identifier: owner.email, password: 'recovered2' }).expect(200);
+
+    google.verifyIdToken.mockResolvedValue(ticket({ sub: `not-linked-${run}`, email: owner.email }));
+    await finish(agent, await start(agent, 'recover'), 'recover').expect(404);
   });
   it('rejects a Google identity or email belonging to another account without changing either user', async () => {
     const agent = request.agent(app); const other = request.agent(app);

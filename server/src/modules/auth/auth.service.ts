@@ -8,8 +8,8 @@ const cookieName = 'cse416_session';
 export const hashPassword = (password: string) => bcrypt.hash(password, 12);
 export const verifyPassword = (password: string, hash: string) => bcrypt.compare(password, hash);
 
-export function setSession(response: Response, userId: string) {
-  const token = jwt.sign({ sub: userId }, env.JWT_SECRET, { expiresIn: '7d' });
+export function setSession(response: Response, userId: string, sessionVersion: number) {
+  const token = jwt.sign({ sub: userId, sessionVersion }, env.JWT_SECRET, { expiresIn: '7d' });
   response.cookie(cookieName, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -24,10 +24,16 @@ export function clearSession(response: Response) {
 }
 
 export function readSession(token?: string) {
+  return readSessionClaims(token)?.userId ?? null;
+}
+
+export function readSessionClaims(token?: string) {
   if (!token) return null;
   try {
     const payload = jwt.verify(token, env.JWT_SECRET);
-    return typeof payload === 'object' && typeof payload.sub === 'string' ? payload.sub : null;
+    return typeof payload === 'object' && typeof payload.sub === 'string'
+      ? { userId: payload.sub, sessionVersion: typeof payload.sessionVersion === 'number' ? payload.sessionVersion : 0 }
+      : null;
   } catch {
     return null;
   }

@@ -43,4 +43,24 @@ describe('account identity and password recovery', () => {
     await request(app).post('/api/auth/login').send({ identifier: email, password: 'original1' }).expect(401);
     await request(app).post('/api/auth/login').send({ identifier: phone, password: 'replacement2' }).expect(200);
   });
+
+  it('creates hashed one-time recovery codes and invalidates existing sessions after use', async () => {
+    await agent.post('/api/auth/login').send({ identifier: email, password: 'replacement2' }).expect(200);
+    await agent.post('/api/auth/recovery-codes').send({ currentPassword: 'wrong-password' }).expect(403);
+    const generated = await agent.post('/api/auth/recovery-codes').send({ currentPassword: 'replacement2' }).expect(200);
+    expect(generated.body.codes).toHaveLength(10);
+    const [code] = generated.body.codes as string[];
+    expect(code).toMatch(/^[A-Z2-9]{4}(?:-[A-Z2-9]{4}){3}$/);
+    expect(await prisma.recoveryCode.findUnique({ where: { codeHash: code } })).toBeNull();
+
+    const staleSession = request.agent(app);
+    await staleSession.post('/api/auth/login').send({ identifier: email, password: 'replacement2' }).expect(200);
+    const reset = await request(app).post('/api/auth/recovery-code/reset').send({ identifier: username, code, newPassword: 'offline333', confirmPassword: 'offline333' }).expect(200);
+    expect(reset.body.message).toContain('Sign in');
+    await staleSession.get('/api/auth/me').expect(401);
+    await request(app).post('/api/auth/recovery-code/reset').send({ identifier: username, code, newPassword: 'another444', confirmPassword: 'another444' }).expect(400);
+    expect(await prisma.recoveryCode.count({ where: { user: { email } } })).toBe(0);
+    await request(app).post('/api/auth/login').send({ identifier: email, password: 'replacement2' }).expect(401);
+    await request(app).post('/api/auth/login').send({ identifier: phone, password: 'offline333' }).expect(200);
+  });
 });
