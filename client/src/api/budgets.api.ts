@@ -2,7 +2,7 @@ import { apiRequest } from './client';
 
 export type CategoryKey = 'dining' | 'groceries' | 'transit' | 'shopping' | 'other';
 
-export type ApiCategoryTransaction = { id: string; merchant: string; date: string; amountCents: number; pending: boolean };
+export type ApiCategoryTransaction = { linkedBank?: { merchant: string; date: string; amountCents: number }; id: string; merchant: string; date: string; amountCents: number; pending: boolean };
 export type ApiPersonalBudget = {
   month: string; daysInMonth: number; daysLeft: number; hasBankConnection: boolean; lastSyncedAt: number | null;
   categories: { key: CategoryKey; plannedCents: number; spentCents: number }[];

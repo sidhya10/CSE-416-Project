@@ -48,6 +48,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [splitMode, setSplitMode] = useState<SplitMode>(initialSplit?.mode ?? 'equal');
   const [assignments, setAssignments] = useState<SplitAssignments>(initialSplit?.assignments ?? {});
   const [date] = useState(() => initialSplit?.date ?? (() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; })());
+  const [budgetCategory, setBudgetCategory] = useState(initialSplit?.budgetCategory ?? 'other');
   const [name, setName] = useState(initialSplit?.name ?? '');
   const [items, setItems] = useState<Item[]>(initialSplit?.items.map(item => ({ id: item.id, name: item.name, amount: ((item.unitCents ?? item.cents) / 100).toFixed(2), quantity: String(item.quantity ?? 1) })) ?? [{ id: 0, name: '', amount: '', quantity: '1' }]);
   const nextId = useRef(Math.max(0, ...items.map(item => item.id)) + 1);
@@ -155,7 +156,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     mode={splitMode} assignments={assignments} onModeChange={setSplitMode} onAssignmentsChange={setAssignments}
     onBack={() => setSplitting(false)} onConfirm={async split => {
       const receiptAttachment = guest ? undefined : receiptFile ? await prepareReceiptAttachment(receiptFile) : !receiptName && initialSplit?.receiptName ? null : undefined;
-      await onConfirm({ ...split, receiptAttachment, payments: initialSplit?.payments,
+      await onConfirm({ ...split, budgetCategory, receiptAttachment, payments: initialSplit?.payments,
       feeBreakdown: { tax: cents(fees.Tax)!, tip: cents(fees.Tip)!, other: cents(fees.Other)! }, receiptName });
     }} />;
 
@@ -182,6 +183,13 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           <p>{groupName} · Created by {initialSplit?.creatorId && initialSplit.creatorId !== 'you' ? initialSplit.creatorName : 'you'}</p>
           <button className="expense-outline" type="button" onClick={() => { setChoice(payer); setChoosing(true); }}>Paid by {displayName(payer)} · Change</button>
         </section>
+        {!guest && <section className="expense-category">
+          <label htmlFor="expense-category">Budget category <span>(optional)</span></label>
+          <select id="expense-category" value={budgetCategory} onChange={event => setBudgetCategory(event.target.value)}>
+            {['dining', 'groceries', 'transit', 'shopping', 'other'].map(category => <option key={category} value={category}>{category[0]!.toUpperCase() + category.slice(1)}</option>)}
+          </select>
+          <small>Applies only to your share. Defaults to Other.</small>
+        </section>}
         <section className="expense-receipt" aria-label="Receipt"><div>
           <button className="expense-outline" type="button" onClick={() => camera.current?.click()}>Take photo</button>
           <button className="expense-outline" type="button" onClick={() => upload.current?.click()}>Upload receipt</button>

@@ -3,12 +3,13 @@ import type { PreviewSplit } from '../pages/expenses/split';
 
 type Payment = { id: string; amountCents: number; status: 'SENT' | 'CONFIRMED' | 'ISSUE'; sentAt: string; resolvedAt?: string };
 export type ApiExpense = {
+  budgetCategory?: string;
   settlementBatchId?: string | null;
   receipt?: { name: string; mimeType: string } | null;
   id: string; version: number; title: string; expenseDate: string; createdByUserId: string; creator: { id: string; name: string };
   paidByUserId: string; recurringBillId?: string | null; splitMode: 'EQUAL' | 'ITEMS' | 'CUSTOM'; totalCents: number; taxCents: number; tipCents: number; otherCents: number;
   items: { id: string; name: string; quantity: number; unitPriceCents: number; assignments: { userId: string }[] }[];
-  shares: { userId: string; user: { id: string; name: string }; baseCents: number; totalCents: number; payments: Payment[] }[];
+  shares: { budgetCategory?: string; userId: string; user: { id: string; name: string }; baseCents: number; totalCents: number; payments: Payment[] }[];
 };
 
 // "you" is a presentation alias only. Every API request uses real database user IDs.
@@ -16,6 +17,7 @@ export function toExpenseInput(split: PreviewSplit, currentUserId: string) {
   const id = (value: string) => value === 'you' ? currentUserId : value;
   return {
     receipt: split.receiptAttachment,
+    budgetCategory: split.budgetCategory ?? 'other',
     title: split.name, expenseDate: split.date.slice(0, 10), paidByUserId: id(split.payerId),
     splitMode: split.mode === 'equal' ? 'EQUAL' : 'ITEMS', participantIds: split.shares.map(share => id(share.memberId)),
     items: split.items.map(item => ({ name: item.name, quantity: item.quantity ?? 1, unitPriceCents: item.unitCents ?? item.cents,
@@ -27,6 +29,7 @@ export function fromApiExpense(expense: ApiExpense, currentUserId: string): Prev
   const id = (value: string) => value === currentUserId ? 'you' : value;
   return {
     settlementBatchId: expense.settlementBatchId,
+    budgetCategory: expense.shares.find(share => share.userId === currentUserId)?.budgetCategory ?? 'other',
     recurring: !!expense.recurringBillId || expense.splitMode === 'CUSTOM',
     receiptName: expense.receipt?.name, receiptMimeType: expense.receipt?.mimeType,
     expenseId: expense.id, version: expense.version, creatorId: id(expense.createdByUserId), creatorName: expense.creator.name,

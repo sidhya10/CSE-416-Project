@@ -66,7 +66,14 @@ function expenseFields(input: ExpenseInput) {
     title: input.title, paidByUserId: input.paidByUserId, expenseDate: new Date(`${input.expenseDate}T00:00:00.000Z`),
     splitMode: input.splitMode, taxCents: input.taxCents, tipCents: input.tipCents, otherCents: input.otherCents,
     totalCents: calculateExpense(input).totalCents,
+    ...(input.budgetCategory !== undefined ? { budgetCategory: input.budgetCategory } : {}),
   };
+}
+
+async function notifyBudgetPayer(tx: Transaction, expenseId: string, input: ExpenseInput) {
+  await tx.budgetNotice.upsert({ where: { expenseId_recipientId: { expenseId, recipientId: input.paidByUserId } },
+    create: { expenseId, recipientId: input.paidByUserId, message: `You’re the payer for ${input.title}. Link the bank charge for your budget, or choose No transaction if there isn’t one.` },
+    update: { deletedAt: null, readAt: null, message: `You’re the payer for ${input.title}. Link the bank charge for your budget, or choose No transaction if there isn’t one.` } });
 }
 
 export function createExpense(groupId: string, userId: string, clientRequestId: string, input: ExpenseInput) {
@@ -83,7 +90,9 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
     const expense = await tx.expense.create({ data: { groupId, createdByUserId: userId, clientRequestId, ...expenseFields(input) } });
     await tx.group.update({ where: { id: groupId }, data: { lastActivityAt: new Date() } });
     await writeItemsAndShares(tx, expense.id, input);
+    if (input.budgetCategory) await tx.expenseShare.updateMany({ where: { expenseId: expense.id, userId }, data: { budgetCategory: input.budgetCategory } });
     await writeReceipt(tx, expense.id, input);
+    await notifyBudgetPayer(tx, expense.id, input);
     return readExpense(tx, expense.id, userId);
   });
 }
@@ -98,11 +107,17 @@ export function editExpense(id: string, userId: string, version: number, input: 
     if (previous.shares.some(share => share.payments.length)) throw new ExpenseError(409, 'Expenses with payment history cannot be edited yet');
     await tx.group.update({ where: { id: previous.groupId }, data: { lastActivityAt: new Date() } });
     await validateMembers(tx, previous.groupId, input);
-    await tx.expense.update({ where: { id }, data: { ...expenseFields(input), version: { increment: 1 } } });
+    await tx.expense.update({ where: { id }, data: { ...expenseFields(input), bankTransactionId: input.paidByUserId !== previous.paidByUserId || expenseFields(input).totalCents !== previous.totalCents ? null : previous.bankTransactionId, version: { increment: 1 } } });
     await tx.expenseItem.deleteMany({ where: { expenseId: id } });
     await tx.expenseShare.deleteMany({ where: { expenseId: id } });
     await writeItemsAndShares(tx, id, input);
+    for (const share of previous.shares) await tx.expenseShare.updateMany({ where: { expenseId: id, userId: share.userId }, data: { budgetCategory: share.userId === userId ? input.budgetCategory ?? share.budgetCategory : share.budgetCategory } });
     await writeReceipt(tx, id, input);
+    if (previous.paidByUserId !== input.paidByUserId) {
+      await tx.budgetNotice.deleteMany({ where: { expenseId: id } });
+      await tx.expense.update({ where: { id }, data: { budgetLinkReviewed: false } });
+      await notifyBudgetPayer(tx, id, input);
+    }
     return readExpense(tx, id, userId);
   });
 }

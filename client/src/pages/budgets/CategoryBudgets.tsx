@@ -16,10 +16,15 @@ const REFRESH_MS = 15_000;
 const errorMessage = (error: unknown) => error instanceof ApiError ? error.message : 'Unable to reach the server. Try again.';
 
 // `active` is false while the tab is hidden: nothing is fetched or polled until the user opens the budget.
-export default function CategoryBudgets({ onOpenSimulator, active = true }: { onOpenSimulator: () => void; active?: boolean }) {
+export default function CategoryBudgets({ onOpenSimulator, active = true, expenseTarget, onClearExpenseTarget }: { onClearExpenseTarget?: () => void; expenseTarget?: { category: string; expenseId: string } | null; onOpenSimulator: () => void; active?: boolean }) {
   const [scope, setScope] = useState<BudgetScope>('personal');
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail>(null);
+  useEffect(() => {
+    if (!expenseTarget) return;
+    const key = (['dining', 'groceries', 'transit', 'shopping', 'other'].includes(expenseTarget.category) ? expenseTarget.category : 'other') as CategoryKey;
+    setScope('personal'); setDetail({ kind: 'category', key, from: 'budget' });
+  }, [expenseTarget]);
   const [personal, setPersonal] = useState<ApiPersonalBudget | null>(null);
   const [groups, setGroups] = useState<ApiGroupBudget[] | null>(null);
   const [personalError, setPersonalError] = useState('');
@@ -78,8 +83,8 @@ export default function CategoryBudgets({ onOpenSimulator, active = true }: { on
     const showGroup = (detail.kind === 'owes' || detail.kind === 'groupPlan') ? activeGroup : undefined;
     return <main className="cb-screen">
       {detail.kind === 'insights' && period && <SpendingInsights budgets={budgets} period={period} onBack={() => setDetail(null)} onSelectCategory={key => setDetail({ kind: 'category', key, from: 'insights' })} />}
-      {item && period && personal && detail.kind === 'category' && <CategoryTransactions item={item} period={period} transactions={toCategoryTransactions(personal.transactions[item.key])}
-        onBack={() => setDetail(detail.from === 'insights' ? { kind: 'insights' } : null)} />}
+      {item && period && personal && detail.kind === 'category' && <CategoryTransactions highlightId={expenseTarget ? `share-${expenseTarget.expenseId}` : undefined} item={item} period={period} transactions={toCategoryTransactions(personal.transactions[item.key])}
+        onBack={() => { onClearExpenseTarget?.(); setDetail(detail.from === 'insights' ? { kind: 'insights' } : null); }} />}
       {detail.kind === 'limits' && personal && <EditLimits budgets={budgets} onCancel={() => setDetail(null)} onSave={saveLimits} />}
       {detail.kind === 'owes' && showGroup && <WhoOwesWhat group={showGroup} onBack={() => setDetail(null)} />}
       {detail.kind === 'groupPlan' && showGroup && <EditGroupPlan group={showGroup} onCancel={() => setDetail(null)} onSave={plannedCents => saveGroupPlan(showGroup.id, plannedCents)} />}
@@ -154,7 +159,7 @@ export default function CategoryBudgets({ onOpenSimulator, active = true }: { on
           <button type="button" onClick={() => setDetail({ kind: 'insights' })}>View insights ›</button>
         </div>
       </section>
-      {!personal.hasBankConnection && <p className="cb-notice" role="status">Connect a bank account in Profile to see your spending here.</p>}
+      {!personal.hasBankConnection && <p className="cb-notice" role="status">Group expense shares appear here automatically. Connect a bank account in Profile to include other spending.</p>}
       {overLimit.length > 0 && <p className="cb-notice cb-warn" role="status">Over budget this month: {overLimit.map(item => item.label).join(', ')}.</p>}
 
       <div className="cb-section-row"><h2 className="cb-section-heading">Category plan</h2>

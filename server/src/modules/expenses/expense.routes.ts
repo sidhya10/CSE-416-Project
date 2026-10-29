@@ -1,3 +1,5 @@
+import { categorize } from '../budgets/budget.categories.js';
+import { ExpenseError } from './expense.service.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
@@ -43,4 +45,39 @@ expensesRouter.get('/expenses/:id/receipt', async (req, res) => {
   if (!receipt) { res.status(404).json({ error: 'Receipt not found' }); return; }
   res.set({ 'Content-Type': receipt.mimeType, 'Cache-Control': 'private, no-store', 'Content-Disposition': `inline; filename="receipt.${receipt.mimeType === 'application/pdf' ? 'pdf' : 'jpg'}"` });
   res.send(Buffer.from(receipt.data));
+});
+
+// Bank details are returned only to the payer, never to other group members.
+expensesRouter.get('/expenses/:id/budget-link', async (req, res) => {
+  const expense = await readExpense(prisma, req.params.id, req.userId!);
+  const canLink = expense.paidByUserId === req.userId;
+  const candidates = canLink ? await prisma.bankTransaction.findMany({
+    where: { pending: false, amountCents: { gt: 0 }, account: { hidden: false, connection: { userId: req.userId! } }, OR: [{ linkedExpense: null }, { linkedExpense: { id: expense.id } }] },
+    select: { id: true, name: true, merchant: true, amountCents: true, date: true, pending: true, category: true }, orderBy: { date: 'desc' },
+  }) : [];
+  res.json({ reviewed: expense.budgetLinkReviewed, expenseTotalCents: expense.totalCents, category: expense.shares.find(s => s.userId === req.userId)?.budgetCategory ?? 'other', linked: !!expense.bankTransactionId, transactionId: canLink ? expense.bankTransactionId : null, canLink, ownShareCents: expense.shares.find(s => s.userId === req.userId)?.totalCents ?? 0, candidates: candidates.map(t => ({ ...t, category: categorize(t) ?? 'other' })) });
+});
+expensesRouter.put('/expenses/:id/budget-link', async (req, res) => {
+  const input = z.object({ category: z.enum(['dining', 'groceries', 'transit', 'shopping', 'other']).optional(), transactionId: z.string().min(1).nullable() }).strict().parse(req.body);
+  await transaction(async tx => {
+    const expense = await readExpense(tx, req.params.id, req.userId!);
+    if (expense.paidByUserId !== req.userId) throw new ExpenseError(403, 'Only the payer can link their bank transaction');
+    if (input.transactionId) {
+      const bank = await tx.bankTransaction.findFirst({ where: { id: input.transactionId, pending: false, amountCents: { gt: 0 }, account: { connection: { userId: req.userId! } } }, include: { linkedExpense: { select: { id: true } } } });
+      if (!bank || (bank.linkedExpense && bank.linkedExpense.id !== expense.id)) throw new ExpenseError(409, 'Choose an available posted charge from your own account.');
+    }
+    await tx.expense.update({ where: { id: expense.id }, data: { budgetLinkReviewed: true, bankTransactionId: input.transactionId, version: { increment: 1 } } });
+    await tx.budgetNotice.updateMany({ where: { expenseId: expense.id, recipientId: req.userId!, readAt: null, deletedAt: null }, data: { readAt: new Date() } });
+  });
+  res.status(204).end();
+});
+
+expensesRouter.put('/expenses/:id/budget-category', async (req, res) => {
+  const { category } = z.object({ category: z.enum(['dining', 'groceries', 'transit', 'shopping', 'other']) }).strict().parse(req.body);
+  await transaction(async tx => {
+    const expense = await readExpense(tx, req.params.id, req.userId!);
+    if (!expense.shares.some(s => s.userId === req.userId)) throw new ExpenseError(403, 'Only participants can categorize their share');
+    await tx.expenseShare.update({ where: { expenseId_userId: { expenseId: expense.id, userId: req.userId! } }, data: { budgetCategory: category } });
+  });
+  res.status(204).end();
 });

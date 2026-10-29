@@ -193,8 +193,8 @@ describe('home summary', () => {
     const { body } = await owner.get('/api/budgets/home').expect(200);
     expect(body.history.map((month: { month: string }) => month.month)).toEqual([monthKey(-3), monthKey(-2), monthKey(-1), monthKey(0)]);
     // Seeded earlier: spending excludes the transfer, refund, hidden account and next month; income is only the INCOME deposit.
-    // The owner also fronted the cabin and was repaid $50.00 by then, which offsets that month's spending.
-    expect(body.history[3]).toEqual({ month: monthKey(0), spendingCents: 7300 - 5000, incomeCents: 5000 });
+    // The owner also fronted the cabin and was repaid $50.00 by then, whose own $50 share counts regardless of repayment.
+    expect(body.history[3]).toEqual({ month: monthKey(0), spendingCents: 7300 + 5000, incomeCents: 5000 });
     expect(body.history[2]).toEqual({ month: monthKey(-1), spendingCents: 9999, incomeCents: 0 });
     expect(body.history[0]).toEqual({ month: monthKey(-3), spendingCents: 0, incomeCents: 0 });
     const other = await outsider.get('/api/budgets/home').expect(200);
@@ -219,7 +219,7 @@ describe('home summary', () => {
 });
 
 describe('personal budget and group settlements', () => {
-  it('counts money the user sent to settle a group expense, unless the recipient flags an issue', async () => {
+  it('counts shares once regardless of whether repayments are sent, confirmed, or flagged', async () => {
     const created = await owner.post(`/api/groups/${groupId}/expenses`).send({ clientRequestId: randomUUID(), expense: {
       title: 'Settle me', expenseDate: todayIso, paidByUserId: ownerId, splitMode: 'EQUAL', participantIds: [ownerId, memberId],
       items: [{ name: 'Settle me', unitPriceCents: 4000, quantity: 1 }], taxCents: 0, tipCents: 0, otherCents: 0 } }).expect(201);
@@ -227,24 +227,95 @@ describe('personal budget and group settlements', () => {
     const payment = await prisma.expensePayment.create({ data: { expenseId: created.body.expense.id, senderUserId: memberId, amountCents: 2000, method: 'Venmo', clientRequestId: `budget-${run}` } });
 
     const sent = (await member.get('/api/budgets/personal').expect(200)).body;
-    expect(byKey(sent.categories).other.spentCents).toBe(before + 2000);
-    expect(sent.transactions.other).toContainEqual({ id: `payment-${payment.id}`, merchant: 'Payment to Budget Test 0 (Budget test group)', date: todayIso, amountCents: 2000, pending: true });
+    expect(byKey(sent.categories).other.spentCents).toBe(before);
+    expect(sent.transactions.other).toContainEqual(expect.objectContaining({ id: `share-${created.body.expense.id}`, amountCents: 2000 }));
     // The recipient did not send anything, so their budget is unchanged.
     expect((await owner.get('/api/budgets/personal').expect(200)).body.transactions.other.some((item: { id: string }) => item.id.startsWith('payment-'))).toBe(false);
 
     const ownerBefore = byKey((await owner.get('/api/budgets/personal').expect(200)).body.categories).other.spentCents;
     await prisma.expensePayment.update({ where: { id: payment.id }, data: { status: 'CONFIRMED', resolvedAt: new Date() } });
     const repaid = (await owner.get('/api/budgets/personal').expect(200)).body;
-    expect(repaid.transactions.other).toContainEqual({ id: `repayment-${payment.id}`, merchant: 'Repayment from Budget Test 1 (Budget test group)', date: todayIso, amountCents: -2000, pending: false });
-    expect(byKey(repaid.categories).other.spentCents).toBe(Math.max(0, ownerBefore - 2000));
-    expect((await member.get('/api/budgets/personal').expect(200)).body.transactions.other).toContainEqual(expect.objectContaining({ id: `payment-${payment.id}`, pending: false }));
+    expect(repaid.transactions.other.some((row: { id: string }) => row.id.startsWith('repayment-'))).toBe(false);
+    expect(byKey(repaid.categories).other.spentCents).toBe(ownerBefore);
+    expect((await member.get('/api/budgets/personal').expect(200)).body.transactions.other).toContainEqual(expect.objectContaining({ id: `share-${created.body.expense.id}`, pending: false }));
 
     const thisMonth = (home: { history: { month: string; spendingCents: number }[] }) => home.history.at(-1)!.spendingCents;
     const homeSender = thisMonth((await member.get('/api/budgets/home').expect(200)).body);
     const homeRecipient = thisMonth((await owner.get('/api/budgets/home').expect(200)).body);
     await prisma.expensePayment.update({ where: { id: payment.id }, data: { status: 'ISSUE' } });
-    expect(thisMonth((await member.get('/api/budgets/home').expect(200)).body)).toBe(homeSender - 2000);
-    expect(thisMonth((await owner.get('/api/budgets/home').expect(200)).body)).toBe(homeRecipient + 2000);
+    expect(thisMonth((await member.get('/api/budgets/home').expect(200)).body)).toBe(homeSender);
+    expect(thisMonth((await owner.get('/api/budgets/home').expect(200)).body)).toBe(homeRecipient);
     expect(byKey((await member.get('/api/budgets/personal').expect(200)).body.categories).other.spentCents).toBe(before);
   });
+});
+
+it('links only the payer’s bank charge even when the receipt amount differs and counts both participants shares without duplicates', async () => {
+  const created = await owner.post(`/api/groups/${groupId}/expenses`).send({ clientRequestId: randomUUID(), expense: {
+    title: 'Cheesecake', budgetCategory: 'dining', expenseDate: todayIso, paidByUserId: ownerId, splitMode: 'EQUAL', participantIds: [ownerId, memberId],
+    items: [{ name: 'Dinner', unitPriceCents: 24000, quantity: 1 }], taxCents: 0, tipCents: 0, otherCents: 0 } }).expect(201);
+  const id = created.body.expense.id;
+  const account = await prisma.bankAccount.findFirstOrThrow({ where: { connection: { userId: ownerId }, hidden: false } });
+  await owner.put(`/api/expenses/${id}/budget-link`).send({ category: 'dining', transactionId: null }).expect(204);
+  const before = byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents;
+  expect((await member.get('/api/budgets/personal')).body.transactions.other).toContainEqual(expect.objectContaining({ id: `share-${id}`, amountCents: 12000 }));
+  const bank = await prisma.bankTransaction.create({ data: { accountId: account.id, plaidTransactionId: `cheesecake-${run}`, amountCents: 25000, date: new Date(todayIso), name: 'Cheesecake', category: 'FOOD_AND_DRINK' } });
+  expect(byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents).toBe(before + 25000);
+  expect((await owner.get(`/api/expenses/${id}/budget-link`)).body.candidates.map((t: { id: string }) => t.id)).toContain(bank.id);
+  const body = { category: 'shopping', transactionId: bank.id };
+  await member.put(`/api/expenses/${id}/budget-link`).send(body).expect(403);
+  expect((await member.get(`/api/expenses/${id}/budget-link`)).body.candidates).toEqual([]);
+  await owner.put(`/api/expenses/${id}/budget-link`).send(body).expect(204);
+  expect((await owner.get(`/api/expenses/${id}/budget-link`)).body.category).toBe('dining');
+  expect((await prisma.budgetNotice.findFirstOrThrow({ where: { expenseId: id, recipientId: ownerId } })).readAt).not.toBeNull();
+  const linkedRows = (await owner.get('/api/budgets/personal')).body.transactions.dining;
+  expect(linkedRows.some((row: { id: string }) => row.id === bank.id)).toBe(false);
+  expect(linkedRows).toContainEqual(expect.objectContaining({ id: `share-${id}`, amountCents: 12000, linkedBank: expect.objectContaining({ amountCents: 25000 }) }));
+  expect(byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents).toBe(before);
+  await owner.put(`/api/expenses/${id}/budget-link`).send(body).expect(204);
+  expect((await owner.get(`/api/expenses/${id}/budget-link`)).body.category).toBe('dining');
+  expect(byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents).toBe(before);
+  await owner.put(`/api/expenses/${id}/budget-link`).send({ category: 'dining', transactionId: null }).expect(204);
+  expect(byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents).toBe(before + 25000);
+});
+
+it('keeps each participant category independent, defaulting to Other', async () => {
+  for (const category of ['groceries', undefined]) {
+    const result = await member.post(`/api/groups/${groupId}/expenses`).send({ clientRequestId: randomUUID(), expense: {
+      title: 'Shared groceries', expenseDate: todayIso, paidByUserId: ownerId, splitMode: 'EQUAL', participantIds: [ownerId, memberId],
+      budgetCategory: category, items: [{ name: 'Food', unitPriceCents: 2000, quantity: 1 }],
+    } }).expect(201);
+    expect(result.body.expense.budgetCategory).toBe(category ?? 'other');
+    for (const agent of [owner, member]) {
+      const budget = await agent.get('/api/budgets/personal').expect(200);
+      expect(budget.body.transactions[agent === member ? category ?? 'other' : 'other']).toContainEqual(expect.objectContaining({ id: `share-${result.body.expense.id}`, amountCents: 1000 }));
+    }
+    await owner.put(`/api/expenses/${result.body.expense.id}/budget-category`).send({ category: 'transit' }).expect(204);
+    expect((await member.get(`/api/expenses/${result.body.expense.id}/budget-link`)).body.category).toBe(category ?? 'other');
+    expect((await owner.get('/api/budgets/personal')).body.transactions.transit).toContainEqual(expect.objectContaining({ id: `share-${result.body.expense.id}`, amountCents: 1000 }));
+    await outsider.put(`/api/expenses/${result.body.expense.id}/budget-category`).send({ category: 'shopping' }).expect(404);
+
+  }
+});
+
+it('notifies the assigned payer once and keeps the budget notice private', async () => {
+  const input = { clientRequestId: randomUUID(), expense: { title: 'Payer notification', expenseDate: todayIso, paidByUserId: ownerId, splitMode: 'EQUAL', participantIds: [ownerId, memberId], items: [{ name: 'Meal', unitPriceCents: 1000, quantity: 1 }] } };
+  const created = await member.post(`/api/groups/${groupId}/expenses`).send(input).expect(201);
+  await member.post(`/api/groups/${groupId}/expenses`).send(input).expect(201);
+  const notices = (await owner.get('/api/settlement-notices').expect(200)).body.notices.filter((n: { expenseId?: string }) => n.expenseId === created.body.expense.id);
+  expect(notices).toHaveLength(1);
+  expect(notices[0]).toMatchObject({ kind: 'BUDGET_LINK', groupId, readAt: null });
+  await member.post(`/api/settlement-notices/${notices[0].id}/read`).expect(404);
+  await owner.put(`/api/expenses/${created.body.expense.id}/budget-link`).send({ transactionId: null }).expect(204);
+  expect((await prisma.budgetNotice.findUniqueOrThrow({ where: { id: notices[0].id } })).readAt).not.toBeNull();
+  await member.post(`/api/settlement-notices/${notices[0].id}/unread`).expect(404);
+  await owner.post(`/api/settlement-notices/${notices[0].id}/unread`).expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices.find((n: { id: string }) => n.id === notices[0].id).readAt).toBeNull();
+  await owner.post(`/api/settlement-notices/${notices[0].id}/read`).expect(204);
+  await member.delete(`/api/settlement-notices/${notices[0].id}`).expect(404);
+  await member.delete('/api/settlement-notices').expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices.some((n: { id: string }) => n.id === notices[0].id)).toBe(true);
+  await owner.delete(`/api/settlement-notices/${notices[0].id}`).expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices.some((n: { id: string }) => n.id === notices[0].id)).toBe(false);
+  await owner.delete('/api/settlement-notices').expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices).toEqual([]);
 });

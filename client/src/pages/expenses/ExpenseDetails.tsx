@@ -1,3 +1,4 @@
+import ExpenseBudgetLink from './ExpenseBudgetLink';
 import ReceiptViewer from './ReceiptViewer';
 import Avatar from '../../components/common/Avatar';
 import ExpensePayments from './ExpensePayments';
@@ -11,9 +12,12 @@ import './details.css';
 
 type Expense = { title: string; subtitle: string; amount: string; split?: PreviewSplit };
 
-export default function ExpenseDetails({ expense, groupName, members, onBack, onEdit, onPaymentAction, onPaymentViewChange }: {
+export default function ExpenseDetails({ expense, groupName, members, onBack, onEdit, onPaymentAction, onPaymentViewChange, initialBudgetOpen = false, highlightBudget = false }: { highlightBudget?: boolean; initialBudgetOpen?: boolean;
   expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction) => void | Promise<void>; onPaymentViewChange: (visible: boolean) => void;
 }) {
+  const [budgetSetupSaved, setBudgetSetupSaved] = useState(false);
+  const emphasizeBudget = highlightBudget && !budgetSetupSaved;
+  const [budgetOpen, setBudgetOpen] = useState(initialBudgetOpen);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedContributor, setSelectedContributor] = useState<{ itemId: number; memberId: string } | null>(null);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
@@ -46,6 +50,12 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
         <p>{groupName}{split && ` · ${new Date(split.date).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })}`}</p>
         <p>{split ? `Paid by ${name(split.payerId)} · Created by ${split.creatorId && split.creatorId !== 'you' ? split.creatorName : 'you'}` : expense.subtitle}</p>
       </section>
+      {split?.expenseId && <div className={`details-budget-section ${emphasizeBudget ? 'details-budget-spotlight' : ''}`}>
+        <button type="button" className="expense-outline details-budget-toggle" aria-expanded={budgetOpen} aria-controls="expense-personal-budget" onClick={() => setBudgetOpen(open => !open)}>
+          <span>Personal budget</span><span aria-hidden="true">{budgetOpen ? '−' : '+'}</span>
+        </button>
+        {budgetOpen && <div id="expense-personal-budget"><ExpenseBudgetLink key={split.expenseId} expenseId={split.expenseId} onSaved={() => setBudgetSetupSaved(true)} /></div>}
+      </div>}
       <section className="details-card details-payment" aria-label="Your payment">
         <div><h2>{payer ? 'You paid this expense' : `Your payment · ${split ? paymentFor(split, 'you').status : 'Unavailable'}`}</h2>
           <p>{split ? payer ? 'You don’t owe a payment to yourself.' : ownPayment?.status === 'Settled' ? `${formatCents(ownPayment.received)} received by ${name(split.payerId)}` : ownPayment?.record?.pendingCents ? `${formatCents(ownPayment.record.pendingCents)} reported sent to ${name(split.payerId)}` : `${formatCents(ownPayment?.remaining ?? 0)} share payable to ${name(split.payerId)}` : 'Payment records are unavailable for this sample.'}</p>

@@ -119,6 +119,8 @@ export async function syncConnection(connectionId: string) {
       for (const item of [...result.added, ...result.modified]) {
         const accountId = accountIds.get(item.account_id);
         if (!accountId) continue;
+        // A changed bank total must be reviewed again rather than silently excluded.
+        await tx.expense.updateMany({ where: { bankTransaction: { plaidTransactionId: item.transaction_id, amountCents: { not: toRow(item).amountCents } } }, data: { bankTransactionId: null } });
         await tx.bankTransaction.upsert({ where: { plaidTransactionId: item.transaction_id }, create: { ...toRow(item), accountId, plaidTransactionId: item.transaction_id }, update: toRow(item) });
       }
       const removedIds = result.removed.map(item => item.transaction_id).filter((id): id is string => !!id);
