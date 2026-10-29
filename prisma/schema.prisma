@@ -8,6 +8,7 @@ datasource db {
 }
 
 model User {
+  categoryBudgetNotices CategoryBudgetNotice[]
   budgetNotices BudgetNotice[]
   id                    String               @id @default(cuid())
   email                 String               @unique
@@ -480,4 +481,17 @@ model BudgetNotice {
   createdAt DateTime @default(now())
   readAt DateTime?
   @@unique([expenseId, recipientId])
+}
+
+model CategoryBudgetNotice {
+  id String @id @default(cuid())
+  recipientId String
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  month String
+  category String
+  message String
+  createdAt DateTime @default(now())
+  readAt DateTime?
+  deletedAt DateTime?
+  @@unique([recipientId, month, category])
 }

@@ -66,12 +66,11 @@ describe('dashboard helpers', () => {
     expect(barHeightPct(110000, 220000)).toBe(50);
     expect(barHeightPct(5, 0)).toBe(0);
   });
-  it('builds to-dos from payments, balances, and categories over their limit', () => {
-    const budgets = [{ key: 'dining' as const, label: 'Dining', color: '', plannedCents: 100, spentCents: 200 }];
-    expect(buildTodos(groups(), home(), budgets).map(todo => todo.label)).toEqual([
-      'Confirm 2 payments sent to you ($15.00)', 'You owe $38.20 in 1 group', 'Over budget: Dining',
+  it('builds to-dos only from payments and balances', () => {
+    expect(buildTodos(groups(), home()).map(todo => todo.label)).toEqual([
+      'Confirm 2 payments sent to you ($15.00)', 'You owe $38.20 in 1 group',
     ]);
-    expect(buildTodos([], null, [])).toEqual([]);
+    expect(buildTodos([], null)).toEqual([]);
   });
 });
 
@@ -95,8 +94,8 @@ describe('home dashboard with real data', () => {
     expect(todos.compareDocumentPosition(screen.getByRole('region', { name: 'Budget summary' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Group payment notifications' })).not.toBeInTheDocument();
     expect(screen.getByText('You owe $38.20 in 1 group')).toBeInTheDocument();
-    expect(screen.getByText('Over budget: Dining')).toBeInTheDocument();
-    expect(screen.getByText('4 items need attention')).toBeInTheDocument();
+    expect(screen.queryByText('Over budget: Dining')).not.toBeInTheDocument();
+    expect(screen.getByText('3 items need attention')).toBeInTheDocument();
     expect(screen.getByText('Review 4 transactions')).toBeInTheDocument();
     expect(screen.getByText('Latest: Alex added Dinner in Weekend Trip · $40.00')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Transactions to review' })).not.toBeInTheDocument();
@@ -131,9 +130,9 @@ describe('home dashboard with real data', () => {
     render(<HomeDashboard userName="Nicole" onNavigate={onNavigate} />);
     const rows = await screen.findAllByText(/^(Review|Settle|View) ›$/);
     fireEvent.click(rows[0]!);
-    fireEvent.click(screen.getByRole('button', { name: 'View ›' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settle ›' }));
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    expect(onNavigate.mock.calls.map(call => call[0])).toEqual(['Groups', 'Budget', 'Profile']);
+    expect(onNavigate.mock.calls.map(call => call[0])).toEqual(['Groups', 'Groups', 'Profile']);
   });
 
   it('opens the full transaction review center from the Home preview', async () => {

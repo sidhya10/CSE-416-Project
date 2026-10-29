@@ -4,18 +4,21 @@ import { requireAuth } from '../../middleware/requireAuth.js';
 import { prisma } from '../../config/database.js';
 import { ExpenseError } from '../expenses/expense.service.js';
 import { confirmGroupPayments, reportGroupPayment, remindGroupMember, confirmSettlementPayments, initializeSettlement, methods, previewSettlement, remindSettlementMember, reportSettlementPayment, settlementInbox } from './settlement.service.js';
+import { refreshCategoryBudgetNotices } from '../budgets/budget-notices.js';
 export const settlementsRouter = Router();
 settlementsRouter.use(requireAuth);
 const id = z.string().min(1).max(100);
 const cents = z.number().int().positive().max(2_000_000_000);
 settlementsRouter.get('/settlement-notices', async (req, res) => {
+  await refreshCategoryBudgetNotices(req.userId!);
+  const categoryNotices = await prisma.categoryBudgetNotice.findMany({ where: { recipientId: req.userId!, deletedAt: null } });
   const notices = await prisma.settlementNotice.findMany({
     where: { deletedAt: null, recipientId: req.userId!, batch: { group: { memberships: { some: { userId: req.userId! } } } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { id: true, message: true, kind: true, createdAt: true, readAt: true, batch: { select: { groupId: true } } },
   });
   const budgetNotices = await prisma.budgetNotice.findMany({ where: { deletedAt: null, recipientId: req.userId!, expense: { paidByUserId: req.userId!, group: { memberships: { some: { userId: req.userId! } } } } }, include: { expense: { select: { groupId: true } } } });
-  res.json({ notices: [...notices.map(({ batch, ...notice }) => ({ ...notice, groupId: batch.groupId })), ...budgetNotices.map(({ expense, ...notice }) => ({ ...notice, kind: 'BUDGET_LINK', groupId: expense.groupId }))].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) });
+  res.json({ notices: [...categoryNotices.map(notice => ({ ...notice, kind: 'CATEGORY_OVER_BUDGET', groupId: null })), ...notices.map(({ batch, ...notice }) => ({ ...notice, groupId: batch.groupId })), ...budgetNotices.map(({ expense, ...notice }) => ({ ...notice, kind: 'BUDGET_LINK', groupId: expense.groupId }))].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) });
 });
 settlementsRouter.get('/settlements', async (req, res) => { res.json(await settlementInbox(req.userId!)); });
 settlementsRouter.get('/groups/:id/settlements/preview', async (req, res) => { res.json(await previewSettlement(req.params.id, req.userId!)); });
@@ -39,7 +42,10 @@ settlementsRouter.post('/settlement-notices/:id/read', async (req, res) => {
   const result = await prisma.settlementNotice.updateMany({ where: { id: req.params.id, recipientId: req.userId!, batch: { group: { memberships: { some: { userId: req.userId! } } } } }, data: { readAt: new Date() } });
   if (!result.count) {
     const budget = await prisma.budgetNotice.updateMany({ where: { id: req.params.id, recipientId: req.userId!, expense: { paidByUserId: req.userId!, group: { memberships: { some: { userId: req.userId! } } } } }, data: { readAt: new Date() } });
-    if (!budget.count) throw new ExpenseError(404, 'Notification not found');
+    if (!budget.count) {
+      const category = await prisma.categoryBudgetNotice.updateMany({ where: { id: req.params.id, recipientId: req.userId!, deletedAt: null }, data: { readAt: new Date() } });
+      if (!category.count) throw new ExpenseError(404, 'Notification not found');
+    }
   }
   res.status(204).end();
 });
@@ -61,13 +67,13 @@ settlementsRouter.post('/groups/:id/settlement-reminders', async (req, res) => {
 settlementsRouter.delete('/settlement-notices', async (req, res) => {
   const where = { recipientId: req.userId!, deletedAt: null };
   const data = { deletedAt: new Date() };
-  await prisma.$transaction([prisma.settlementNotice.updateMany({ where, data }), prisma.budgetNotice.updateMany({ where, data })]);
+  await prisma.$transaction([prisma.settlementNotice.updateMany({ where, data }), prisma.budgetNotice.updateMany({ where, data }), prisma.categoryBudgetNotice.updateMany({ where, data })]);
   res.status(204).end();
 });
 settlementsRouter.delete('/settlement-notices/:id', async (req, res) => {
   const where = { id: req.params.id, recipientId: req.userId!, deletedAt: null };
   const data = { deletedAt: new Date() };
-  const results = await prisma.$transaction([prisma.settlementNotice.updateMany({ where, data }), prisma.budgetNotice.updateMany({ where, data })]);
+  const results = await prisma.$transaction([prisma.settlementNotice.updateMany({ where, data }), prisma.budgetNotice.updateMany({ where, data }), prisma.categoryBudgetNotice.updateMany({ where, data })]);
   if (!results.some(result => result.count)) throw new ExpenseError(404, 'Notification not found');
   res.status(204).end();
 });
@@ -75,6 +81,7 @@ settlementsRouter.delete('/settlement-notices/:id', async (req, res) => {
 settlementsRouter.post('/settlement-notices/:id/unread', async (req, res) => {
   const where = { id: req.params.id, recipientId: req.userId!, deletedAt: null };
   const results = await prisma.$transaction([
+    prisma.categoryBudgetNotice.updateMany({ where, data: { readAt: null } }),
     prisma.settlementNotice.updateMany({ where: { ...where, batch: { group: { memberships: { some: { userId: req.userId! } } } } }, data: { readAt: null } }),
     prisma.budgetNotice.updateMany({ where: { ...where, expense: { paidByUserId: req.userId!, group: { memberships: { some: { userId: req.userId! } } } } }, data: { readAt: null } }),
   ]);
