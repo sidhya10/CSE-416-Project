@@ -101,6 +101,17 @@
 .expense-category select { width:100%; min-width:0; min-height:44px; padding:10px 14px; border:1px solid var(--accent); border-radius:12px; background-color:var(--surface); color:var(--accent); font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; }
 .expense-category select:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 
+.expense-bank-match { margin:4px 0; padding:14px; border:1px solid var(--border); border-radius:16px; background:var(--surface); }
+.expense-bank-match > p { margin:4px 0 10px; color:var(--muted); font-size:13px; }
+.expense-bank-match > small { display:block; color:var(--muted); }
+.expense-bank-match .expense-section-title > span { color:var(--muted); font-size:12px; }
+.expense-bank-suggestion { width:100%; margin-top:8px; padding:11px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; text-align:left; color:var(--text); background:var(--page); border:1px solid var(--border); border-radius:12px; font:inherit; }
+.expense-bank-suggestion.selected { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); color:var(--accent); }
+.expense-bank-suggestion span { min-width:0; display:grid; gap:2px; }
+.expense-bank-suggestion small { color:var(--muted); overflow-wrap:anywhere; }
+.expense-bank-suggestion > strong { white-space:nowrap; }
+.expense-bank-clear { margin-top:9px; padding:0; border:0; background:transparent; color:var(--accent); font:inherit; font-weight:700; }
+
 .bank-link-choices { display:flex; gap:8px; }
 .bank-link-choices .expense-outline { flex:1; min-width:0; }
 .bank-link-choices .expense-outline[aria-pressed="true"] { background:var(--accent); color:var(--surface); }

@@ -5,6 +5,7 @@ import './expenses.css';
 import SplitExpense from './SplitExpense';
 import type { PreviewSplit, SplitAssignments, SplitMode } from './split';
 import Avatar from '../../components/common/Avatar';
+import { bankingApi, type ExpenseMatchSuggestion } from '../../api/banking.api';
 
 type Member = { id: string; name: string };
 type Item = { id: number; name: string; amount: string; quantity: string };
@@ -63,6 +64,9 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [scanning, setScanning] = useState(false);
   const [parsedReceipt, setParsedReceipt] = useState<ParsedReceipt>();
   const [localReceiptUrl, setLocalReceiptUrl] = useState('');
+  const [bankSuggestions, setBankSuggestions] = useState<ExpenseMatchSuggestion[]>([]);
+  const [selectedBankTransactionId, setSelectedBankTransactionId] = useState<string | null>(initialSplit?.bankTransactionId ?? null);
+  const [matchingBank, setMatchingBank] = useState(false);
   useEffect(() => {
     if (!receiptFile || !URL.createObjectURL) return;
     const url = URL.createObjectURL(receiptFile);
@@ -75,6 +79,27 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const upload = useRef<HTMLInputElement>(null);
   const subtotal = items.reduce((sum, item) => sum + (cents(item.amount) ?? 0) * (quantityValue(item.quantity) ?? 0), 0);
   const total = subtotal + Object.values(fees).reduce((sum, value) => sum + (cents(value) ?? 0), 0);
+  useEffect(() => {
+    if (guest || initialSplit || payer !== 'you' || !name.trim() || total <= 0) {
+      setBankSuggestions([]);
+      if (payer !== 'you') setSelectedBankTransactionId(null);
+      setMatchingBank(false);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setMatchingBank(true);
+      void bankingApi.expenseMatches(total, date, name, controller.signal).then(result => {
+        setBankSuggestions(result.suggestions);
+        setSelectedBankTransactionId(previous => previous && result.suggestions.some(item => item.id === previous) ? previous : null);
+      }).catch(() => {
+        if (!controller.signal.aborted) setBankSuggestions([]);
+      }).finally(() => {
+        if (!controller.signal.aborted) setMatchingBank(false);
+      });
+    }, 350);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [date, guest, initialSplit, name, payer, total]);
   const displayName = (id: string) => id === 'you' ? 'you' : members.find(member => member.id === id)?.name.split(' ')[0] ?? 'group member';
   const updateItem = (id: number, patch: Partial<Item>) => setItems(previous => previous.map(item => item.id === id ? { ...item, ...patch } : item));
   const removeItem = (id: number) => {
@@ -156,7 +181,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     mode={splitMode} assignments={assignments} onModeChange={setSplitMode} onAssignmentsChange={setAssignments}
     onBack={() => setSplitting(false)} onConfirm={async split => {
       const receiptAttachment = guest ? undefined : receiptFile ? await prepareReceiptAttachment(receiptFile) : !receiptName && initialSplit?.receiptName ? null : undefined;
-      await onConfirm({ ...split, budgetCategory, receiptAttachment, payments: initialSplit?.payments,
+      await onConfirm({ ...split, budgetCategory, bankTransactionId: selectedBankTransactionId, receiptAttachment, payments: initialSplit?.payments,
       feeBreakdown: { tax: cents(fees.Tax)!, tip: cents(fees.Tip)!, other: cents(fees.Other)! }, receiptName });
     }} />;
 
@@ -189,6 +214,19 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
             {['dining', 'groceries', 'transit', 'shopping', 'other'].map(category => <option key={category} value={category}>{category[0]!.toUpperCase() + category.slice(1)}</option>)}
           </select>
           <small>Applies only to your share. Defaults to Other.</small>
+        </section>}
+        {!guest && !initialSplit && payer === 'you' && total > 0 && name.trim() && <section className="expense-bank-match" aria-label="Suggested bank transactions">
+          <div className="expense-section-title"><h2>Match your bank charge</h2>{matchingBank && <span>Checking…</span>}</div>
+          <p>Optional. Confirming a match replaces the full bank charge with only your share in your personal budget.</p>
+          {!matchingBank && bankSuggestions.length === 0 && <small>No close posted charges found. You can sync your bank or link one after saving.</small>}
+          {bankSuggestions.map(suggestion => <button type="button" key={suggestion.id}
+            className={`expense-bank-suggestion ${selectedBankTransactionId === suggestion.id ? 'selected' : ''}`}
+            aria-pressed={selectedBankTransactionId === suggestion.id}
+            onClick={() => setSelectedBankTransactionId(previous => previous === suggestion.id ? null : suggestion.id)}>
+            <span><strong>{suggestion.merchant}</strong><small>{suggestion.institution} · {suggestion.accountName} · {suggestion.date}</small><small>{suggestion.reasons.join(' · ')}</small></span>
+            <strong>{dollars(suggestion.amountCents)}{selectedBankTransactionId === suggestion.id ? ' ✓' : ''}</strong>
+          </button>)}
+          {selectedBankTransactionId && <button type="button" className="expense-bank-clear" onClick={() => setSelectedBankTransactionId(null)}>Use no bank match</button>}
         </section>}
         <section className="expense-receipt" aria-label="Receipt"><div>
           <button className="expense-outline" type="button" onClick={() => camera.current?.click()}>Take photo</button>

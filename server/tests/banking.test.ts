@@ -132,6 +132,24 @@ describe('bank connections', () => {
     expect((await owner.get('/api/banking/transactions').query({ status: 'excluded' }).expect(200)).body.transactions[0].id).toBe(transaction.id);
   });
 
+  it('ranks private posted bank charges for an expense without linking automatically', async () => {
+    const account = await prisma.bankAccount.findFirstOrThrow({ where: { connection: { userId: userIds[0] }, hidden: false } });
+    const exact = await prisma.bankTransaction.create({ data: {
+      accountId: account.id, plaidTransactionId: `match-exact-${run}`, amountCents: 2301,
+      date: new Date('2026-10-10T00:00:00.000Z'), name: 'Myers Chang Boston', merchant: 'Myers + Chang', pending: false,
+    } });
+    await prisma.bankTransaction.create({ data: {
+      accountId: account.id, plaidTransactionId: `match-near-${run}`, amountCents: 2350,
+      date: new Date('2026-10-12T00:00:00.000Z'), name: 'Restaurant', merchant: 'Other Cafe', pending: false,
+    } });
+    const suggested = await owner.get('/api/banking/expense-matches').query({ amountCents: 2301, date: '2026-10-10', merchant: 'Dinner at Myers Chang' }).expect(200);
+    expect(suggested.body.suggestions[0]).toMatchObject({ id: exact.id, amountCents: 2301 });
+    expect(suggested.body.suggestions[0].reasons).toEqual(expect.arrayContaining(['Exact amount', 'Same date', 'Similar merchant']));
+    await other.get('/api/banking/expense-matches').query({ amountCents: 2301, date: '2026-10-10', merchant: 'Myers' }).expect(200)
+      .expect(response => expect(response.body.suggestions).toEqual([]));
+    await request(app).get('/api/banking/expense-matches').query({ amountCents: 2301, date: '2026-10-10' }).expect(401);
+  });
+
   it('runs an incremental bank sync after password login without letting Plaid failure block access', async () => {
     await owner.post('/api/auth/logout').expect(204);
     plaidMock.transactionsSync.mockResolvedValue({ data: { added: [tx('login-sync', 12)], modified: [], removed: [], next_cursor: 'login-cursor', has_more: false } });

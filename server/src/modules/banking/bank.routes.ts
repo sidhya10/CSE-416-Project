@@ -14,6 +14,11 @@ const transactionQuery = z.object({
   query: z.string().trim().max(100).optional(),
   status: z.enum(['all', 'unreviewed', 'reviewed', 'excluded']).default('unreviewed'),
 });
+const expenseMatchQuery = z.object({
+  amountCents: z.coerce.number().int().positive().max(2_000_000_000),
+  date: z.iso.date(),
+  merchant: z.string().trim().max(500).optional(),
+});
 const reviewBody = z.object({
   category: category.nullable().default(null),
   excluded: z.boolean().default(false),
@@ -70,6 +75,12 @@ bankingRouter.get('/transactions', async (request, response, next) => {
   try {
     const filters = transactionQuery.parse(request.query);
     response.json({ transactions: await banking.listTransactions(request.userId!, filters) });
+  } catch (error) { next(error); }
+});
+
+bankingRouter.get('/expense-matches', async (request, response, next) => {
+  try {
+    response.json({ suggestions: await banking.suggestExpenseMatches(request.userId!, expenseMatchQuery.parse(request.query)) });
   } catch (error) { next(error); }
 });
 

@@ -8,6 +8,7 @@ export const expenseInput = z.object({
   title: z.string().trim().min(1).max(500),
   expenseDate: z.iso.date(),
   budgetCategory: z.enum(['dining', 'groceries', 'transit', 'shopping', 'other']).optional(),
+  bankTransactionId: id.nullable().optional(),
   paidByUserId: id,
   splitMode: z.enum(['EQUAL', 'ITEMS']),
   participantIds: uniqueIds,

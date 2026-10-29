@@ -18,6 +18,7 @@ const envSchema = z.object({
   APP_ORIGIN: z.string().url().default('http://localhost:5173'),
   RESEND_API_KEY: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   PASSWORD_RESET_FROM: z.preprocess(value => value || undefined, z.string().min(3).optional()),
+  PASSWORD_RESET_REPLY_TO: z.preprocess(value => value || undefined, z.email().optional()),
   PLAID_CLIENT_ID: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   PLAID_SECRET: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   PLAID_ENV: z.enum(['sandbox', 'production']).default('sandbox'),

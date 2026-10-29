@@ -17,6 +17,10 @@ export type TransactionReview = {
   category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean;
   splits: { category: BankReviewCategory; amountCents: number }[];
 };
+export type ExpenseMatchSuggestion = {
+  id: string; merchant: string; name: string; amountCents: number; date: string; accountName: string;
+  institution: string; score: number; reasons: string[];
+};
 
 export const bankingApi = {
   accounts: () => apiRequest<Accounts>('/banking/accounts'),
@@ -26,6 +30,11 @@ export const bankingApi = {
   update: (id: string, patch: { nickname?: string | null; hidden?: boolean }) => apiRequest<Accounts>(`/banking/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   disconnect: (connectionId: string) => apiRequest<void>(`/banking/connections/${connectionId}`, { method: 'DELETE' }),
   sync: () => apiRequest<Accounts & { added: number }>('/banking/sync', { method: 'POST' }),
+  expenseMatches: (amountCents: number, date: string, merchant: string, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ amountCents: String(amountCents), date });
+    if (merchant.trim()) params.set('merchant', merchant.trim());
+    return apiRequest<{ suggestions: ExpenseMatchSuggestion[] }>(`/banking/expense-matches?${params}`, { signal });
+  },
   transactions: (status: 'all' | 'unreviewed' | 'reviewed' | 'excluded' = 'unreviewed', query = '') => {
     const params = new URLSearchParams({ status });
     if (query.trim()) params.set('query', query.trim());

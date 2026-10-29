@@ -1,9 +1,15 @@
 vi.mock('../../api/receipts.api', async importOriginal => ({ ...await importOriginal<typeof import('../../api/receipts.api')>(), prepareReceiptAttachment: vi.fn().mockResolvedValue({ name: 'meal.jpg', mimeType: 'image/jpeg', base64: '/9j/' }) }));
-import { fireEvent, render, screen, within } from '@testing-library/react';
+vi.mock('../../api/banking.api', async importOriginal => {
+  const original = await importOriginal<typeof import('../../api/banking.api')>();
+  return { ...original, bankingApi: { ...original.bankingApi, expenseMatches: vi.fn() } };
+});
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import type { AppUser } from '../../api/types';
 import type { FriendFixture, GroupFixture } from '../groups/GroupsWorkspace';
+import ExpenseEntry from './ExpenseEntry';
+import { bankingApi } from '../../api/banking.api';
 
 const account: AppUser = { id: 'you', email: 'test@example.com', username: 'test_user', name: 'Test User', phone: null,
   birthday: '', bio: '', photoUrl: null, hasPassword: true, hasGoogle: false, createdAt: '2026-01-01T00:00:00.000Z' };
@@ -25,6 +31,24 @@ function openExpense(group = 'Weekend Trip') {
 const fill = (label: string, value: string) => fireEvent.change(screen.getByRole('textbox', { name: label }), { target: { value } });
 
 describe('Expense entry flow', () => {
+  it('suggests a personal bank charge and carries an explicitly selected match into the split', async () => {
+    vi.mocked(bankingApi.expenseMatches).mockResolvedValue({ suggestions: [{
+      id: 'bank-1', merchant: 'Myers + Chang', name: 'MYERS CHANG', amountCents: 2301, date: '2026-10-29',
+      accountName: 'Card', institution: 'Test Bank', score: 100, reasons: ['Exact amount', 'Same date', 'Similar merchant'],
+    }] });
+    const confirm = vi.fn();
+    render(<ExpenseEntry groupName="Dinner group" members={[{ id: 'you', name: 'You' }, { id: 'alex', name: 'Alex' }]} onBack={vi.fn()} onConfirm={confirm} />);
+    fill('EXPENSE NAME', 'Dinner at Myers Chang');
+    fill('Item 1 name', 'Dinner');
+    fill('Item 1 amount', '23.01');
+    const suggestion = await screen.findByRole('button', { name: /Myers \+ Chang/ });
+    fireEvent.click(suggestion);
+    expect(suggestion).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $23.01' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ bankTransactionId: 'bank-1' })));
+  });
+
   it('opens from a group, calculates the design example and preserves the draft through payer selection', () => {
     openExpense();
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();

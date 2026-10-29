@@ -87,12 +87,23 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
       return previous;
     }
     await validateMembers(tx, groupId, input);
-    const expense = await tx.expense.create({ data: { groupId, createdByUserId: userId, clientRequestId, ...expenseFields(input) } });
+    if (input.bankTransactionId) {
+      if (input.paidByUserId !== userId) throw new ExpenseError(400, 'Only your own bank charge can be linked while creating an expense');
+      const bank = await tx.bankTransaction.findFirst({ where: {
+        id: input.bankTransactionId, pending: false, amountCents: { gt: 0 }, linkedExpense: null,
+        account: { hidden: false, connection: { userId } },
+      } });
+      if (!bank) throw new ExpenseError(409, 'That bank transaction is no longer available. Refresh the suggestions and try again.');
+    }
+    const expense = await tx.expense.create({ data: {
+      groupId, createdByUserId: userId, clientRequestId, ...expenseFields(input),
+      bankTransactionId: input.bankTransactionId ?? null, budgetLinkReviewed: !!input.bankTransactionId,
+    } });
     await tx.group.update({ where: { id: groupId }, data: { lastActivityAt: new Date() } });
     await writeItemsAndShares(tx, expense.id, input);
     if (input.budgetCategory) await tx.expenseShare.updateMany({ where: { expenseId: expense.id, userId }, data: { budgetCategory: input.budgetCategory } });
     await writeReceipt(tx, expense.id, input);
-    await notifyBudgetPayer(tx, expense.id, input);
+    if (!input.bankTransactionId) await notifyBudgetPayer(tx, expense.id, input);
     return readExpense(tx, expense.id, userId);
   });
 }

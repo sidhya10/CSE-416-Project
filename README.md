@@ -8,7 +8,7 @@
 
 This project is a mobile-responsive web application for young adults who manage personal budgets while regularly sharing expenses with roommates, friends, and travel groups. It combines group expense splitting, settlement tracking, connected bank transactions, and personal category budgets in one application.
 
-The product's central workflow is now implemented: every participant's share of a group expense is counted once in their personal budget, and the payer can manually link the expense to a posted Plaid bank charge. When linked, the full bank charge is excluded from the payer's spending total and replaced by the payer's own share. Matching remains a user-reviewed choice rather than an automatic process.
+The product's central workflow is now implemented: every participant's share of a group expense is counted once in their personal budget. While entering a split, the payer receives ranked suggestions from their own posted Plaid charges based on amount, date, and merchant, then explicitly confirms a match. When linked, the full bank charge is excluded from the payer's spending total and replaced by the payer's own share.
 
 The app records that payments were sent and received, but it does not move money. It currently supports USD only.
 
@@ -112,7 +112,8 @@ The application does not initiate ACH, card, Venmo, Cash App, or other real-mone
 - Automatically synchronize every active Plaid connection after a successful password or Google login, while keeping login available if Plaid is temporarily unavailable.
 - Review imported transactions in a private searchable queue, filter by review status, override categories, exclude non-spending charges, add notes, and mark items reviewed or unreviewed.
 - Split one spending transaction across multiple budget categories, with server validation that the allocations equal the charge to the cent.
-- Let an expense payer review posted bank charges and link one charge to the corresponding group expense. Exact total matches are shown first, but the payer makes the final selection.
+- Suggest up to five available posted charges while the payer enters a split, ranked by amount, date proximity, and merchant similarity. Bank details remain private and the payer makes the final selection.
+- Let the payer add, change, or remove the bank link after saving the expense.
 - Automatically remove a saved link if a later Plaid sync changes that charge's amount.
 
 The application keeps Plaid's provider category as source data while storing the user's review decisions separately. Users can still choose **Sync now** between logins. Transactions linked to group expenses remain governed by the group-share reconciliation workflow so the payer's full charge is not counted twice.
@@ -151,7 +152,7 @@ Saved scenarios (up to eight per user) are stored in PostgreSQL on the user's ac
 
 The following product concepts are planned or incomplete and should not be treated as implemented behavior:
 
-- **Automatic bank/group matching:** Reconciliation is implemented through payer review and manual transaction selection. The app does not automatically commit matches based on merchant, date, and amount.
+- **Automatic bank/group matching:** The app automatically generates ranked suggestions, but deliberately requires payer confirmation and never commits a financial match on its own.
 - **Background bank synchronization:** Plaid connections synchronize on successful login and on demand, but there is no webhook-driven or scheduled synchronization while the user is logged out.
 - **Payer fairness:** The app shows how much each member paid, owes, or is owed, but it does not recommend who should pay next or rotate the payer across a group.
 - **Offline support:** There is no IndexedDB write queue, offline draft persistence, or service worker.
@@ -242,7 +243,7 @@ npm ci --include=optional
 
 Password authentication and manual expense entry work without Google, Plaid, Azure, or email-provider credentials. In development, password-reset links are logged by the server when email delivery is not configured.
 
-To deliver password-reset emails, set `APP_ORIGIN` to the public client origin and configure `RESEND_API_KEY` plus `PASSWORD_RESET_FROM` as documented in `.env.example`.
+To deliver password-reset emails, set `APP_ORIGIN` to the public client origin and configure `RESEND_API_KEY` plus `PASSWORD_RESET_FROM` as documented in `.env.example`. The From address must use a Resend-verified sending domain. `PASSWORD_RESET_REPLY_TO` may optionally point to a monitored personal or school inbox.
 
 To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to the same OAuth Web client ID and configure the local and deployed browser origins in Google Cloud.
 

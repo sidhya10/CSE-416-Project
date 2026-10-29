@@ -87,6 +87,22 @@ describe('persisted expenses and settlements', () => {
     expect(await prisma.expense.count({ where: { groupId } })).toBe(before);
   });
 
+  it('confirms an available personal bank suggestion while creating the split', async () => {
+    const connection = await prisma.bankConnection.create({ data: {
+      userId: ownerId, plaidItemId: `expense-match-${run}`, institutionName: 'Test Bank', accessTokenEnc: 'test-only',
+    } });
+    const account = await prisma.bankAccount.create({ data: { connectionId: connection.id, plaidAccountId: `expense-account-${run}`, name: 'Card', mask: '1234' } });
+    const bank = await prisma.bankTransaction.create({ data: {
+      accountId: account.id, plaidTransactionId: `expense-transaction-${run}`, amountCents: 2103,
+      date: new Date('2026-10-09T00:00:00.000Z'), name: 'Dinner', pending: false,
+    } });
+    const created = await create({ ...input(), bankTransactionId: bank.id }).expect(201);
+    expect(created.body.expense).toMatchObject({ bankTransactionId: bank.id, budgetLinkReviewed: true });
+    expect(await prisma.budgetNotice.count({ where: { expenseId: created.body.expense.id } })).toBe(0);
+    await create({ ...input(), paidByUserId: memberId, bankTransactionId: bank.id }).expect(400);
+    await create({ ...input(), bankTransactionId: bank.id }).expect(409);
+  });
+
   it('persists item assignments and proportional fees, and replaces them atomically on edit', async () => {
     const expenseInput = { ...input(), splitMode: 'ITEMS', taxCents: 100, items: [
       { name: 'Mine', quantity: 1, unitPriceCents: 1000, assignedUserIds: [ownerId] },

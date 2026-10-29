@@ -4,6 +4,7 @@ import type { PreviewSplit } from '../pages/expenses/split';
 type Payment = { id: string; amountCents: number; status: 'SENT' | 'CONFIRMED' | 'ISSUE'; sentAt: string; resolvedAt?: string };
 export type ApiExpense = {
   budgetCategory?: string;
+  bankTransactionId?: string | null;
   settlementBatchId?: string | null;
   receipt?: { name: string; mimeType: string } | null;
   id: string; version: number; title: string; expenseDate: string; createdByUserId: string; creator: { id: string; name: string };
@@ -17,6 +18,7 @@ export function toExpenseInput(split: PreviewSplit, currentUserId: string) {
   const id = (value: string) => value === 'you' ? currentUserId : value;
   return {
     receipt: split.receiptAttachment,
+    bankTransactionId: split.bankTransactionId,
     budgetCategory: split.budgetCategory ?? 'other',
     title: split.name, expenseDate: split.date.slice(0, 10), paidByUserId: id(split.payerId),
     splitMode: split.mode === 'equal' ? 'EQUAL' : 'ITEMS', participantIds: split.shares.map(share => id(share.memberId)),
@@ -30,6 +32,7 @@ export function fromApiExpense(expense: ApiExpense, currentUserId: string): Prev
   return {
     settlementBatchId: expense.settlementBatchId,
     budgetCategory: expense.shares.find(share => share.userId === currentUserId)?.budgetCategory ?? 'other',
+    bankTransactionId: expense.bankTransactionId,
     recurring: !!expense.recurringBillId || expense.splitMode === 'CUSTOM',
     receiptName: expense.receipt?.name, receiptMimeType: expense.receipt?.mimeType,
     expenseId: expense.id, version: expense.version, creatorId: id(expense.createdByUserId), creatorName: expense.creator.name,
