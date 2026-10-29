@@ -175,8 +175,8 @@ Possible future features also include CSV export, exportable trip summaries, sav
 |---|---|---|
 | Frontend | React 19, TypeScript, Vite | Mobile-responsive interface and client-side application state |
 | Styling and charts | CSS | Responsive layouts, theme support, progress bars, and chart-like visualizations |
-| Backend | Node.js, Express, TypeScript | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts |
-| Database | PostgreSQL, Prisma | Relational persistence and transactional financial operations |
+| Backend | Node.js, Express, TypeScript, Render | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts; the production API runs as a Render web service |
+| Database | Neon PostgreSQL, Prisma | Serverless PostgreSQL persistence and transactional financial operations; Prisma migrations are applied when the Render service starts |
 | Authentication | bcrypt, Google Identity Services, signed httpOnly cookies | Identifier/password login, password recovery, Google authentication, and server-managed sessions |
 | Bank data | Plaid | Account connection, balance retrieval, and transaction synchronization |
 | Receipt processing | Azure Document Intelligence, `heic-convert`, `sharp` | Receipt extraction, HEIC conversion, and image processing |
@@ -252,6 +252,18 @@ AZURE_DOCUMENT_INTELLIGENCE_KEY
 ```
 
 To enable connected bank accounts, configure the Plaid variables documented in `.env.example`. Use Plaid Sandbox for development and demonstrations. See [Bank connections (Plaid)](docs/banking-backend.md) for setup, routes, and sandbox testing.
+
+## Production Deployment
+
+| Component | Provider | Production address |
+|---|---|---|
+| Web client | Vercel | <https://cse-416-project-tau.vercel.app> |
+| REST API | Render | <https://cse-416-budget-api.onrender.com> |
+| PostgreSQL | Neon | Private TLS connection from the Render API |
+
+The Vercel client forwards `/api/*` requests to Render, so the browser continues to use same-origin API paths. Render runs the Node/Express server from `main`, applies pending Prisma migrations during startup, and connects to the Neon database. The reproducible service configuration is in [`render.yaml`](render.yaml); production credentials are stored only as Render environment variables and are not committed to the repository.
+
+The current Render service uses the free plan. It may spin down while idle, so the first request after inactivity can take longer than normal. The Neon production database was initialized from the repository's Prisma migrations; data from the retired Railway database was not imported because that database was unavailable during migration.
 
 ## Tests and Quality Checks
 
