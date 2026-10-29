@@ -9,6 +9,8 @@ export type ApiPersonalBudget = {
   transactions: Record<CategoryKey, ApiCategoryTransaction[]>;
 };
 
+export type ApiScenario = { id: string; name: string; limits: Partial<Record<CategoryKey, number>>; savedAt: number };
+
 export type ApiGroupBudgetMember = { id: string; name: string; isYou: boolean; paidCents: number; owesCents: number; owedCents: number };
 export type ApiGroupBudget = {
   id: string; name: string; color: string; type: 'General' | 'Trip' | 'Recurring'; memberCount: number;
@@ -25,6 +27,12 @@ export const budgetsApi = {
   personal: () => apiRequest<ApiPersonalBudget>('/budgets/personal'),
   saveLimits: (limits: Partial<Record<CategoryKey, number>>) =>
     apiRequest<ApiPersonalBudget>('/budgets/personal/limits', { method: 'PUT', body: JSON.stringify({ limits }) }),
+  scenarios: () => apiRequest<{ scenarios: ApiScenario[] }>('/budgets/scenarios'),
+  createScenario: (name: string, limits: ApiScenario['limits']) =>
+    apiRequest<{ scenario: ApiScenario }>('/budgets/scenarios', { method: 'POST', body: JSON.stringify({ name, limits }) }),
+  updateScenario: (id: string, name: string, limits: ApiScenario['limits']) =>
+    apiRequest<{ scenario: ApiScenario }>(`/budgets/scenarios/${id}`, { method: 'PUT', body: JSON.stringify({ name, limits }) }),
+  deleteScenario: (id: string) => apiRequest<void>(`/budgets/scenarios/${id}`, { method: 'DELETE' }),
   home: () => apiRequest<ApiHomeSummary>('/budgets/home'),
   groups: () => apiRequest<{ groups: ApiGroupBudget[] }>('/budgets/groups'),
   saveGroupPlan: (groupId: string, plannedCents: number) =>

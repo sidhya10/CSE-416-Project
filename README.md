@@ -138,7 +138,7 @@ Personal-budget totals currently use bank transactions directly. They do **not**
 - Calculate a suggested daily allowance when a category is projected to exceed its limit.
 - Compare up to two scenarios and apply a scenario's category limits to the real budget.
 
-Saved scenarios currently exist only in the active browser session and are not persisted to PostgreSQL.
+Saved scenarios (up to eight per user) are stored in PostgreSQL on the user's account, so they persist across reloads, logins, and devices. Saving a scenario never changes the real budget; only applying it does. See [Budget backend](docs/budget-backend.md) for the scenario API.
 
 ## Current Limitations and Planned Work
 
@@ -151,7 +151,6 @@ The following product concepts are planned or incomplete and should not be treat
 - **External notifications:** In-app settlement notices exist, but Web Push and email fallback are not implemented.
 - **Live server events:** The client refreshes relevant data periodically and when the browser tab becomes visible. Server-Sent Events are not implemented.
 - **Persistent trip planning:** Planned trip expenses and private trip budgets are local preview state.
-- **Persistent what-if scenarios:** Saved scenarios are session-only.
 - **Advanced insights:** Subscription detection, spending anomaly detection, recurring-charge forecasts, and personalized savings recommendations are not implemented.
 - **Debt simplification:** Within-group and cross-group debt netting are not implemented.
 - **Multi-currency:** All current financial flows use USD.

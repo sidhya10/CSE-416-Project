@@ -3,6 +3,10 @@ export type CategoryKey = typeof CATEGORY_KEYS[number];
 
 export const MAX_LIMIT_CENTS = 100_000_000;
 
+// What-if simulator: the most scenarios a user can keep, and the longest scenario name.
+export const MAX_SAVED_SCENARIOS = 8;
+export const MAX_SCENARIO_NAME_LENGTH = 40;
+
 // Plaid primary categories that are money moving between the user's own accounts, income,
 // or loan/credit-card payments. Counting them would double count the spending they pay for.
 const NOT_SPENDING = new Set(['INCOME', 'TRANSFER_IN', 'TRANSFER_OUT', 'LOAN_PAYMENTS']);

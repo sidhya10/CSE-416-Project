@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/config/database.js';
 import { runMaintenance } from '../src/modules/recurring/recurring.service.js';
+import { cycleDate } from '../src/modules/recurring/schedule.js';
 const owner = request.agent(app), member = request.agent(app), observer = request.agent(app), outsider = request.agent(app);
 const ids: string[] = [], groups: string[] = [];
 const run = randomUUID().slice(0, 8);
@@ -107,7 +108,8 @@ it('saves the next plan over legacy overrides without rewriting past paid expens
   expect(bill.startDate.toISOString().slice(0, 10)).toBe(created.body.bill.startDate);
   expect([bill.intervalEvery, bill.intervalUnit]).toEqual([1, 'months']);
   expect(await prisma.recurringCycle.count({ where: { billId, index: { gte: 1 } } })).toBe(0);
-  const nextDate = new Date(first.expenseDate); nextDate.setUTCMonth(nextDate.getUTCMonth() + 1); nextDate.setUTCDate(28);
+  // The second cycle's exact due date, so this holds on any start day (a fixed day of the month misses it on the 29th to 31st).
+  const nextDate = cycleDate(first.expenseDate, 1, 'months', 1);
   await runMaintenance(nextDate, id);
   const expenses = await prisma.expense.findMany({ where: { recurringBillId: billId }, include: { shares: true }, orderBy: { cycleDate: 'asc' } });
   expect(expenses[0]!.paidByUserId).toBe(ids[0]);

@@ -11,13 +11,30 @@ const budget = (limits: Partial<Record<CategoryKey, [number, number]>>): ApiPers
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 
 type Call = { method: string; url: string; body?: unknown };
-function stubApi(personal: () => Response, onPut?: (body: unknown) => Response) {
+type StoredScenario = { id: string; name: string; limits: Partial<Record<CategoryKey, number>>; savedAt: number };
+// Scenario routes are backed by an in-memory list, standing in for the server's saved scenarios.
+function stubApi(personal: () => Response, onPut?: (body: unknown) => Response, stored: StoredScenario[] = [], scenarioFailure?: Response) {
   const calls: Call[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
     calls.push({ method, url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (method === 'GET' && url.endsWith('/budgets/personal')) return personal();
     if (method === 'PUT' && url.endsWith('/budgets/personal/limits') && onPut) return onPut(calls[calls.length - 1]!.body);
+    if (url.includes('/budgets/scenarios')) {
+      if (scenarioFailure && method !== 'GET') return scenarioFailure.clone();
+      if (method === 'GET') return json({ scenarios: stored });
+      if (method === 'POST') {
+        const { name, limits } = calls[calls.length - 1]!.body as { name: string; limits: StoredScenario['limits'] };
+        const scenario = { id: `saved-${stored.length + 1}`, name, limits, savedAt: Date.now() };
+        stored.unshift(scenario);
+        return json({ scenario }, 201);
+      }
+      if (method === 'DELETE') {
+        const index = stored.findIndex(scenario => url.endsWith(`/${scenario.id}`));
+        if (index >= 0) stored.splice(index, 1);
+        return new Response(null, { status: 204 });
+      }
+    }
     throw new Error(`Unexpected request ${method} ${url}`);
   }));
   return calls;
@@ -74,18 +91,37 @@ describe('What-if simulator', () => {
     expect(screen.getByText('Apply scenario')).toBeInTheDocument();
   });
 
-  it('saves, compares and deletes scenarios within the session', async () => {
-    stubApi(() => json(fixture()));
+  it('saves, compares and deletes scenarios on the account', async () => {
+    const calls = stubApi(() => json(fixture()));
     render(<WhatIfSimulator />);
     fireEvent.change(await screen.findByLabelText(/Dining scenario limit/), { target: { value: '30000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save scenario' }));
     fireEvent.change(screen.getByLabelText('SCENARIO NAME'), { target: { value: 'Cut dining' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(screen.getByText(/Saved "Cut dining"/)).toBeInTheDocument();
+    expect(await screen.findByText(/Saved "Cut dining"/)).toBeInTheDocument();
+    expect(calls.find(call => call.method === 'POST')?.body).toMatchObject({ name: 'Cut dining', limits: { dining: 30000, shopping: 32500, transit: 20000 } });
     fireEvent.click(screen.getByRole('button', { name: /Saved scenarios/ }));
     expect(screen.getByText('Projected left $111.67')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Delete Cut dining' }));
-    expect(screen.getByText('No saved scenarios yet. Create one to compare options side by side.')).toBeInTheDocument();
+    expect(await screen.findByText('No saved scenarios yet. Create one to compare options side by side.')).toBeInTheDocument();
+    expect(calls.some(call => call.method === 'DELETE' && call.url.endsWith('/budgets/scenarios/saved-1'))).toBe(true);
+  });
+
+  it('loads scenarios saved earlier, so they survive a reload', async () => {
+    stubApi(() => json(fixture()), undefined, [{ id: 'kept-1', name: 'Weekend cutback', limits: { dining: 30000, shopping: 32500, transit: 20000 }, savedAt: Date.now() }]);
+    render(<WhatIfSimulator />);
+    fireEvent.click(await screen.findByRole('button', { name: /Saved scenarios/ }));
+    expect(await screen.findByText('Weekend cutback')).toBeInTheDocument();
+  });
+
+  it('shows the server error and keeps the scenario unsaved when saving fails', async () => {
+    stubApi(() => json(fixture()), undefined, [], json({ error: 'You already have 8 saved scenarios. Delete one before saving another.' }, 409));
+    render(<WhatIfSimulator />);
+    fireEvent.change(await screen.findByLabelText(/Dining scenario limit/), { target: { value: '30000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save scenario' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText(/You already have 8 saved scenarios/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Saved scenarios 0/ })).toBeInTheDocument();
   });
 
   it('explains when no limits exist yet', async () => {
@@ -110,6 +146,6 @@ describe('What-if simulator', () => {
     expect(calls).toHaveLength(0);
     rerender(<WhatIfSimulator active />);
     expect(await screen.findByText('Projected results')).toBeInTheDocument();
-    expect(calls.filter(call => call.method === 'GET')).toHaveLength(1);
+    expect(calls.filter(call => call.method === 'GET' && call.url.endsWith('/budgets/personal'))).toHaveLength(1);
   });
 });
