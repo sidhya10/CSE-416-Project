@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database.js';
 import { lockMaintenance } from '../../utils/maintenance-lock.js';
 import { expenseInclude, ExpenseError, requireMember, transaction, type Transaction } from '../expenses/expense.service.js';
+import { automaticSettlementMatch } from '../banking/bank.matching.js';
 
 export const methods = ['Venmo', 'Zelle', 'PayPal', 'Cash', 'Bank transfer', 'Other'] as const;
 const confirmed = (payments: { status: string; amountCents: number }[]) => payments.filter(p => p.status === 'CONFIRMED').reduce((sum, p) => sum + p.amountCents, 0);
@@ -90,9 +91,30 @@ export async function settlementInbox(userId: string) {
   return { userId, batches: batches.map(presentBatch), notices: notices.map(n => ({ ...n, createdAt: n.createdAt.toISOString() })) };
 }
 export async function reportSettlementPayment(batchId: string, userId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }) {
-  return transaction(tx => reportPayment(tx, batchId, userId, input));
+  return transaction(async tx => {
+    const batch = await readBatch(tx, batchId, userId);
+    const personal = await ensurePersonalSettlementTransaction(tx, {
+      userId, recipientId: input.recipientId, groupId: batch.groupId, amountCents: input.amountCents,
+      method: input.method, requestKey: `period:${batchId}:${input.clientRequestId}`,
+    });
+    return reportPayment(tx, batchId, userId, input, true, personal.id);
+  });
 }
-async function reportPayment(tx: Transaction, batchId: string, userId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }, notify = true) {
+async function ensurePersonalSettlementTransaction(tx: Transaction, input: { userId: string; recipientId: string; groupId: string; amountCents: number; method: string; requestKey: string }) {
+  const previous = await tx.personalSettlementTransaction.findUnique({ where: { userId_requestKey: { userId: input.userId, requestKey: input.requestKey } } });
+  if (previous) {
+    if (previous.recipientUserId !== input.recipientId || previous.groupId !== input.groupId || previous.amountCents !== input.amountCents || previous.method !== input.method) throw new ExpenseError(409, 'Request ID already used for another payment');
+    return previous;
+  }
+  const recipient = await tx.user.findUniqueOrThrow({ where: { id: input.recipientId }, select: { name: true } });
+  const sentAt = new Date();
+  const bankTransactionId = await automaticSettlementMatch(tx, input.userId, { amountCents: input.amountCents, date: sentAt, method: input.method, recipientName: recipient.name });
+  return tx.personalSettlementTransaction.create({ data: {
+    userId: input.userId, recipientUserId: input.recipientId, groupId: input.groupId, amountCents: input.amountCents,
+    method: input.method, requestKey: input.requestKey, sentAt, bankTransactionId,
+  } });
+}
+async function reportPayment(tx: Transaction, batchId: string, userId: string, input: { recipientId: string; method: string; clientRequestId: string; amountCents: number }, notify = true, personalSettlementTransactionId?: string) {
     await lockMaintenance(tx);
     const batch = await readBatch(tx, batchId, userId);
     if (input.recipientId === userId) throw new ExpenseError(400, 'You cannot pay yourself');
@@ -108,7 +130,7 @@ async function reportPayment(tx: Transaction, batchId: string, userId: string, i
     for (const s of batch.shares.filter(s => s.userId === userId && s.source.expense.paidByUserId === input.recipientId)) {
       const committed = s.source.payments.filter(p => p.status !== 'ISSUE').reduce((sum, p) => sum + p.amountCents, 0);
       const amount = Math.max(0, s.source.totalCents - committed);
-      if (amount) await tx.expensePayment.create({ data: { expenseId: s.expenseId, senderUserId: userId, amountCents: amount, method: input.method, clientRequestId: `${prefix}${s.expenseId}` } });
+      if (amount) await tx.expensePayment.create({ data: { expenseId: s.expenseId, senderUserId: userId, amountCents: amount, method: input.method, clientRequestId: `${prefix}${s.expenseId}`, personalSettlementTransactionId } });
     }
     if (notify) await notifyPaymentSent(tx, batchId, userId, input.recipientId, input.amountCents, batch.group.name);
     await tx.group.update({ where: { id: batch.groupId }, data: { lastActivityAt: new Date() } });
@@ -174,8 +196,13 @@ export async function reportGroupPayment(groupId: string, userId: string, input:
       const key = (rows: GroupReport['allocations']) => rows.map(a => `${a.batchId}:${a.amountCents}`).sort().join('|');
       if (!expected.length || key(expected) !== key(input.allocations)) throw new ExpenseError(409, 'Group payments changed. Close and reopen this card to review the updated total.');
     }
+    const personal = await ensurePersonalSettlementTransaction(tx, {
+      userId, recipientId: input.recipientId, groupId, method: input.method,
+      amountCents: input.allocations.reduce((sum, allocation) => sum + allocation.amountCents, 0),
+      requestKey: `group:${groupId}:${input.clientRequestId}`,
+    });
     // Every allocation commits together; retries reuse each period's original payment keys.
-    for (const allocation of input.allocations) await reportPayment(tx, allocation.batchId, userId, { ...input, clientRequestId: requestKey, amountCents: allocation.amountCents }, false);
+    for (const allocation of input.allocations) await reportPayment(tx, allocation.batchId, userId, { ...input, clientRequestId: requestKey, amountCents: allocation.amountCents }, false, personal.id);
     if (!previous.length) await notifyPaymentSent(tx, input.allocations[0]!.batchId, userId, input.recipientId,
       input.allocations.reduce((sum, a) => sum + a.amountCents, 0), batches[0]!.group.name);
     return { saved: true };

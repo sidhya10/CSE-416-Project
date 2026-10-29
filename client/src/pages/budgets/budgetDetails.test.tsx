@@ -34,7 +34,7 @@ const bankTransaction = (id: string, merchant: string, amountCents: number, cate
   date: '2026-09-28', amountCents, pending: false, providerCategory: null, category, excluded: false, note: null,
   reviewed: false, reviewedAt: null, linkedExpense: null, splits: [],
 });
-const reviewTransactions = () => [bankTransaction('r1', 'Trader Joe’s', 4218, 'groceries'), bankTransaction('r2', 'Spotify', 1199), bankTransaction('r3', 'Target', 6724, 'shopping'), bankTransaction('r4', 'Corner Cafe', 1250, 'dining')];
+const reviewTransactions = () => [bankTransaction('r2', 'Spotify', 1199)];
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 type Calls = { method: string; url: string; body?: unknown }[];
@@ -103,13 +103,10 @@ describe('personal budget from the API', () => {
     expect(screen.getByText('↻ Bank synced 2m ago')).toBeInTheDocument();
     expect(screen.getByText('$248.00 / $365.00')).toBeInTheDocument();
     expect(screen.queryByText(/Over budget this month/)).not.toBeInTheDocument();
-    const review = await screen.findByRole('region', { name: 'Transactions to review' });
-    expect(review).toHaveTextContent('4 transactions need a category check');
-    expect(review).toHaveTextContent('Trader Joe’s');
+    const review = await screen.findByRole('region', { name: 'Transactions to categorize' });
+    expect(review).toHaveTextContent('1 transaction could not be categorized automatically');
     expect(review).toHaveTextContent('Spotify');
-    expect(review).toHaveTextContent('Target');
-    expect(review).not.toHaveTextContent('Corner Cafe');
-    fireEvent.click(screen.getByRole('button', { name: 'Review all transactions ›' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Categorize transactions ›' }));
     expect(onOpenTransactions).toHaveBeenCalledOnce();
   });
   it('does not fetch while its tab is hidden, then loads when shown', async () => {

@@ -121,9 +121,12 @@ describe('persisted expenses and settlements', () => {
     const id = created.body.expense.id;
     const before = (await owner.get(`/api/groups/${groupId}/balances`).expect(200)).body.balances;
     const key = randomUUID();
-    const sent = await member.post(`/api/expenses/${id}/payments`).send({ amountCents: 500, clientRequestId: key }).expect(201);
-    const replay = await member.post(`/api/expenses/${id}/payments`).send({ amountCents: 500, clientRequestId: key }).expect(201);
+    const sent = await member.post(`/api/expenses/${id}/payments`).send({ amountCents: 500, clientRequestId: key, method: 'Zelle' }).expect(201);
+    const replay = await member.post(`/api/expenses/${id}/payments`).send({ amountCents: 500, clientRequestId: key, method: 'Zelle' }).expect(201);
     expect(replay.body.payment.id).toBe(sent.body.payment.id);
+    const personal = await prisma.personalSettlementTransaction.findUniqueOrThrow({ where: { userId_requestKey: { userId: memberId, requestKey: `expense:${id}:${key}` } } });
+    expect(personal).toMatchObject({ amountCents: 500, method: 'Zelle', groupId, recipientUserId: ownerId });
+    expect(sent.body.payment.personalSettlementTransactionId).toBe(personal.id);
     await owner.post(`/api/expenses/${id}/payments`).send({ amountCents: 1, clientRequestId: randomUUID() }).expect(400);
     await outsider.post(`/api/expenses/${id}/payments`).send({ amountCents: 1, clientRequestId: randomUUID() }).expect(404);
     await member.post(`/api/expenses/${id}/payments`).send({ amountCents: 1051, clientRequestId: randomUUID() }).expect(409);
