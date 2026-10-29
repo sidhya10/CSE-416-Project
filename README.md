@@ -2,13 +2,13 @@
 
 **Team:** Eva · Vivian · Nicole · Sidhya  
 **Course:** CSE 416 · Software Engineering  
-**Implementation status:** October 22, 2026
+**Implementation status:** October 29, 2026
 
 ## Project Overview
 
 This project is a mobile-responsive web application for young adults who manage personal budgets while regularly sharing expenses with roommates, friends, and travel groups. It combines group expense splitting, settlement tracking, connected bank transactions, and personal category budgets in one application.
 
-The long-term product goal is to reconcile a group expense with the corresponding bank charge so that a payer's personal budget counts only their own share. That reconciliation is **not implemented yet**. The current application supports the group-expense workflow and the personal-budget workflow as connected areas of the same authenticated application, but bank transactions and group shares are not yet matched or deduplicated in personal spending totals.
+The product's central workflow is now implemented: every participant's share of a group expense is counted once in their personal budget, and the payer can manually link the expense to a posted Plaid bank charge. When linked, the full bank charge is excluded from the payer's spending total and replaced by the payer's own share. Matching remains a user-reviewed choice rather than an automatic process.
 
 The app records that payments were sent and received, but it does not move money. It currently supports USD only.
 
@@ -53,6 +53,7 @@ All group types share group information, members, expenses, balances, settings, 
 
 ### Expense entry and splitting
 
+- Continue without an account to calculate a temporary quick split with named participants, manual item entry, or a guest receipt scan. Guest data is kept only in the current browser session and is discarded on exit or refresh.
 - Add and edit General and Trip expenses.
 - Select the member who paid.
 - Enter item names, quantities, prices, tax, tip, and additional fees.
@@ -61,6 +62,7 @@ All group types share group information, members, expenses, balances, settings, 
 - Persist expenses, items, shares, and receipt attachments in PostgreSQL.
 - Return retried expense-creation requests safely through client request IDs.
 - Block financial edits after payment history exists until a future adjustment workflow is available.
+- Assign each participant's share to a personal budget category. Categories are private to the participant's own budget.
 
 ### Receipt scanning
 
@@ -82,7 +84,7 @@ Receipt scanning currently processes one uploaded file and the first page or pri
 - Creditors can confirm receipt or report an issue.
 - Only confirmed payments reduce the underlying debt.
 - A separate Group payments section above the group list displays payment tasks, confirmation tasks, collection progress, and in-app reminders. Home shows its to-do summary near the top, linking to Groups for payment actions.
-- Settlement notices persist in PostgreSQL.
+- Settlement and budget-link notices persist in PostgreSQL. A dedicated Notifications tab shows an unread badge and supports opening the relevant group or expense, marking notices read or unread, deleting individual notices, and clearing all notices.
 
 The application does not initiate ACH, card, Venmo, Cash App, or other real-money transfers.
 
@@ -107,20 +109,22 @@ The application does not initiate ACH, card, Venmo, Cash App, or other real-mone
 - Rename or hide connected accounts.
 - Reauthenticate connections that need attention.
 - Disconnect an institution.
+- Let an expense payer review posted bank charges and link one charge to the corresponding group expense. Exact total matches are shown first, but the payer makes the final selection.
+- Automatically remove a saved link if a later Plaid sync changes that charge's amount.
 
-The application currently uses Plaid's provider categories as input to its fixed budget categories. It does not yet provide a transaction-review queue, manual recategorization, exclusion, notes, or transaction splitting.
+The application currently uses Plaid's provider categories as input to its fixed budget categories. The visible Automatic sync switch is currently interface-only; transactions are synchronized when the user chooses **Sync now** or completes a connection flow. The application does not yet provide a general transaction-review queue, manual recategorization, exclusion, notes, or transaction splitting.
 
 ### Personal budgets
 
 - Set and edit monthly limits for Dining, Groceries, Transit, Shopping, and Other.
-- Calculate current-month spending from positive transactions in visible connected bank accounts.
+- Calculate current-month spending from positive transactions in visible connected bank accounts plus the user's shares of group expenses.
 - View spending and remaining amounts by category.
 - Open a category to view its contributing transactions.
+- Categorize each group-expense share independently for the participant's own budget.
+- For a linked expense, exclude the payer's full bank charge and count only that payer's share, preventing double counting. Other participants' shares count even when they do not have a corresponding bank charge.
 - Display an over-budget item on the Home dashboard when a category exceeds its limit.
-- Show a four-month spending and income comparison on Home.
+- Show a four-month spending and income comparison on Home using the same linked-charge deduplication and group-share totals.
 - Display the most recently added group expense and a prominent to-do summary on Home; detailed payment cards are on Groups.
-
-Personal-budget totals currently use bank transactions directly. They do **not** substitute a user's group-expense share for the full bank charge.
 
 ### Group budgets
 
@@ -144,19 +148,24 @@ Saved scenarios (up to eight per user) are stored in PostgreSQL on the user's ac
 
 The following product concepts are planned or incomplete and should not be treated as implemented behavior:
 
-- **Bank/group reconciliation:** No matching currently exists between `BankTransaction` and `Expense`. A full bank charge is still counted in personal spending even when the user paid on behalf of a group.
+- **Automatic bank/group matching:** Reconciliation is implemented through payer review and manual transaction selection. The app does not automatically commit matches based on merchant, date, and amount.
 - **Transaction review:** Users cannot yet approve, recategorize, exclude, annotate, or divide synchronized bank transactions.
+- **Automatic bank synchronization:** The Automatic sync control does not yet save a preference or schedule background synchronization.
+- **Payer fairness:** The app shows how much each member paid, owes, or is owed, but it does not recommend who should pay next or rotate the payer across a group.
 - **Offline support:** There is no IndexedDB write queue, offline draft persistence, or service worker.
 - **Installable PWA support:** The interface is responsive, but a web app manifest and service worker are not configured.
 - **External notifications:** In-app settlement notices exist, but Web Push and email fallback are not implemented.
 - **Live server events:** The client refreshes relevant data periodically and when the browser tab becomes visible. Server-Sent Events are not implemented.
 - **Persistent trip planning:** Planned trip expenses and private trip budgets are local preview state.
+- **Invitation acceptance:** Adding a group member currently grants membership immediately; there is no pending invite/accept flow.
+- **QR friend discovery:** Search, removal, and optional contact matching exist, but QR discovery does not.
 - **Advanced insights:** Subscription detection, spending anomaly detection, recurring-charge forecasts, and personalized savings recommendations are not implemented.
 - **Debt simplification:** Within-group and cross-group debt netting are not implemented.
 - **Multi-currency:** All current financial flows use USD.
 - **Receipt merging:** Multiple receipt photos or pages cannot be merged into one scan.
+- **Native mobile distribution:** The responsive web app is not packaged as an iOS app and is not distributed through TestFlight or the App Store.
 
-Possible future features also include CSV export, exportable trip summaries, savings goals, budget rollover, payer-balance suggestions, and a curated credit-card benefits tool.
+Possible future features also include CSV export, exportable trip summaries, savings goals, budget rollover, and a curated credit-card benefits tool.
 
 ## Technology Stack
 
@@ -185,6 +194,8 @@ TanStack Query, IndexedDB, Redis/BullMQ, Server-Sent Events, external object sto
 - Expense shares must equal the total expense amount.
 - Retried creates use client-generated request IDs to avoid duplicate expense or payment records.
 - Group balances are derived from expense shares and confirmed payments.
+- Every user's group-expense share counts once in their personal budget on the expense date.
+- A bank transaction can be linked to at most one group expense. A linked full charge is excluded from budget spending and replaced by the user's share.
 - A debtor reporting a payment does not clear the debt until the creditor confirms it.
 - Settled expenses do not enter later settlement periods.
 - Bank access tokens are encrypted before storage.
