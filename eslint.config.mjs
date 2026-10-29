@@ -4,7 +4,14 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/.cloudflare-build/**', '**/coverage/**', '**/node_modules/**', 'prisma/migrations/**'],
+    ignores: [
+      '**/dist/**',
+      '**/.cloudflare-build/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      'ios/App/App/public/**',
+      'prisma/migrations/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

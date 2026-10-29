@@ -168,7 +168,7 @@ The following product concepts are planned or incomplete and should not be treat
 - **Debt simplification:** Within-group and cross-group debt netting are not implemented.
 - **Multi-currency:** All current financial flows use USD.
 - **Receipt merging:** Multiple receipt photos or pages cannot be merged into one scan.
-- **Native mobile distribution:** The responsive web app is not packaged as an iOS app and is not distributed through TestFlight or the App Store.
+- **Native mobile distribution:** A separate Capacitor iPhone shell is implemented and ready to archive in Xcode. It has not yet been signed or uploaded to TestFlight. The first beta should use password login and Plaid Sandbox; native Google Sign-In and production Plaid OAuth handling remain future mobile integrations.
 
 Possible future features also include CSV export, exportable trip summaries, savings goals, budget rollover, and a curated credit-card benefits tool.
 
@@ -179,6 +179,7 @@ Possible future features also include CSV export, exportable trip summaries, sav
 | Layer | Technologies | Current use |
 |---|---|---|
 | Frontend | React 19, TypeScript, Vite | Mobile-responsive interface and client-side application state |
+| iPhone shell | Capacitor 8, Swift Package Manager, Xcode | Separate iOS 15+ wrapper for TestFlight that loads the production HTTPS application without changing the Vercel deployment |
 | Styling and charts | CSS | Responsive layouts, theme support, progress bars, and chart-like visualizations |
 | Backend | Node.js, Express, TypeScript, Render | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts; the production API runs as a Render web service |
 | Database | Neon PostgreSQL, Prisma | Serverless PostgreSQL persistence and transactional financial operations; Prisma migrations are applied when the Render service starts |
@@ -241,6 +242,20 @@ For Apple Silicon systems reporting a missing Rollup native module, reinstall op
 npm ci --include=optional
 ```
 
+### iPhone and TestFlight
+
+The repository includes a separate Capacitor iOS project in `ios/`. It loads the existing production web client over HTTPS, so web and iPhone users share the same Render API, Neon database, sessions, and application behavior. Building the iOS target does not modify or redeploy the Vercel web client.
+
+On a Mac with Xcode installed:
+
+```sh
+npm ci
+npm run mobile:sync
+npm run mobile:open
+```
+
+Select an Apple development team in Xcode, run on an iPhone or simulator, and archive the `App` scheme for TestFlight. See [iOS and TestFlight](docs/ios-testflight.md) for signing, upload, beta-testing, and provider limitations.
+
 ### Optional provider configuration
 
 Password authentication, saved recovery codes, and manual expense entry work without Google, Plaid, Azure, or email-provider credentials. Users should generate and securely save recovery codes from **Profile → Account settings → Recovery codes** while they can access their account.
@@ -265,6 +280,7 @@ To enable connected bank accounts, configure the Plaid variables documented in `
 | Web client | Vercel | <https://cse-416-project-tau.vercel.app> |
 | REST API | Render | <https://cse-416-budget-api.onrender.com> |
 | PostgreSQL | Neon | Private TLS connection from the Render API |
+| iPhone beta | Capacitor / TestFlight | Native project implemented; Apple signing and TestFlight upload pending |
 
 The Vercel client forwards `/api/*` requests to Render, so the browser continues to use same-origin API paths. Render runs the Node/Express server from `main`, applies pending Prisma migrations during startup, and connects to the Neon database. The reproducible service configuration is in [`render.yaml`](render.yaml); production credentials are stored only as Render environment variables and are not committed to the repository.
 
