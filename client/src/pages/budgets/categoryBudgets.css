@@ -28,6 +28,11 @@
 .cb-hero-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;color:#dbf0e3;font-size:11px}
 .cb-hero-meta button{border:0;background:none;padding:0;color:#fff;font-size:11px;font-weight:600}
 
+.cb-review-card{padding:16px;margin-top:16px;border:1px solid var(--border);border-radius:18px;background:var(--surface)}
+.cb-review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.cb-review-head h2{margin:0;font-size:15px}.cb-review-head small{display:block;margin-top:2px;color:var(--muted);font-size:11px}.cb-review-head>span{display:grid;place-items:center;min-width:25px;height:25px;padding:0 7px;border-radius:999px;background:var(--danger-soft);color:var(--danger);font-size:11px;font-weight:700}
+.cb-review-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--surface-subtle)}.cb-review-row>span{min-width:0}.cb-review-row strong,.cb-review-row small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cb-review-row strong{font-size:12px;font-weight:600}.cb-review-row small{margin-top:2px;color:var(--muted);font-size:10px}.cb-review-row>b{flex:none;font-size:12px}.cb-review-row>b.income{color:var(--accent)}
+.cb-review-all{width:100%;min-height:38px;margin-top:14px;border:0;border-radius:11px;background:var(--soft-green);color:var(--accent);font-size:11px;font-weight:700}
+
 .cb-section-heading{margin:24px 0 12px;font-size:16px;font-weight:700}
 
 .cb-category{padding:14px 16px;margin-bottom:10px;border-radius:16px;background:var(--surface)}

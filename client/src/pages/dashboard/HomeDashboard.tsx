@@ -34,6 +34,7 @@ export default function HomeDashboard({ userName, onNavigate, onReviewTransactio
   const monthLabel = personal.data ? budgetPeriod(personal.data).monthLabel : new Date().toLocaleDateString('en-US', { month: 'long' });
   const latest = home.data?.latestExpense;
   const unreviewed = reviews.data?.transactions ?? [];
+  const attentionCount = todos.length + (unreviewed.length ? 1 : 0);
 
   useEffect(() => {
     if (reviews.data) onReviewCountChange?.(reviews.data.transactions.length);
@@ -57,22 +58,17 @@ export default function HomeDashboard({ userName, onNavigate, onReviewTransactio
 
     {loaded && <section className="home-card home-todos" aria-label="Your to-dos">
       <div className="home-todos-head">
-        <div><h2>Your to-dos</h2><small>{todos.length ? `${todos.length} ${todos.length === 1 ? 'item needs' : 'items need'} attention` : 'Nothing needs attention'}</small></div>
+        <div><h2>Your to-dos</h2><small>{attentionCount ? `${attentionCount} ${attentionCount === 1 ? 'item needs' : 'items need'} attention` : 'Nothing needs attention'}</small></div>
       </div>
-      {todos.length === 0 && <p className="home-empty">You're all caught up.</p>}
+      {attentionCount === 0 && <p className="home-empty">You're all caught up.</p>}
       {todos.map(todo => <div key={todo.id} className="home-todo-row">
         <span>{todo.label}</span>
         <button type="button" onClick={() => onNavigate(todo.target)}>{todo.trailing}</button>
       </div>)}
-    </section>}
-
-    {unreviewed.length > 0 && <section className="home-card home-transactions" aria-label="Transactions to review">
-      <div className="home-transactions-head"><div><h2>Transactions to review</h2><small>{unreviewed.length} {unreviewed.length === 1 ? 'transaction needs' : 'transactions need'} a category check</small></div><span>{unreviewed.length}</span></div>
-      {unreviewed.slice(0, 3).map(transaction => <div className="home-transaction-row" key={transaction.id}>
-        <span><strong>{transaction.merchant}</strong><small>{transaction.category ? transaction.category.charAt(0).toUpperCase() + transaction.category.slice(1) : 'Uncategorized'} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</small></span>
-        <b className={transaction.amountCents < 0 ? 'income' : ''}>{formatCents(transaction.amountCents)}</b>
-      </div>)}
-      <button type="button" className="home-review-all" onClick={onReviewTransactions}>Review all transactions ›</button>
+      {unreviewed.length > 0 && <div className="home-todo-row">
+        <span>Review {unreviewed.length} {unreviewed.length === 1 ? 'transaction' : 'transactions'}</span>
+        <button type="button" onClick={onReviewTransactions}>Review ›</button>
+      </div>}
     </section>}
 
     {personal.data && <>

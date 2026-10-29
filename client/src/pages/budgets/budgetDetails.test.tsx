@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ApiGroupBudget, ApiPersonalBudget, CategoryKey } from '../../api/budgets.api';
+import type { ApiBankTransaction } from '../../api/banking.api';
 import CategoryBudgets from './CategoryBudgets';
 import { budgetPeriod, categoryInsights, isOverLimit, toCategoryBudgets, toCategoryTransactions } from './categoryPlan';
 import { settleUpBody, settlementsFor, toGroupBudget, totalOwedCents } from './groupBudgetPlan';
@@ -28,12 +29,18 @@ const groupsFixture = (): ApiGroupBudget[] => [
       { id: 'u2', name: 'Alex', isYou: false, paidCents: 0, owesCents: 0, owedCents: 0 },
     ] },
 ];
+const bankTransaction = (id: string, merchant: string, amountCents: number, category: ApiBankTransaction['category'] = null): ApiBankTransaction => ({
+  id, accountId: 'account-1', accountName: 'Checking', institution: 'Test Bank', merchant, name: merchant.toUpperCase(),
+  date: '2026-09-28', amountCents, pending: false, providerCategory: null, category, excluded: false, note: null,
+  reviewed: false, reviewedAt: null, linkedExpense: null, splits: [],
+});
+const reviewTransactions = () => [bankTransaction('r1', 'Trader Joe’s', 4218, 'groceries'), bankTransaction('r2', 'Spotify', 1199), bankTransaction('r3', 'Target', 6724, 'shopping'), bankTransaction('r4', 'Corner Cafe', 1250, 'dining')];
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 type Calls = { method: string; url: string; body?: unknown }[];
 
 // Stubs the budgets API; `handlers` can override a route, and every request is recorded.
-function stubApi(handlers: Record<string, (init: RequestInit | undefined) => Response> = {}, data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[] } = {}) {
+function stubApi(handlers: Record<string, (init: RequestInit | undefined) => Response> = {}, data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]; transactions?: ApiBankTransaction[] } = {}) {
   const calls: Calls = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
@@ -42,6 +49,7 @@ function stubApi(handlers: Record<string, (init: RequestInit | undefined) => Res
     if (handler) return handler(init);
     if (url.endsWith('/budgets/personal')) return json(data.personal ?? personalFixture());
     if (url.endsWith('/budgets/groups')) return json({ groups: data.groups ?? groupsFixture() });
+    if (url.includes('/banking/transactions?')) return json({ transactions: data.transactions ?? reviewTransactions() });
     throw new Error(`Unexpected request ${method} ${url}`);
   }));
   return calls;
@@ -88,12 +96,21 @@ describe('budget helpers', () => {
 describe('personal budget from the API', () => {
   it('shows totals, bank sync, and the category plan', async () => {
     stubApi();
-    render(<CategoryBudgets onOpenSimulator={() => {}} />);
+    const onOpenTransactions = vi.fn();
+    render(<CategoryBudgets onOpenSimulator={() => {}} onOpenTransactions={onOpenTransactions} />);
     expect(await screen.findByText('$1,057.50 spent')).toBeInTheDocument();
     expect(screen.getByText('of $1,900.00 planned · 12 days left')).toBeInTheDocument();
     expect(screen.getByText('↻ Bank synced 2m ago')).toBeInTheDocument();
     expect(screen.getByText('$248.00 / $365.00')).toBeInTheDocument();
     expect(screen.queryByText(/Over budget this month/)).not.toBeInTheDocument();
+    const review = await screen.findByRole('region', { name: 'Transactions to review' });
+    expect(review).toHaveTextContent('4 transactions need a category check');
+    expect(review).toHaveTextContent('Trader Joe’s');
+    expect(review).toHaveTextContent('Spotify');
+    expect(review).toHaveTextContent('Target');
+    expect(review).not.toHaveTextContent('Corner Cafe');
+    fireEvent.click(screen.getByRole('button', { name: 'Review all transactions ›' }));
+    expect(onOpenTransactions).toHaveBeenCalledOnce();
   });
   it('does not fetch while its tab is hidden, then loads when shown', async () => {
     const calls = stubApi();
@@ -101,7 +118,7 @@ describe('personal budget from the API', () => {
     expect(calls).toHaveLength(0);
     rerender(<CategoryBudgets active onOpenSimulator={() => {}} />);
     expect(await screen.findByText('$1,057.50 spent')).toBeInTheDocument();
-    expect(calls.map(call => call.url)).toEqual(expect.arrayContaining(['/api/budgets/personal', '/api/budgets/groups']));
+    expect(calls.map(call => call.url)).toEqual(expect.arrayContaining(['/api/budgets/personal', '/api/budgets/groups', '/api/banking/transactions?status=unreviewed']));
   });
   it('warns about categories over their limit', async () => {
     stubApi({}, { personal: personalFixture({ dining: { spentCents: 40000 } }) });

@@ -96,14 +96,10 @@ describe('home dashboard with real data', () => {
     expect(screen.queryByRole('region', { name: 'Group payment notifications' })).not.toBeInTheDocument();
     expect(screen.getByText('You owe $38.20 in 1 group')).toBeInTheDocument();
     expect(screen.getByText('Over budget: Dining')).toBeInTheDocument();
-    expect(screen.getByText('3 items need attention')).toBeInTheDocument();
+    expect(screen.getByText('4 items need attention')).toBeInTheDocument();
+    expect(screen.getByText('Review 4 transactions')).toBeInTheDocument();
     expect(screen.getByText('Latest: Alex added Dinner in Weekend Trip · $40.00')).toBeInTheDocument();
-    const review = screen.getByRole('region', { name: 'Transactions to review' });
-    expect(within(review).getByText('4 transactions need a category check')).toBeInTheDocument();
-    expect(within(review).getByText('Trader Joe’s')).toBeInTheDocument();
-    expect(within(review).getByText('Spotify')).toBeInTheDocument();
-    expect(within(review).getByText('Target')).toBeInTheDocument();
-    expect(within(review).queryByText('Corner Cafe')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Transactions to review' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Apartment rent|matched bank charge|group updates/)).not.toBeInTheDocument();
   });
 
@@ -135,7 +131,7 @@ describe('home dashboard with real data', () => {
     render(<HomeDashboard userName="Nicole" onNavigate={onNavigate} />);
     const rows = await screen.findAllByText(/^(Review|Settle|View) ›$/);
     fireEvent.click(rows[0]!);
-    fireEvent.click(rows[rows.length - 1]!);
+    fireEvent.click(screen.getByRole('button', { name: 'View ›' }));
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(onNavigate.mock.calls.map(call => call[0])).toEqual(['Groups', 'Budget', 'Profile']);
   });
@@ -145,7 +141,8 @@ describe('home dashboard with real data', () => {
     const onReviewTransactions = vi.fn();
     const onReviewCountChange = vi.fn();
     render(<HomeDashboard userName="Nicole" onNavigate={() => {}} onReviewTransactions={onReviewTransactions} onReviewCountChange={onReviewCountChange} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Review all transactions ›' }));
+    const transactionTodo = await screen.findByText('Review 4 transactions');
+    fireEvent.click(transactionTodo.closest('.home-todo-row')!.querySelector('button')!);
     expect(onReviewTransactions).toHaveBeenCalledOnce();
     expect(onReviewCountChange).toHaveBeenCalledWith(4);
   });

@@ -51,16 +51,6 @@
 .home-todo-row button{border:0;background:none;padding:0;color:var(--text);font-size:12px;font-weight:700}
 .home-todo-row b{font-size:12px;font-weight:700}
 
-.home-transactions{border:1px solid var(--border)}
-.home-transactions-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.home-transactions-head small{display:block;margin-top:2px;color:var(--muted);font-size:11px}
-.home-transactions-head>span{display:grid;place-items:center;min-width:25px;height:25px;padding:0 7px;border-radius:999px;background:var(--danger-soft);color:var(--danger);font-size:11px;font-weight:700}
-.home-transaction-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--surface-subtle)}
-.home-transaction-row>span{min-width:0}.home-transaction-row strong,.home-transaction-row small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.home-transaction-row strong{font-size:12px;font-weight:600}.home-transaction-row small{margin-top:2px;color:var(--muted);font-size:10px}
-.home-transaction-row>b{flex:none;font-size:12px}.home-transaction-row>b.income{color:var(--accent)}
-.home-review-all{width:100%;min-height:38px;margin-top:14px;border:0;border-radius:11px;background:var(--soft-green);color:var(--accent);font-size:11px;font-weight:700}
-
 .home-recent{margin:16px 0 0;color:var(--accent);font-size:11px;font-weight:600}
 
 .home-notice{margin:14px 0 0;padding:10px 12px;border-radius:12px;background:var(--soft-green);color:var(--accent);font-size:11px;line-height:1.45}

@@ -37,6 +37,11 @@ describe('App account integration', () => {
       if (url.endsWith('/groups')) return response({ groups: [] });
       if (url.endsWith('/friends/user-2')) return response({ friend: { ...stranger, isFriend: true } }, 201);
       if (url.includes('/banking/transactions?')) return response({ transactions: [bankTransaction] });
+      if (url.endsWith('/budgets/personal')) return response({ month: '2026-10', daysInMonth: 31, daysLeft: 2, hasBankConnection: true, lastSyncedAt: null,
+        categories: ['dining', 'groceries', 'transit', 'shopping', 'other'].map(key => ({ key, plannedCents: 0, spentCents: 0 })),
+        transactions: { dining: [], groceries: [], transit: [], shopping: [], other: [] } });
+      if (url.endsWith('/budgets/groups')) return response({ groups: [] });
+      if (url.endsWith('/budgets/home')) return response({ history: [], pendingPayments: { count: 0, cents: 0 }, latestExpense: null });
       return response({ error: 'Not found' }, 404);
     }));
   });
@@ -130,7 +135,9 @@ describe('App account integration', () => {
     render(<App />);
     await screen.findByRole('heading', { name: homeGreeting });
     await waitFor(() => expect(document.querySelector('.tab-review-badge')).toHaveTextContent('1'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Review all transactions ›' }));
+    const todos = await screen.findByRole('region', { name: 'Your to-dos' });
+    const transactionTodo = within(todos).getByText('Review 1 transaction');
+    fireEvent.click(transactionTodo.closest('.home-todo-row')!.querySelector('button')!);
     expect(await screen.findByRole('heading', { name: 'Review transactions' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));

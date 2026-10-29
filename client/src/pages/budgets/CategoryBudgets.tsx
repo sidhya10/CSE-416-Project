@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from '../../components/common/Avatar';
+import { bankingApi } from '../../api/banking.api';
 import { budgetsApi, type ApiGroupBudget, type ApiPersonalBudget } from '../../api/budgets.api';
 import { ApiError } from '../../api/client';
 import { relativeTime } from '../../utils/dates';
@@ -7,6 +8,7 @@ import { formatCents } from '../expenses/split';
 import { type CategoryKey, budgetPeriod, categoryPct, isOverLimit, toCategoryBudgets, toCategoryTransactions, totalPlannedCents, totalSpentCents } from './categoryPlan';
 import { groupBudgetPct, settleUpBody, toGroupBudget, totalOwedCents } from './groupBudgetPlan';
 import { CategoryTransactions, EditGroupPlan, EditLimits, SpendingInsights, WhoOwesWhat } from './CategoryBudgetDetails';
+import { useLiveData } from '../dashboard/useLiveData';
 import './categoryBudgets.css';
 
 type BudgetScope = 'personal' | 'group';
@@ -14,9 +16,10 @@ type Detail = { kind: 'insights' } | { kind: 'category'; key: CategoryKey; from:
 
 const REFRESH_MS = 15_000;
 const errorMessage = (error: unknown) => error instanceof ApiError ? error.message : 'Unable to reach the server. Try again.';
+const loadUnreviewedTransactions = () => bankingApi.transactions('unreviewed');
 
 // `active` is false while the tab is hidden: nothing is fetched or polled until the user opens the budget.
-export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = () => {}, active = true, expenseTarget, onClearExpenseTarget }: { onClearExpenseTarget?: () => void; expenseTarget?: { category: string; expenseId: string } | null; onOpenSimulator: () => void; onOpenTransactions?: () => void; active?: boolean }) {
+export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = () => {}, onReviewCountChange, active = true, expenseTarget, onClearExpenseTarget }: { onClearExpenseTarget?: () => void; expenseTarget?: { category: string; expenseId: string } | null; onOpenSimulator: () => void; onOpenTransactions?: () => void; onReviewCountChange?: (count: number) => void; active?: boolean }) {
   const [scope, setScope] = useState<BudgetScope>('personal');
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail>(null);
@@ -29,6 +32,11 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
   const [groups, setGroups] = useState<ApiGroupBudget[] | null>(null);
   const [personalError, setPersonalError] = useState('');
   const [groupsError, setGroupsError] = useState('');
+  const reviews = useLiveData(loadUnreviewedTransactions, active);
+  const unreviewed = reviews.data?.transactions ?? [];
+  useEffect(() => {
+    if (reviews.data) onReviewCountChange?.(reviews.data.transactions.length);
+  }, [onReviewCountChange, reviews.data]);
   // Only the most recent request may update state, so a slow refresh cannot overwrite a newer save.
   const latest = useRef({ personal: 0, groups: 0 });
 
@@ -160,6 +168,14 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
           <button type="button" onClick={() => setDetail({ kind: 'insights' })}>View insights ›</button>
         </div>
       </section>
+      {unreviewed.length > 0 && <section className="cb-review-card" aria-label="Transactions to review">
+        <div className="cb-review-head"><div><h2>Transactions to review</h2><small>{unreviewed.length} {unreviewed.length === 1 ? 'transaction needs' : 'transactions need'} a category check</small></div><span>{unreviewed.length}</span></div>
+        {unreviewed.slice(0, 3).map(transaction => <div className="cb-review-row" key={transaction.id}>
+          <span><strong>{transaction.merchant}</strong><small>{transaction.category ? transaction.category.charAt(0).toUpperCase() + transaction.category.slice(1) : 'Uncategorized'} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</small></span>
+          <b className={transaction.amountCents < 0 ? 'income' : ''}>{formatCents(transaction.amountCents)}</b>
+        </div>)}
+        <button type="button" className="cb-review-all" onClick={onOpenTransactions}>Review all transactions ›</button>
+      </section>}
       {!personal.hasBankConnection && <p className="cb-notice" role="status">Group expense shares appear here automatically. Connect a bank account in Profile to include other spending.</p>}
       {overLimit.length > 0 && <p className="cb-notice cb-warn" role="status">Over budget this month: {overLimit.map(item => item.label).join(', ')}.</p>}
 
