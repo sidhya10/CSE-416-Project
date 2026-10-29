@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://api-production-0f63.up.railway.app/api/:path*"
+      "destination": "https://cse-416-budget-api.onrender.com/api/:path*"
     },
     {
       "source": "/:path*",
