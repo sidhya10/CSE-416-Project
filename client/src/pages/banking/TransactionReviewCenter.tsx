@@ -85,7 +85,7 @@ function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBank
   </div>;
 }
 
-export default function TransactionReviewCenter({ onBack }: { onBack: () => void }) {
+export default function TransactionReviewCenter({ onBack, onUnreviewedDelta }: { onBack: () => void; onUnreviewedDelta?: (delta: number) => void }) {
   const [filter, setFilter] = useState<Filter>('unreviewed');
   const [query, setQuery] = useState('');
   const [transactions, setTransactions] = useState<ApiBankTransaction[]>([]);
@@ -106,6 +106,9 @@ export default function TransactionReviewCenter({ onBack }: { onBack: () => void
   }, [requestKey]);
 
   const saved = (transaction: ApiBankTransaction) => {
+    const wasUnreviewed = !!selected && !selected.reviewed && !selected.excluded;
+    const isUnreviewed = !transaction.reviewed && !transaction.excluded;
+    if (wasUnreviewed !== isUnreviewed) onUnreviewedDelta?.(isUnreviewed ? 1 : -1);
     setSelected(null);
     const belongs = filter === 'all' || filter === 'excluded' && transaction.excluded
       || filter === 'reviewed' && transaction.reviewed && !transaction.excluded

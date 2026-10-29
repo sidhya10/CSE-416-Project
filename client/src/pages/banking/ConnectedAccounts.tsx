@@ -5,7 +5,6 @@ import { formatCents } from '../expenses/split';
 import { relativeTime } from '../../utils/dates';
 import { MENU_ACTIONS, institutionInitial, type Account, type MenuAction } from './banking';
 import './banking.css';
-import TransactionReviewCenter from './TransactionReviewCenter';
 
 function RenameDialog({ initialName, onCancel, onSave }: { initialName: string; onCancel: () => void; onSave: (name: string) => void }) {
   const [name, setName] = useState(initialName);
@@ -41,7 +40,6 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [lastAdded, setLastAdded] = useState<number | null>(null);
-  const [reviewing, setReviewing] = useState(false);
 
   const renamingAccount = accounts.find(account => account.id === renamingId);
   const canSyncNow = accounts.some(account => account.status === 'synced' && !account.hidden);
@@ -94,8 +92,6 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
     setAccounts((await bankingApi.exchange(publicToken)).accounts);
     setNotice('Account connected.');
   });
-
-  if (reviewing) return <TransactionReviewCenter onBack={() => setReviewing(false)} />;
 
   return <main className="banking-workspace">
     <header className="bank-header"><button type="button" aria-label="Back" onClick={onBack}>‹</button>
@@ -152,8 +148,6 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
         </label>
       </div>
     </section>
-
-    <button type="button" className="bank-review-button" onClick={() => setReviewing(true)}><span><strong>Review transactions</strong><small>Categorize, split, exclude, and add notes</small></span><b aria-hidden="true">›</b></button>
 
     <button type="button" className="bank-connect-button" disabled={busy} onClick={() => void connectAccount()}>+ Connect another account</button>
 

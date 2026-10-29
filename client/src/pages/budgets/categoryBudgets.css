@@ -6,7 +6,9 @@
 .cb-header p{margin-top:3px;color:var(--muted);font-size:12px}
 .cb-heading-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .cb-heading-row h1{min-width:0;font-size:clamp(20px,6vw,24px)}
+.cb-heading-actions{display:flex;flex:none;gap:6px}
 .cb-simulator-link{flex:none;min-height:34px;padding:7px 10px;border:1px solid var(--accent);border-radius:11px;background:var(--soft-green);color:var(--accent);font-size:11px;font-weight:700;white-space:nowrap}
+@media(max-width:390px){.cb-heading-row{align-items:flex-start}.cb-heading-actions{flex-direction:column}.cb-heading-actions .cb-simulator-link{min-height:30px;padding:5px 8px}}
 
 .cb-toggle{display:flex;gap:4px;margin-top:18px;padding:4px;border-radius:14px;background:var(--track)}
 .cb-toggle button{flex:1;min-height:38px;border:0;border-radius:11px;background:transparent;color:var(--muted);font-size:12px;font-weight:600}
@@ -25,6 +27,11 @@
 .cb-hero-bar>div{height:100%;border-radius:6px;background:#fff;transition:width .15s ease}
 .cb-hero-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;color:#dbf0e3;font-size:11px}
 .cb-hero-meta button{border:0;background:none;padding:0;color:#fff;font-size:11px;font-weight:600}
+
+.cb-review-card{padding:16px;margin-top:16px;border:1px solid var(--border);border-radius:18px;background:var(--surface)}
+.cb-review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.cb-review-head h2{margin:0;font-size:15px}.cb-review-head small{display:block;margin-top:2px;color:var(--muted);font-size:11px}.cb-review-head>span{display:grid;place-items:center;min-width:25px;height:25px;padding:0 7px;border-radius:999px;background:var(--danger-soft);color:var(--danger);font-size:11px;font-weight:700}
+.cb-review-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--surface-subtle)}.cb-review-row>span{min-width:0}.cb-review-row strong,.cb-review-row small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cb-review-row strong{font-size:12px;font-weight:600}.cb-review-row small{margin-top:2px;color:var(--muted);font-size:10px}.cb-review-row>b{flex:none;font-size:12px}.cb-review-row>b.income{color:var(--accent)}
+.cb-review-all{width:100%;min-height:38px;margin-top:14px;border:0;border-radius:11px;background:var(--soft-green);color:var(--accent);font-size:11px;font-weight:700}
 
 .cb-section-heading{margin:24px 0 12px;font-size:16px;font-weight:700}
 

@@ -10,6 +10,7 @@ const account: AppUser = {
 };
 const friend = { ...account, id: 'friend-1', email: 'friend@example.com', username: 'friend', name: 'Existing Friend', phone: '+1 555 0101', isFriend: true };
 const stranger = { ...account, id: 'user-2', email: 'person@example.com', username: 'newperson', name: 'New Person', phone: null, isFriend: false };
+const bankTransaction = { id: 'tx-1', accountId: 'account-1', accountName: 'Checking', institution: 'Test Bank', merchant: 'Corner Cafe', name: 'CORNER CAFE', date: '2026-10-29', amountCents: 1250, pending: false, providerCategory: 'FOOD_AND_DRINK', category: null, excluded: false, note: null, reviewed: false, reviewedAt: null, linkedExpense: null, splits: [] };
 
 // The Home heading greets the signed-in user's first name by time of day.
 const homeGreeting = /^Good (morning|afternoon|evening), Account$/;
@@ -35,6 +36,12 @@ describe('App account integration', () => {
       if (url.endsWith('/friends/friend-1') && init?.method === 'DELETE') return response(null, 204);
       if (url.endsWith('/groups')) return response({ groups: [] });
       if (url.endsWith('/friends/user-2')) return response({ friend: { ...stranger, isFriend: true } }, 201);
+      if (url.includes('/banking/transactions?')) return response({ transactions: [bankTransaction] });
+      if (url.endsWith('/budgets/personal')) return response({ month: '2026-10', daysInMonth: 31, daysLeft: 2, hasBankConnection: true, lastSyncedAt: null,
+        categories: ['dining', 'groceries', 'transit', 'shopping', 'other'].map(key => ({ key, plannedCents: 0, spentCents: 0 })),
+        transactions: { dining: [], groceries: [], transit: [], shopping: [], other: [] } });
+      if (url.endsWith('/budgets/groups')) return response({ groups: [] });
+      if (url.endsWith('/budgets/home')) return response({ history: [], pendingPayments: { count: 0, cents: 0 }, latestExpense: null });
       return response({ error: 'Not found' }, 404);
     }));
   });
@@ -122,5 +129,20 @@ describe('App account integration', () => {
     expect(within(screen.getByLabelText('Balance overview')).getAllByText('$0.00')).toHaveLength(2);
     expect(document.querySelectorAll('.group-list-row')).toHaveLength(0);
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/friends'), expect.objectContaining({ credentials: 'include' })));
+  });
+
+  it('opens transaction review from Home and returns to the Budget tab', async () => {
+    render(<App />);
+    await screen.findByRole('heading', { name: homeGreeting });
+    await waitFor(() => expect(document.querySelector('.tab-review-badge')).toHaveTextContent('1'));
+    const todos = await screen.findByRole('region', { name: 'Your to-dos' });
+    const transactionTodo = within(todos).getByText('Review 1 transaction');
+    fireEvent.click(transactionTodo.closest('.home-todo-row')!.querySelector('button')!);
+    expect(await screen.findByRole('heading', { name: 'Review transactions' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByRole('heading', { name: 'Personal budget' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Transactions ›' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
   });
 });
