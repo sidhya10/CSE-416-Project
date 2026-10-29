@@ -2,6 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { CATEGORY_KEYS, MAX_LIMIT_CENTS, MAX_SCENARIO_NAME_LENGTH, type CategoryKey } from './budget.categories.js';
+import { budgetCsv } from './budget.export.js';
 import {
   BudgetError, createScenario, deleteScenario, groupBudgets, homeSummary, listScenarios, personalBudget, saveGroupPlan, saveLimits, updateScenario,
 } from './budget.service.js';
@@ -18,6 +19,17 @@ const planBody = z.object({ plannedCents: cents }).strict();
 
 budgetsRouter.get('/personal', async (request, response) => {
   response.json(await personalBudget(request.userId!));
+});
+
+// Downloads the same month the Budget tab shows, so the file always matches the screen.
+budgetsRouter.get('/personal/export.csv', async (request, response) => {
+  const { filename, content } = budgetCsv(await personalBudget(request.userId!));
+  response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  response.setHeader('Cache-Control', 'no-store');
+  // Lets the app read the filename when it runs on a different origin than the API.
+  response.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+  response.send(content);
 });
 
 budgetsRouter.put('/personal/limits', async (request, response) => {

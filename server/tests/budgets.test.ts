@@ -42,6 +42,7 @@ const byKey = (categories: Category[]) => Object.fromEntries(categories.map(cate
 describe('authentication', () => {
   it('requires a session for every budget route', async () => {
     await request(app).get('/api/budgets/personal').expect(401);
+    await request(app).get('/api/budgets/personal/export.csv').expect(401);
     await request(app).put('/api/budgets/personal/limits').send({ limits: { dining: 1 } }).expect(401);
     await request(app).get('/api/budgets/groups').expect(401);
     await request(app).put(`/api/budgets/groups/${groupId}/plan`).send({ plannedCents: 1 }).expect(401);
@@ -340,4 +341,21 @@ it('notifies the assigned payer once and keeps the budget notice private', async
   expect((await owner.get('/api/settlement-notices')).body.notices.some((n: { id: string }) => n.id === notices[0].id)).toBe(false);
   await owner.delete('/api/settlement-notices').expect(204);
   expect((await owner.get('/api/settlement-notices')).body.notices).toEqual([]);
+});
+
+describe('personal budget CSV export', () => {
+  it('downloads the signed-in user\'s month as a CSV attachment', async () => {
+    const response = await owner.get('/api/budgets/personal/export.csv').expect(200);
+    expect(response.headers['content-type']).toMatch(/^text\/csv/);
+    expect(response.headers['content-disposition']).toMatch(/^attachment; filename="personal-budget-\d{4}-\d{2}\.csv"$/);
+    expect(response.headers['access-control-expose-headers']).toBe('Content-Disposition');
+    const lines = response.text.replace(/^\uFEFF/, '').trim().split('\r\n');
+    expect(lines[0]).toBe('Date,Category,Description,Amount (USD),Status');
+    // The file has the same number of rows as the Budget tab shows transactions.
+    const shown = Object.values((await owner.get('/api/budgets/personal').expect(200)).body.transactions as Record<string, unknown[]>).reduce((sum, items) => sum + items.length, 0);
+    expect(lines.length - 1).toBe(shown);
+    // Another user's file never contains this user's rows.
+    const other = await outsider.get('/api/budgets/personal/export.csv').expect(200);
+    expect(other.text).not.toContain('Thai Basil');
+  });
 });

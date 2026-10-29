@@ -114,6 +114,25 @@ describe('personal budget from the API', () => {
     expect(await screen.findByText(/Connect a bank account in Profile/)).toBeInTheDocument();
     expect(screen.getByText('↻ No bank synced yet')).toBeInTheDocument();
   });
+  it('downloads this month as a CSV and shows an error when the export fails', async () => {
+    let fail = false;
+    const calls = stubApi({ 'GET /budgets/personal/export.csv': () => fail ? json({ error: 'Export broke' }, 500)
+      : new Response('Date,Category\r\n', { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="personal-budget-2026-09.csv"' } }) });
+    const createObjectURL = vi.fn(() => 'blob:csv'), revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<CategoryBudgets onOpenSimulator={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Export this month (CSV)' }));
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    expect(calls.some(call => call.url.endsWith('/budgets/personal/export.csv'))).toBe(true);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:csv');
+    fail = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Export this month (CSV)' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Export broke');
+    expect(click).toHaveBeenCalledTimes(1);
+    click.mockRestore();
+  });
   it('shows an error with a retry when the budget cannot load', async () => {
     let attempts = 0;
     stubApi({ 'GET /budgets/personal': () => ++attempts === 1 ? json({ error: 'Boom' }, 500) : json(personalFixture()) });

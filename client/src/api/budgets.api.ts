@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiDownload, apiRequest } from './client';
 
 export type CategoryKey = 'dining' | 'groceries' | 'transit' | 'shopping' | 'other';
 
@@ -25,6 +25,7 @@ export type ApiHomeSummary = {
 
 export const budgetsApi = {
   personal: () => apiRequest<ApiPersonalBudget>('/budgets/personal'),
+  exportCsv: () => apiDownload('/budgets/personal/export.csv'),
   saveLimits: (limits: Partial<Record<CategoryKey, number>>) =>
     apiRequest<ApiPersonalBudget>('/budgets/personal/limits', { method: 'PUT', body: JSON.stringify({ limits }) }),
   scenarios: () => apiRequest<{ scenarios: ApiScenario[] }>('/budgets/scenarios'),

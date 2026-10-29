@@ -29,6 +29,8 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
   const [groups, setGroups] = useState<ApiGroupBudget[] | null>(null);
   const [personalError, setPersonalError] = useState('');
   const [groupsError, setGroupsError] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   // Only the most recent request may update state, so a slow refresh cannot overwrite a newer save.
   const latest = useRef({ personal: 0, groups: 0 });
 
@@ -65,6 +67,18 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
   const groupPct = activeGroup ? groupBudgetPct(activeGroup) : 0;
   const remainingOwed = activeGroup ? totalOwedCents(activeGroup) : 0;
 
+  const exportCsv = async () => {
+    setExporting(true); setExportError('');
+    try {
+      const { blob, filename } = await budgetsApi.exportCsv();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = filename;
+      document.body.appendChild(link); link.click(); link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) { setExportError(errorMessage(error)); }
+    finally { setExporting(false); }
+  };
   const saveLimits = async (limits: Record<CategoryKey, number>) => {
     const data = await budgetsApi.saveLimits(limits);
     latest.current.personal++;
@@ -174,6 +188,8 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
         <div className="cb-category-bar" role="presentation"><div style={{ width: `${categoryPct(item)}%`, background: isOverLimit(item) ? 'var(--danger)' : item.color }} /></div>
       </button>)}
 
+      <button type="button" className="cb-simulator-link cb-export" disabled={exporting} onClick={() => void exportCsv()}>{exporting ? 'Preparing…' : 'Export this month (CSV)'}</button>
+      {exportError && <p className="cb-notice cb-warn" role="alert">{exportError}</p>}
     </>)}
   </main>;
 }
