@@ -23,7 +23,7 @@ export default function HomeDashboard({ userName, onNavigate, active = true }: {
   const topCategories = [...budgets].filter(item => item.spentCents > 0).sort((a, b) => b.spentCents - a.spentCents).slice(0, 3);
   const months = home.data ? toMonthPoints(home.data.history) : [];
   const chartMax = maxMonthCents(months);
-  const todos = buildTodos(groups.data?.groups ?? [], home.data, budgets);
+  const todos = buildTodos(groups.data?.groups ?? [], home.data);
   const loaded = !!personal.data && !!groups.data && !!home.data;
   const failed = [personal, groups, home].some(source => !source.data && source.error);
   const monthLabel = personal.data ? budgetPeriod(personal.data).monthLabel : new Date().toLocaleDateString('en-US', { month: 'long' });

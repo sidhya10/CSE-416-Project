@@ -43,3 +43,5 @@
 }
 .notification-mark-read svg, .notification-mark-unread svg { flex:none; }
 .notification-read-actions { flex-wrap:wrap; }
+
+.notification-heading .notification-budget-title { color:var(--danger); }
