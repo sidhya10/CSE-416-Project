@@ -10,7 +10,7 @@ const Back = ({ label, onBack }: { label: string; onBack: () => void }) =>
 
 const errorMessage = (error: unknown) => error instanceof ApiError ? error.message : 'Unable to reach the server. Try again.';
 
-export function CategoryTransactions({ item, transactions, period, onBack }: { item: CategoryBudget; transactions: CategoryTransaction[]; period: BudgetPeriod; onBack: () => void }) {
+export function CategoryTransactions({ item, transactions, period, onBack, highlightId }: { highlightId?: string; item: CategoryBudget; transactions: CategoryTransaction[]; period: BudgetPeriod; onBack: () => void }) {
   const left = item.plannedCents - item.spentCents;
   return <>
     <Back label="Budget" onBack={onBack} />
@@ -22,9 +22,18 @@ export function CategoryTransactions({ item, transactions, period, onBack }: { i
     </section>
     <h2 className="cb-section-heading">Transactions</h2>
     {transactions.length === 0 && <p className="cb-notice" role="status">No transactions in this category yet this month.</p>}
-    {transactions.map(t => <div key={t.id} className="cb-category cb-txn">
+    {highlightId && !transactions.some(t => t.id === highlightId) && <p className="cb-notice">This expense is not listed in the current month’s budget.</p>}
+    {transactions.map(t => <div key={t.id} ref={node => { if (node && t.id === highlightId) node.scrollIntoView?.({ block: 'center' }); }} className={`cb-category cb-txn ${t.id === highlightId ? 'cb-txn-highlight' : ''}`}>
+      {t.id === highlightId && <small>Your selected expense</small>}
       <div className="cb-category-head"><strong>{t.merchant}</strong><span className="cb-txn-amount">{formatCents(t.amountCents)}</span></div>
-      <p className="cb-detail-note">{t.dateLabel}{t.pending ? ' · Pending' : ''}</p>
+      <p className="cb-detail-note">{t.dateLabel}{t.linkedBank ? ' · Your share counted above' : ''}{t.pending ? ' · Pending' : ''}</p>
+      {t.linkedBank && <div className="cb-linked-bank" aria-label="Linked bank transaction">
+        <span className="cb-bank-connector" aria-hidden="true">↳</span>
+        <div className="cb-bank-subcard">
+          <div><strong>{t.linkedBank.merchant}</strong><small>Bank · {new Date(`${t.linkedBank.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</small></div>
+          <div className="cb-bank-original"><span>{formatCents(t.linkedBank.amountCents)}</span><small>Original charge</small></div>
+        </div>
+      </div>}
     </div>)}
   </>;
 }

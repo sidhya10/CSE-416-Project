@@ -1,0 +1,5 @@
+CREATE TABLE "BudgetNotice" (
+"id" TEXT NOT NULL PRIMARY KEY, "expenseId" TEXT NOT NULL REFERENCES "Expense"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+"recipientId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+"message" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "readAt" TIMESTAMP(3));
+CREATE UNIQUE INDEX "BudgetNotice_expenseId_recipientId_key" ON "BudgetNotice"("expenseId", "recipientId");

@@ -68,3 +68,14 @@
 .cb-primary{border:0;background:var(--primary);color:#fff}
 .cb-primary:disabled{opacity:.5}
 .cb-secondary{border:1px solid var(--border);background:var(--surface);color:var(--text)}
+
+.cb-txn-highlight { border:2px solid var(--accent); background:var(--soft-green); }
+.cb-txn-highlight > small { display:block; color:var(--accent); margin-bottom:8px; font-weight:600; }
+
+ .cb-linked-bank { display:flex; align-items:center; gap:6px; margin-top:8px; color:var(--muted); }
+.cb-bank-connector { color:var(--accent); font-size:20px; flex:none; }
+.cb-bank-subcard { flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:var(--page); border-radius:10px; font-size:12px; }
+.cb-bank-subcard > div { min-width:0; }
+.cb-bank-subcard strong { display:block; overflow-wrap:anywhere; font-weight:500; color:var(--text); }
+.cb-bank-subcard small { display:block; margin-top:2px; font-size:11px; }
+.cb-bank-original { flex-shrink:0; text-align:right; }

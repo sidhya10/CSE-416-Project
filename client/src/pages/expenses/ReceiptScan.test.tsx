@@ -82,3 +82,11 @@ it('scans as a guest and applies items without preparing a saved attachment', as
   await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ totalCents: 640, receiptAttachment: undefined })));
   unmount(); vi.unstubAllGlobals();
 });
+
+it('defaults the optional expense category to Other and allows choosing a category', () => {
+  render(<ExpenseEntry {...props} />);
+  const category = screen.getByLabelText(/Budget category/);
+  expect(category).toHaveValue('other');
+  fireEvent.change(category, { target: { value: 'groceries' } });
+  expect(category).toHaveValue('groceries');
+});

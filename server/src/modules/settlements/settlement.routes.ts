@@ -14,7 +14,8 @@ settlementsRouter.get('/settlement-notices', async (req, res) => {
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { id: true, message: true, kind: true, createdAt: true, readAt: true, batch: { select: { groupId: true } } },
   });
-  res.json({ notices: notices.map(({ batch, ...notice }) => ({ ...notice, groupId: batch.groupId })) });
+  const budgetNotices = await prisma.budgetNotice.findMany({ where: { recipientId: req.userId!, expense: { paidByUserId: req.userId!, group: { memberships: { some: { userId: req.userId! } } } } }, include: { expense: { select: { groupId: true } } } });
+  res.json({ notices: [...notices.map(({ batch, ...notice }) => ({ ...notice, groupId: batch.groupId })), ...budgetNotices.map(({ expense, ...notice }) => ({ ...notice, kind: 'BUDGET_LINK', groupId: expense.groupId }))].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) });
 });
 settlementsRouter.get('/settlements', async (req, res) => { res.json(await settlementInbox(req.userId!)); });
 settlementsRouter.get('/groups/:id/settlements/preview', async (req, res) => { res.json(await previewSettlement(req.params.id, req.userId!)); });
@@ -36,7 +37,10 @@ settlementsRouter.post('/settlements/:id/reminders', async (req, res) => {
 });
 settlementsRouter.post('/settlement-notices/:id/read', async (req, res) => {
   const result = await prisma.settlementNotice.updateMany({ where: { id: req.params.id, recipientId: req.userId!, batch: { group: { memberships: { some: { userId: req.userId! } } } } }, data: { readAt: new Date() } });
-  if (!result.count) throw new ExpenseError(404, 'Notification not found');
+  if (!result.count) {
+    const budget = await prisma.budgetNotice.updateMany({ where: { id: req.params.id, recipientId: req.userId!, expense: { paidByUserId: req.userId!, group: { memberships: { some: { userId: req.userId! } } } } }, data: { readAt: new Date() } });
+    if (!budget.count) throw new ExpenseError(404, 'Notification not found');
+  }
   res.status(204).end();
 });
 

@@ -35,7 +35,16 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [tab, setTab] = useState<Tab>('Home');
-  const [notificationTarget, setNotificationTarget] = useState<{ groupId: string; request: number } | null>(null);
+  const [budgetTarget, setBudgetTarget] = useState<{ category: string; expenseId: string } | null>(null);
+  useEffect(() => {
+    if (tab !== 'Budget') setBudgetTarget(null);
+  }, [tab]);
+  useEffect(() => {
+    const open = (event: Event) => { setBudgetTarget((event as CustomEvent<{ category: string; expenseId: string }>).detail); setSimulatorOpen(false); setTab('Budget'); };
+    window.addEventListener('cse416:open-budget-expense', open);
+    return () => window.removeEventListener('cse416:open-budget-expense', open);
+  }, []);
+  const [notificationTarget, setNotificationTarget] = useState<{ groupId: string; expenseId?: string; request: number } | null>(null);
   const [notice, setNotice] = useState('');
   const [profileAtRoot, setProfileAtRoot] = useState(true);
   const [groupsAtRoot, setGroupsAtRoot] = useState(true);
@@ -99,8 +108,8 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   return <div className="device">
     {user ? <>
       <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} /></div>
-      <div hidden={tab !== 'Notifications'} className="profile-content"><NotificationsPage key={user.id} active={tab === 'Notifications'} onBack={() => setTab('Home')} onOpenGroup={groupId => { setNotificationTarget({ groupId, request: Date.now() }); setTab('Groups'); }} /></div>
-      <div hidden={tab !== 'Budget' || simulatorOpen} className="profile-content"><CategoryBudgets active={tab === 'Budget'} onOpenSimulator={() => { setSimulatorVisited(true); setSimulatorOpen(true); }} /></div>
+      <div hidden={tab !== 'Notifications'} className="profile-content"><NotificationsPage key={user.id} active={tab === 'Notifications'} onBack={() => setTab('Home')} onOpenGroup={(groupId, expenseId) => { setNotificationTarget({ groupId, expenseId, request: Date.now() }); setTab('Groups'); }} /></div>
+      <div hidden={tab !== 'Budget' || simulatorOpen} className="profile-content"><CategoryBudgets onClearExpenseTarget={() => setBudgetTarget(null)} expenseTarget={budgetTarget} active={tab === 'Budget'} onOpenSimulator={() => { setSimulatorVisited(true); setSimulatorOpen(true); }} /></div>
       <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator active={tab === 'Budget' && simulatorOpen} onBack={() => setSimulatorOpen(false)} />}</div>
       <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>
       <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace notificationTarget={notificationTarget} visible={tab === 'Groups'} currentUser={user} onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>

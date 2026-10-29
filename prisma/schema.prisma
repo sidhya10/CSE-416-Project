@@ -8,6 +8,7 @@ datasource db {
 }
 
 model User {
+  budgetNotices BudgetNotice[]
   id                    String               @id @default(cuid())
   email                 String               @unique
   username              String               @unique
@@ -142,6 +143,11 @@ enum ExpenseSplitMode {
 }
 
 model Expense {
+  budgetNotices BudgetNotice[]
+  budgetCategory String @default("other")
+  budgetLinkReviewed Boolean @default(false)
+  bankTransactionId String? @unique
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
   id                String           @id @default(cuid())
   settlementBatchId String?
   settlementBatch   SettlementBatch? @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
@@ -192,6 +198,7 @@ model ExpenseItem {
 }
 
 model ExpenseShare {
+  budgetCategory String @default("other")
   expenseId       String
   userId          String
   expense         Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade)
@@ -336,6 +343,7 @@ model BankAccount {
 }
 
 model BankTransaction {
+  linkedExpense Expense?
   id                 String      @id @default(cuid())
   accountId          String
   account            BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -429,4 +437,16 @@ model SettlementNotice {
 
   @@index([recipientId, readAt])
   @@index([batchId, actorId, recipientId, kind, createdAt])
+}
+
+model BudgetNotice {
+  id String @id @default(cuid())
+  expenseId String
+  recipientId String
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  message String
+  createdAt DateTime @default(now())
+  readAt DateTime?
+  @@unique([expenseId, recipientId])
 }
