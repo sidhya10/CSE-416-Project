@@ -49,3 +49,12 @@ it.each([
   expect(open).toHaveBeenCalledWith('group-payment');
   expect(dismiss).toHaveBeenCalledWith('payment');
 });
+
+it('shows over-budget alerts as informational notifications without a group task', async () => {
+  vi.spyOn(settlementsApi, 'notifications').mockResolvedValue({ notices: [{ id: 'budget', groupId: null, kind: 'CATEGORY_OVER_BUDGET', message: 'Dining is $5.00 over your October budget.', createdAt: '2026-10-29T12:00:00Z', readAt: null }] });
+  render(<NotificationsPage active onBack={() => {}} onOpenGroup={vi.fn()} />);
+  expect(await screen.findByText('Category budget exceeded')).toBeInTheDocument();
+  expect(screen.getByText('Dining is $5.00 over your October budget.')).toBeInTheDocument();
+  expect(screen.queryByText('View group →')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Mark as read' })).toBeInTheDocument();
+});

@@ -112,7 +112,7 @@ The application does not initiate ACH, card, Venmo, Cash App, or other real-mone
 - Reauthenticate connections that need attention.
 - Disconnect an institution.
 - Automatically synchronize every active Plaid connection after a successful password or Google login, while keeping login available if Plaid is temporarily unavailable.
-- See up to three unreviewed transactions directly on Home, with a review-count badge on Budget, then open the private searchable Transaction Review Center from either location to filter by status, override categories, exclude non-spending charges, add notes, and mark items reviewed or unreviewed.
+- See one consolidated Home to-do with the number of transactions needing review, plus a three-transaction preview and review-count badge in Personal Budget. Open the private searchable Transaction Review Center from either location to filter by status, override categories, exclude non-spending charges, add notes, and mark items reviewed or unreviewed.
 - Split one spending transaction across multiple budget categories, with server validation that the allocations equal the charge to the cent.
 - Suggest up to five available posted charges while the payer enters a split, ranked by amount, date proximity, and merchant similarity. Bank details remain private and the payer makes the final selection.
 - Let the payer add, change, or remove the bank link after saving the expense.
