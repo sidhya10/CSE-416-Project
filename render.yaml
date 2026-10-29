@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: cse-416-budget-api
+    runtime: node
+    plan: free
+    region: ohio
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: npm ci --include=dev && npm run prisma:generate && npm run build --workspace shared && npm run build --workspace server
+    startCommand: npx prisma migrate deploy && npm run start --workspace server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: BANK_TOKEN_KEY
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://cse-416-project-tau.vercel.app
+      - key: APP_ORIGIN
+        value: https://cse-416-project-tau.vercel.app
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      - key: PLAID_ENV
+        value: sandbox
+      - key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+        sync: false
+      - key: AZURE_DOCUMENT_INTELLIGENCE_KEY
+        sync: false
+      - key: RECEIPT_MONTHLY_PAGE_LIMIT
+        value: "450"
+      - key: RECEIPT_DAILY_USER_LIMIT
+        value: "20"
+      - key: RECEIPT_GUEST_DAILY_LIMIT
+        value: "20"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: PASSWORD_RESET_FROM
+        sync: false
