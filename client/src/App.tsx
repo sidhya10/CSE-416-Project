@@ -13,6 +13,7 @@ import GroupsWorkspace from './pages/groups/GroupsWorkspace';
 import CategoryBudgets from './pages/budgets/CategoryBudgets';
 import WhatIfSimulator from './pages/budgets/WhatIfSimulator';
 import HomeDashboard from './pages/dashboard/HomeDashboard';
+import TransactionReviewCenter from './pages/banking/TransactionReviewCenter';
 import type { FriendFixture, GroupFixture } from './pages/groups/GroupsWorkspace';
 
 type Tab = 'Home' | 'Budget' | 'Groups' | 'Notifications' | 'Profile';
@@ -41,7 +42,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
     if (tab !== 'Budget') setBudgetTarget(null);
   }, [tab]);
   useEffect(() => {
-    const open = (event: Event) => { setBudgetTarget((event as CustomEvent<{ category: string; expenseId: string }>).detail); setSimulatorOpen(false); setTab('Budget'); };
+    const open = (event: Event) => { setBudgetTarget((event as CustomEvent<{ category: string; expenseId: string }>).detail); setSimulatorOpen(false); setTransactionsOpen(false); setTab('Budget'); };
     window.addEventListener('cse416:open-budget-expense', open);
     return () => window.removeEventListener('cse416:open-budget-expense', open);
   }, []);
@@ -50,6 +51,8 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   const [profileAtRoot, setProfileAtRoot] = useState(true);
   const [groupsAtRoot, setGroupsAtRoot] = useState(true);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [transactionsOpen, setTransactionsOpen] = useState(false);
+  const [transactionReviewCount, setTransactionReviewCount] = useState(0);
   const [simulatorVisited, setSimulatorVisited] = useState(false);
   const [googlePhone, setGooglePhone] = useState('');
   const [resetPasswords, setResetPasswords] = useState({ next: '', confirm: '' });
@@ -115,14 +118,15 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
 
   return <div className="device">
     {user ? <>
-      <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} /></div>
+      <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} onReviewCountChange={setTransactionReviewCount} onReviewTransactions={() => { setSimulatorOpen(false); setTransactionsOpen(true); setTab('Budget'); }} /></div>
       <div hidden={tab !== 'Notifications'} className="profile-content"><NotificationsPage key={user.id} active={tab === 'Notifications'} onBack={() => setTab('Home')} onOpenGroup={(groupId, expenseId) => { setNotificationTarget({ groupId, expenseId, request: Date.now() }); setTab('Groups'); }} /></div>
-      <div hidden={tab !== 'Budget' || simulatorOpen} className="profile-content"><CategoryBudgets onClearExpenseTarget={() => setBudgetTarget(null)} expenseTarget={budgetTarget} active={tab === 'Budget'} onOpenSimulator={() => { setSimulatorVisited(true); setSimulatorOpen(true); }} /></div>
+      <div hidden={tab !== 'Budget' || simulatorOpen || transactionsOpen} className="profile-content"><CategoryBudgets onClearExpenseTarget={() => setBudgetTarget(null)} expenseTarget={budgetTarget} active={tab === 'Budget' && !simulatorOpen && !transactionsOpen} onOpenTransactions={() => { setSimulatorOpen(false); setTransactionsOpen(true); }} onOpenSimulator={() => { setSimulatorVisited(true); setTransactionsOpen(false); setSimulatorOpen(true); }} /></div>
       <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator active={tab === 'Budget' && simulatorOpen} onBack={() => setSimulatorOpen(false)} />}</div>
+      <div hidden={tab !== 'Budget' || !transactionsOpen} className="profile-content">{transactionsOpen && <TransactionReviewCenter onBack={() => setTransactionsOpen(false)} onUnreviewedDelta={delta => setTransactionReviewCount(current => Math.max(0, current + delta))} />}</div>
       <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>
       <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace notificationTarget={notificationTarget} visible={tab === 'Groups'} currentUser={user} onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>
-      {(tab === 'Home' || tab === 'Notifications' || (tab === 'Budget' && !simulatorOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
-        {tabs.map(({ label, glyph }) => label === 'Notifications' ? <NotificationsNavButton key={`${user.id}-notifications`} selected={tab === label} onClick={() => setTab(label)} /> : <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'} aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}><span className="tab-glyph" aria-hidden="true">{glyph}</span><span>{label}</span></button>)}
+      {(tab === 'Home' || tab === 'Notifications' || (tab === 'Budget' && !simulatorOpen && !transactionsOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
+        {tabs.map(({ label, glyph }) => label === 'Notifications' ? <NotificationsNavButton key={`${user.id}-notifications`} selected={tab === label} onClick={() => setTab(label)} /> : <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'} aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}><span className="tab-glyph" aria-hidden="true">{glyph}{label === 'Budget' && transactionReviewCount > 0 && <b className="tab-review-badge">{transactionReviewCount > 9 ? '9+' : transactionReviewCount}</b>}</span><span>{label}</span></button>)}
       </nav>}
     </> : view === 'login' ? <main key="login" className="login-screen">
       <div className="login-intro"><div className="logo-tile"><img src={receiptLogo} width="52" height="52" alt="" /></div><h1>Welcome back</h1><p>Keep personal and shared spending in sync.</p></div>

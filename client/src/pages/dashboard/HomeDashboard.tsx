@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { budgetsApi } from '../../api/budgets.api';
+import { bankingApi } from '../../api/banking.api';
 import { relativeTime } from '../../utils/dates';
 import { budgetPeriod, categoryPct, toCategoryBudgets, totalPlannedCents, totalSpentCents } from '../budgets/categoryPlan';
 import { formatCents } from '../expenses/split';
@@ -6,14 +8,17 @@ import { barHeightPct, buildTodos, firstName, greetingFor, maxMonthCents, toMont
 import { useLiveData } from './useLiveData';
 import './dashboard.css';
 
+const loadUnreviewedTransactions = () => bankingApi.transactions('unreviewed');
+
 // `active` is false while the tab is hidden: nothing is fetched or refreshed until the user opens Home.
-export default function HomeDashboard({ userName, onNavigate, active = true }: {
-  userName: string; onNavigate: (target: TodoTarget | 'Profile') => void; active?: boolean;
+export default function HomeDashboard({ userName, onNavigate, onReviewTransactions = () => {}, onReviewCountChange, active = true }: {
+  userName: string; onNavigate: (target: TodoTarget | 'Profile') => void; onReviewTransactions?: () => void; onReviewCountChange?: (count: number) => void; active?: boolean;
 }) {
   const personal = useLiveData(budgetsApi.personal, active);
   const groups = useLiveData(budgetsApi.groups, active);
   const home = useLiveData(budgetsApi.home, active);
-  const retry = () => { void personal.refresh(); void groups.refresh(); void home.refresh(); };
+  const reviews = useLiveData(loadUnreviewedTransactions, active);
+  const retry = () => { void personal.refresh(); void groups.refresh(); void home.refresh(); void reviews.refresh(); };
 
   const budgets = personal.data ? toCategoryBudgets(personal.data.categories) : [];
   const spent = totalSpentCents(budgets);
@@ -28,7 +33,11 @@ export default function HomeDashboard({ userName, onNavigate, active = true }: {
   const failed = [personal, groups, home].some(source => !source.data && source.error);
   const monthLabel = personal.data ? budgetPeriod(personal.data).monthLabel : new Date().toLocaleDateString('en-US', { month: 'long' });
   const latest = home.data?.latestExpense;
+  const unreviewed = reviews.data?.transactions ?? [];
 
+  useEffect(() => {
+    if (reviews.data) onReviewCountChange?.(reviews.data.transactions.length);
+  }, [onReviewCountChange, reviews.data]);
 
   return <main className="home-screen">
     <header className="home-header">
@@ -55,6 +64,15 @@ export default function HomeDashboard({ userName, onNavigate, active = true }: {
         <span>{todo.label}</span>
         <button type="button" onClick={() => onNavigate(todo.target)}>{todo.trailing}</button>
       </div>)}
+    </section>}
+
+    {unreviewed.length > 0 && <section className="home-card home-transactions" aria-label="Transactions to review">
+      <div className="home-transactions-head"><div><h2>Transactions to review</h2><small>{unreviewed.length} {unreviewed.length === 1 ? 'transaction needs' : 'transactions need'} a category check</small></div><span>{unreviewed.length}</span></div>
+      {unreviewed.slice(0, 3).map(transaction => <div className="home-transaction-row" key={transaction.id}>
+        <span><strong>{transaction.merchant}</strong><small>{transaction.category ? transaction.category.charAt(0).toUpperCase() + transaction.category.slice(1) : 'Uncategorized'} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</small></span>
+        <b className={transaction.amountCents < 0 ? 'income' : ''}>{formatCents(transaction.amountCents)}</b>
+      </div>)}
+      <button type="button" className="home-review-all" onClick={onReviewTransactions}>Review all transactions ›</button>
     </section>}
 
     {personal.data && <>

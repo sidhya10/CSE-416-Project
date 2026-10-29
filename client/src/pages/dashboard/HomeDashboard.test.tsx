@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ApiGroupBudget, ApiHomeSummary, ApiPersonalBudget } from '../../api/budgets.api';
+import type { ApiBankTransaction } from '../../api/banking.api';
 import HomeDashboard from './HomeDashboard';
 import { barHeightPct, buildTodos, firstName, greetingFor, maxMonthCents, toMonthPoints } from './dashboard';
 
@@ -27,9 +28,15 @@ const home = (): ApiHomeSummary => ({
   pendingPayments: { count: 2, cents: 1500 },
   latestExpense: { title: 'Dinner', groupName: 'Weekend Trip', creatorName: 'Alex', isYou: false, totalCents: 4000, createdAt: '2026-10-15T00:00:00.000Z' },
 });
+const transaction = (id: string, merchant: string, amountCents: number, category: ApiBankTransaction['category'] = null): ApiBankTransaction => ({
+  id, accountId: 'account-1', accountName: 'Checking', institution: 'Test Bank', merchant, name: merchant.toUpperCase(),
+  date: '2026-10-29', amountCents, pending: false, providerCategory: null, category, excluded: false, note: null,
+  reviewed: false, reviewedAt: null, linkedExpense: null, splits: [],
+});
+const transactions = () => [transaction('t1', 'Trader Joe’s', 4218, 'groceries'), transaction('t2', 'Spotify', 1199), transaction('t3', 'Target', 6724, 'shopping'), transaction('t4', 'Corner Cafe', 1250, 'dining')];
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
-function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]; home?: ApiHomeSummary } = {}, overrides: Record<string, () => Response> = {}) {
+function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]; home?: ApiHomeSummary; transactions?: ApiBankTransaction[] } = {}, overrides: Record<string, () => Response> = {}) {
   const urls: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     urls.push(url);
@@ -38,6 +45,7 @@ function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]
     if (url.endsWith('/budgets/personal')) return json(data.personal ?? personal());
     if (url.endsWith('/budgets/groups')) return json({ groups: data.groups ?? groups() });
     if (url.endsWith('/budgets/home')) return json(data.home ?? home());
+    if (url.includes('/banking/transactions?')) return json({ transactions: data.transactions ?? transactions() });
     if (url.endsWith('/settlement-notices')) return json({ notices: [] });
     throw new Error(`Unexpected request ${url}`);
   }));
@@ -90,13 +98,19 @@ describe('home dashboard with real data', () => {
     expect(screen.getByText('Over budget: Dining')).toBeInTheDocument();
     expect(screen.getByText('3 items need attention')).toBeInTheDocument();
     expect(screen.getByText('Latest: Alex added Dinner in Weekend Trip · $40.00')).toBeInTheDocument();
+    const review = screen.getByRole('region', { name: 'Transactions to review' });
+    expect(within(review).getByText('4 transactions need a category check')).toBeInTheDocument();
+    expect(within(review).getByText('Trader Joe’s')).toBeInTheDocument();
+    expect(within(review).getByText('Spotify')).toBeInTheDocument();
+    expect(within(review).getByText('Target')).toBeInTheDocument();
+    expect(within(review).queryByText('Corner Cafe')).not.toBeInTheDocument();
     expect(screen.queryByText(/Apartment rent|matched bank charge|group updates/)).not.toBeInTheDocument();
   });
 
   it('shows empty states for a new account', async () => {
     stubApi({
       personal: personal({ hasBankConnection: false, lastSyncedAt: null, categories: personal().categories.map(c => ({ ...c, plannedCents: 0, spentCents: 0 })) }),
-      groups: [], home: { history: home().history.map(m => ({ ...m, spendingCents: 0, incomeCents: 0 })), pendingPayments: { count: 0, cents: 0 }, latestExpense: null },
+      groups: [], transactions: [], home: { history: home().history.map(m => ({ ...m, spendingCents: 0, incomeCents: 0 })), pendingPayments: { count: 0, cents: 0 }, latestExpense: null },
     });
     render(<HomeDashboard userName="New" onNavigate={() => {}} />);
     expect(await screen.findByText('No limits set')).toBeInTheDocument();
@@ -106,6 +120,7 @@ describe('home dashboard with real data', () => {
     expect(await screen.findByText("You're all caught up.")).toBeInTheDocument();
     expect(screen.getByText('Nothing needs attention')).toBeInTheDocument();
     expect(screen.queryByText(/^Latest:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Transactions to review' })).not.toBeInTheDocument();
   });
 
   it('shows how far over the plan the user is', async () => {
@@ -125,13 +140,23 @@ describe('home dashboard with real data', () => {
     expect(onNavigate.mock.calls.map(call => call[0])).toEqual(['Groups', 'Budget', 'Profile']);
   });
 
+  it('opens the full transaction review center from the Home preview', async () => {
+    stubApi();
+    const onReviewTransactions = vi.fn();
+    const onReviewCountChange = vi.fn();
+    render(<HomeDashboard userName="Nicole" onNavigate={() => {}} onReviewTransactions={onReviewTransactions} onReviewCountChange={onReviewCountChange} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Review all transactions ›' }));
+    expect(onReviewTransactions).toHaveBeenCalledOnce();
+    expect(onReviewCountChange).toHaveBeenCalledWith(4);
+  });
+
   it('does not fetch while hidden, then loads when shown', async () => {
     const urls = stubApi();
     const { rerender } = render(<HomeDashboard userName="Nicole" active={false} onNavigate={() => {}} />);
     expect(urls).toHaveLength(0);
     rerender(<HomeDashboard userName="Nicole" active onNavigate={() => {}} />);
     expect(await screen.findByText('$892.00')).toBeInTheDocument();
-    expect(urls.sort()).toEqual(['/api/budgets/groups', '/api/budgets/home', '/api/budgets/personal']);
+    expect(urls.sort()).toEqual(['/api/banking/transactions?status=unreviewed', '/api/budgets/groups', '/api/budgets/home', '/api/budgets/personal']);
   });
 
   it('shows an error with a retry when the data cannot load', async () => {

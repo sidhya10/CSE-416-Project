@@ -16,7 +16,7 @@ const REFRESH_MS = 15_000;
 const errorMessage = (error: unknown) => error instanceof ApiError ? error.message : 'Unable to reach the server. Try again.';
 
 // `active` is false while the tab is hidden: nothing is fetched or polled until the user opens the budget.
-export default function CategoryBudgets({ onOpenSimulator, active = true, expenseTarget, onClearExpenseTarget }: { onClearExpenseTarget?: () => void; expenseTarget?: { category: string; expenseId: string } | null; onOpenSimulator: () => void; active?: boolean }) {
+export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = () => {}, active = true, expenseTarget, onClearExpenseTarget }: { onClearExpenseTarget?: () => void; expenseTarget?: { category: string; expenseId: string } | null; onOpenSimulator: () => void; onOpenTransactions?: () => void; active?: boolean }) {
   const [scope, setScope] = useState<BudgetScope>('personal');
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail>(null);
@@ -102,7 +102,8 @@ export default function CategoryBudgets({ onOpenSimulator, active = true, expens
         <p>{activeGroup?.memberInfo ?? 'Shared spending with your groups'}</p>
       </> : <>
         <div className="cb-heading-row"><h1>Personal budget</h1>
-          <button type="button" className="cb-simulator-link" aria-label="Open what-if simulator" onClick={onOpenSimulator}>What-if ›</button></div>
+          <span className="cb-heading-actions"><button type="button" className="cb-simulator-link" onClick={onOpenTransactions}>Transactions ›</button>
+          <button type="button" className="cb-simulator-link" aria-label="Open what-if simulator" onClick={onOpenSimulator}>What-if ›</button></span></div>
         <p>Budgets, bank sync, and spending insights</p>
       </>}
     </header>
