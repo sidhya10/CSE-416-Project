@@ -73,7 +73,7 @@ function expenseFields(input: ExpenseInput) {
 async function notifyBudgetPayer(tx: Transaction, expenseId: string, input: ExpenseInput) {
   await tx.budgetNotice.upsert({ where: { expenseId_recipientId: { expenseId, recipientId: input.paidByUserId } },
     create: { expenseId, recipientId: input.paidByUserId, message: `You’re the payer for ${input.title}. Link the bank charge for your budget, or choose No transaction if there isn’t one.` },
-    update: { readAt: null, message: `You’re the payer for ${input.title}. Link the bank charge for your budget, or choose No transaction if there isn’t one.` } });
+    update: { deletedAt: null, readAt: null, message: `You’re the payer for ${input.title}. Link the bank charge for your budget, or choose No transaction if there isn’t one.` } });
 }
 
 export function createExpense(groupId: string, userId: string, clientRequestId: string, input: ExpenseInput) {

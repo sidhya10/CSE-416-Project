@@ -85,7 +85,7 @@ export async function initializeSettlement(groupId: string, userId: string, inpu
 export async function settlementInbox(userId: string) {
   const [batches, notices] = await Promise.all([
     prisma.settlementBatch.findMany({ where: { group: { memberships: { some: { userId } }, archivedAt: null } }, include: batchInclude, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
-    prisma.settlementNotice.findMany({ where: { recipientId: userId, readAt: null, batch: { group: { memberships: { some: { userId } } } } }, orderBy: { createdAt: 'desc' }, select: { id: true, batchId: true, message: true, kind: true, createdAt: true } }),
+    prisma.settlementNotice.findMany({ where: { recipientId: userId, readAt: null, deletedAt: null, batch: { group: { memberships: { some: { userId } } } } }, orderBy: { createdAt: 'desc' }, select: { id: true, batchId: true, message: true, kind: true, createdAt: true } }),
   ]);
   return { userId, batches: batches.map(presentBatch), notices: notices.map(n => ({ ...n, createdAt: n.createdAt.toISOString() })) };
 }

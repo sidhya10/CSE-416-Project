@@ -9,8 +9,8 @@ it('lets the payer link a transaction without changing the expense category', as
   render(<ExpenseBudgetLink expenseId="expense" />);
   fireEvent.click(await screen.findByRole('button', { name: 'Link transaction' }));
   fireEvent.click(screen.getByRole('button', { name: /Dinner/ }));
-  expect(screen.queryByLabelText('Budget category')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByText('Save bank link'));
+  expect(screen.getByLabelText('Your budget category')).toBeVisible();
+  fireEvent.click(screen.getByText('Save'));
   await waitFor(() => expect(apiRequest).toHaveBeenLastCalledWith('/expenses/expense/budget-link', { method: 'PUT', body: JSON.stringify({ transactionId: 'bank' }) }));
   expect(await screen.findByRole('status')).toHaveTextContent('Bank link saved');
   expect(screen.getByRole('heading', { name: /Bank transaction linked/ })).toBeVisible();
@@ -49,7 +49,7 @@ it('hides transactions until requested and clears the selection with No transact
   fireEvent.click(screen.getByRole('button', { name: /Dinner/ }));
   fireEvent.click(screen.getByRole('button', { name: 'No transaction' }));
   expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Save bank link' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(apiRequest).toHaveBeenLastCalledWith('/expenses/expense/budget-link', { method: 'PUT', body: JSON.stringify({ transactionId: null }) }));
 });
 
@@ -75,7 +75,7 @@ it('shows a persisted link on return and allows changing it', async () => {
   expect(await screen.findByRole('heading', { name: /Bank transaction linked/ })).toBeVisible();
   expect(screen.getByText('Dinner')).toBeVisible();
   expect(screen.getByText(/Your budget counts your \$120.00 share/)).toBeVisible();
-  expect(screen.queryByRole('button', { name: 'Save bank link' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Change link' }));
   expect(screen.getByRole('searchbox')).toBeVisible();
 });
@@ -87,4 +87,13 @@ it('remembers a saved No transaction choice on return', async () => {
   expect(screen.getByText('No bank transaction linked')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Link a transaction' }));
   expect(screen.getByRole('searchbox')).toBeVisible();
+});
+
+it.each([false, true])('lets a payer change their category after completing budget setup (linked=%s)', async linked => {
+  vi.mocked(apiRequest).mockResolvedValueOnce({ reviewed: true, linked, category: 'other', transactionId: linked ? 'bank' : null, canLink: true, candidates: [] }).mockResolvedValue(undefined);
+  render(<ExpenseBudgetLink expenseId="expense" />);
+  fireEvent.change(await screen.findByLabelText('Your budget category'), { target: { value: 'dining' } });
+  await waitFor(() => expect(screen.getByLabelText('Your budget category')).toHaveValue('dining'));
+  expect(apiRequest).toHaveBeenLastCalledWith('/expenses/expense/budget-category', { method: 'PUT', body: JSON.stringify({ category: 'dining' }) });
+  expect(screen.queryByText('Your category is saved.')).not.toBeInTheDocument();
 });

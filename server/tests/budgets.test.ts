@@ -266,6 +266,7 @@ it('links only the payer’s bank charge even when the receipt amount differs an
   expect((await member.get(`/api/expenses/${id}/budget-link`)).body.candidates).toEqual([]);
   await owner.put(`/api/expenses/${id}/budget-link`).send(body).expect(204);
   expect((await owner.get(`/api/expenses/${id}/budget-link`)).body.category).toBe('dining');
+  expect((await prisma.budgetNotice.findFirstOrThrow({ where: { expenseId: id, recipientId: ownerId } })).readAt).not.toBeNull();
   const linkedRows = (await owner.get('/api/budgets/personal')).body.transactions.dining;
   expect(linkedRows.some((row: { id: string }) => row.id === bank.id)).toBe(false);
   expect(linkedRows).toContainEqual(expect.objectContaining({ id: `share-${id}`, amountCents: 12000, linkedBank: expect.objectContaining({ amountCents: 25000 }) }));
@@ -304,5 +305,17 @@ it('notifies the assigned payer once and keeps the budget notice private', async
   expect(notices).toHaveLength(1);
   expect(notices[0]).toMatchObject({ kind: 'BUDGET_LINK', groupId, readAt: null });
   await member.post(`/api/settlement-notices/${notices[0].id}/read`).expect(404);
+  await owner.put(`/api/expenses/${created.body.expense.id}/budget-link`).send({ transactionId: null }).expect(204);
+  expect((await prisma.budgetNotice.findUniqueOrThrow({ where: { id: notices[0].id } })).readAt).not.toBeNull();
+  await member.post(`/api/settlement-notices/${notices[0].id}/unread`).expect(404);
+  await owner.post(`/api/settlement-notices/${notices[0].id}/unread`).expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices.find((n: { id: string }) => n.id === notices[0].id).readAt).toBeNull();
   await owner.post(`/api/settlement-notices/${notices[0].id}/read`).expect(204);
+  await member.delete(`/api/settlement-notices/${notices[0].id}`).expect(404);
+  await member.delete('/api/settlement-notices').expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices.some((n: { id: string }) => n.id === notices[0].id)).toBe(true);
+  await owner.delete(`/api/settlement-notices/${notices[0].id}`).expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices.some((n: { id: string }) => n.id === notices[0].id)).toBe(false);
+  await owner.delete('/api/settlement-notices').expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices).toEqual([]);
 });

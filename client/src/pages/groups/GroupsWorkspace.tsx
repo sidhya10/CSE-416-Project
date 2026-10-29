@@ -103,6 +103,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
 }) {
   const [viewedExpense, setViewedExpense] = useState<{ title: string; subtitle: string; amount: string; split?: PreviewSplit } | null>(null);
   const [savedSplit, setSavedSplit] = useState<PreviewSplit | null>(null);
+  const [budgetSetupTarget, setBudgetSetupTarget] = useState<string | null>(null);
   const [previewSplits, setPreviewSplits] = useState<Record<string, PreviewSplit[]>>({});
   const requestId = useRef(createRequestId());
   const paymentRequestIds = useRef(new Map<string, string>());
@@ -532,7 +533,11 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     setSavedSplit(split); go('saved');
   }} />;
 
-  if (screen === 'saved' && savedSplit && active) return <SplitSaved split={savedSplit} members={members} onBack={() => {
+  if (screen === 'saved' && savedSplit && active) return <SplitSaved split={savedSplit} members={members} onProceed={savedSplit.expenseId ? () => {
+    setBudgetSetupTarget(savedSplit.expenseId!);
+    setViewedExpense({ title: savedSplit.name, subtitle: 'Saved expense', amount: formatCents(savedSplit.totalCents), split: savedSplit });
+    go('expense-details');
+  } : undefined} onBack={() => {
     go('detail'); setMessage(initialGroupsData ? 'Expense added and group balances updated for this preview session.' : 'Expense saved. Everyone in the group can view it.');
   }} />;
 
@@ -546,13 +551,13 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     go('expense-details');
   }} />;
 
-  if (screen === 'expense-details' && active && viewedExpense) return <ExpenseDetails initialBudgetOpen={notificationTarget?.expenseId === viewedExpense.split?.expenseId} onPaymentViewChange={onRootChange} onPaymentAction={(memberId: string, action: PaymentAction) => {
+  if (screen === 'expense-details' && active && viewedExpense) return <ExpenseDetails highlightBudget={!!budgetSetupTarget && budgetSetupTarget === viewedExpense.split?.expenseId} initialBudgetOpen={(!!budgetSetupTarget && budgetSetupTarget === viewedExpense.split?.expenseId) || notificationTarget?.expenseId === viewedExpense.split?.expenseId} onPaymentViewChange={onRootChange} onPaymentAction={(memberId: string, action: PaymentAction) => {
     if (!viewedExpense.split) return;
     if (!initialGroupsData) return applyRemotePayment(memberId, action);
     const split = updatePayment(viewedExpense.split, 'you', memberId, action);
     setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
     setViewedExpense({ ...viewedExpense, split });
-  }} onEdit={() => go('edit-expense')} expense={viewedExpense} groupName={active.name} members={expenseMembers} onBack={() => go('detail')} />;
+  }} onEdit={() => go('edit-expense')} expense={viewedExpense} groupName={active.name} members={expenseMembers} onBack={() => { setBudgetSetupTarget(null); go('detail'); }} />;
 
   const displayedGroups = selectGroups(groups, screen === 'archive' ? { ...defaultFilters, query: '' } : { ...filters, query }, screen === 'archive');
   return <main className={`groups-workspace${screen === 'archive' ? ' archive-workspace' : ''}`}>

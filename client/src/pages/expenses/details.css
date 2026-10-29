@@ -37,3 +37,6 @@
 
 .details-budget-section { display:grid; gap:10px; }
 .details-budget-toggle { justify-content:space-between; padding:12px 16px; border:0; box-shadow:none; color:var(--text); }
+
+.details-budget-spotlight .expense-budget-link, .details-budget-spotlight .details-budget-toggle { background:var(--soft-green); }
+.details-budget-hint { margin:0; padding:0 6px; color:var(--accent); font-size:13px; line-height:1.5; }

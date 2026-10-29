@@ -67,6 +67,7 @@ expensesRouter.put('/expenses/:id/budget-link', async (req, res) => {
       if (!bank || (bank.linkedExpense && bank.linkedExpense.id !== expense.id)) throw new ExpenseError(409, 'Choose an available posted charge from your own account.');
     }
     await tx.expense.update({ where: { id: expense.id }, data: { budgetLinkReviewed: true, bankTransactionId: input.transactionId, version: { increment: 1 } } });
+    await tx.budgetNotice.updateMany({ where: { expenseId: expense.id, recipientId: req.userId!, readAt: null, deletedAt: null }, data: { readAt: new Date() } });
   });
   res.status(204).end();
 });

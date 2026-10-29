@@ -6,6 +6,8 @@ export type SettlementInboxData = { userId: string; batches: SettlementBatch[]; 
 export const paymentMethods = ['Venmo', 'Zelle', 'PayPal', 'Cash', 'Bank transfer', 'Other'] as const;
 export type AppNotice = { expenseId?: string; groupId: string; id: string; message: string; kind: string; createdAt: string; readAt: string | null };
 export const settlementsApi = {
+  deleteNotification: (id: string) => apiRequest(`/settlement-notices/${id}`, { method: 'DELETE' }),
+  clearNotifications: () => apiRequest('/settlement-notices', { method: 'DELETE' }),
   notifications: () => apiRequest<{ notices: AppNotice[] }>('/settlement-notices'),
   inbox: async () => {
     const result = await apiRequest<SettlementInboxData>('/settlements');
@@ -20,5 +22,6 @@ export const settlementsApi = {
   reportGroup: (groupId: string, input: { recipientId: string; method: string; clientRequestId: string; allocations: { batchId: string; amountCents: number }[] }) => apiRequest(`/groups/${groupId}/settlement-payments`, { method: 'POST', body: JSON.stringify(input) }),
   confirmGroup: (groupId: string, input: { senderId: string; status: 'CONFIRMED' | 'ISSUE'; allocations: { batchId: string; paymentIds: string[] }[] }) => apiRequest(`/groups/${groupId}/settlement-confirmations`, { method: 'POST', body: JSON.stringify(input) }),
   remindGroup: (groupId: string, recipientId: string) => apiRequest(`/groups/${groupId}/settlement-reminders`, { method: 'POST', body: JSON.stringify({ recipientId }) }),
+  markUnread: (id: string) => apiRequest(`/settlement-notices/${id}/unread`, { method: 'POST' }),
   dismiss: (id: string) => apiRequest(`/settlement-notices/${id}/read`, { method: 'POST' }),
 };

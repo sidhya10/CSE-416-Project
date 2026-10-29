@@ -424,6 +424,7 @@ model SettlementShare {
 }
 
 model SettlementNotice {
+  deletedAt DateTime?
   id          String          @id @default(cuid())
   batchId     String
   batch       SettlementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
@@ -440,6 +441,7 @@ model SettlementNotice {
 }
 
 model BudgetNotice {
+  deletedAt DateTime?
   id String @id @default(cuid())
   expenseId String
   recipientId String

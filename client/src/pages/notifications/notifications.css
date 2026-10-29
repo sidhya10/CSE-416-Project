@@ -1,7 +1,7 @@
 .notifications-page{width:100%;box-sizing:border-box;min-height:0;overflow-y:auto;padding:48px 23px 24px;color:var(--text)}
 .notifications-page header{display:flex;align-items:center;gap:10px;margin-bottom:24px}
 .notifications-page h1{font-size:22px;margin:0}.notifications-page header p{font-size:12px;color:var(--muted);margin:6px 0 0}
-.notifications-back{display:grid;place-items:center;min-width:44px;min-height:44px;background:var(--surface);border:0;border-radius:50%}
+.notifications-back{display:grid;place-items:center;min-width:44px;min-height:44px;padding:0;background:transparent;color:var(--text);border:0;border-radius:0}
 .notifications-count{font-size:12px;color:var(--muted)}
 .notifications-list{list-style:none;padding:0;margin:12px 0;display:flex;flex-direction:column;gap:12px}
 .notification-item{display:flex;gap:12px;padding:16px;border-radius:18px;background:var(--surface);border:1px solid var(--border)}
@@ -16,3 +16,30 @@
 .notifications-empty{text-align:center;border-radius:20px;background:var(--surface);padding:32px 20px}.notifications-empty>span{display:inline-grid;place-items:center;background:var(--soft-green);color:var(--accent);width:48px;height:48px;border-radius:50%;font-size:24px}.notifications-empty h2{font-size:18px;margin:16px 0 8px}.notifications-empty p{font-size:13px;line-height:1.6;color:var(--muted)}
 .notifications-error{font-size:13px;padding:12px;background:var(--soft-peach);border-radius:12px}
 .notification-content .notification-open{width:100%;text-align:left;font-weight:400;color:var(--text);line-height:1.6;margin:4px 0;padding:4px 0}.notification-open span{display:block;font-size:13px}.notification-open strong{display:block;font-size:12px;color:var(--accent);margin-top:8px}
+
+.notifications-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.notifications-toolbar .notifications-count { margin:0; }
+.notifications-clear { min-height:40px; border:1px solid var(--border); background:var(--surface); color:var(--muted); border-radius:12px; padding:8px 14px; font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+.notification-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; }
+.notification-actions button { margin-top:0; }
+.notification-read-label { font-size:12px; color:var(--muted); }
+.notification-content .notification-delete { display:grid; place-items:center; width:40px; min-height:40px; padding:0; border-radius:10px; color:var(--muted); }
+.notification-content .notification-delete:hover { color:var(--danger); background:var(--soft-peach); }
+.notifications-clear:hover { color:var(--text); background:var(--page); }
+
+.notification-read-actions { display:flex; align-items:center; gap:10px; }
+.notification-content .notification-mark-read,
+.notification-content .notification-mark-unread {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:34px; margin:0; padding:7px 10px;
+  border:0; border-radius:8px; background:var(--soft-green);
+  color:var(--accent); font:inherit; font-size:12px; font-weight:600;
+  line-height:1.2; text-decoration:none; transition:background .15s;
+}
+.notification-content .notification-mark-unread { background:var(--page); color:var(--muted); }
+.notification-content .notification-mark-read:hover:not(:disabled),
+.notification-content .notification-mark-unread:hover:not(:disabled) {
+  background:color-mix(in srgb, var(--accent) 12%, var(--surface)); color:var(--accent);
+}
+.notification-mark-read svg, .notification-mark-unread svg { flex:none; }
+.notification-read-actions { flex-wrap:wrap; }
