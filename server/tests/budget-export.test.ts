@@ -24,13 +24,13 @@ describe('budget CSV export', () => {
       shopping: [{ merchant: 'Refund', date: '2026-10-03', amountCents: -300, pending: false }],
     } });
     expect(filename).toBe('personal-budget-2026-10.csv');
-    expect(content).toBe('﻿Date,Category,Description,Amount (USD),Status\r\n'
+    expect(content).toBe('\uFEFFDate,Category,Description,Amount (USD),Status\r\n'
       + '2026-10-03,Shopping,Refund,-3.00,Posted\r\n'
       + '2026-10-03,Other,"Dinner, with friends",50.00,Pending\r\n'
       + '2026-10-01,Dining,Thai Basil,10.50,Posted\r\n');
   });
 
   it('writes just the header when there are no transactions', () => {
-    expect(budgetCsv({ month: '2026-10', transactions: empty }).content).toBe('﻿Date,Category,Description,Amount (USD),Status\r\n');
+    expect(budgetCsv({ month: '2026-10', transactions: empty }).content).toBe('\uFEFFDate,Category,Description,Amount (USD),Status\r\n');
   });
 });

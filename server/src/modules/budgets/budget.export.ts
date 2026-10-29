@@ -27,6 +27,6 @@ export function budgetCsv(budget: ExportBudget) {
   const lines = [HEADER, ...rows.map(row => [row.date, CATEGORY_LABELS[row.key], csvField(row.merchant), csvAmount(row.amountCents), row.pending ? 'Pending' : 'Posted'])];
   return {
     filename: `personal-budget-${budget.month}.csv`,
-    content: `﻿${lines.map(line => line.join(',')).join('\r\n')}\r\n`,
+    content: `\uFEFF${lines.map(line => line.join(',')).join('\r\n')}\r\n`,
   };
 }
