@@ -37,7 +37,14 @@ export default function WhatIfSimulator({ onBack, onRootChange, active = true }:
     try { const next = await budgetsApi.personal(); if (id === latest.current) { setData(next); setLoadError(''); } }
     catch (error) { if (id === latest.current) setLoadError(errorMessage(error)); }
   }, []);
-  useEffect(() => { if (active) void load(); }, [active, load]);
+  // Saved scenarios live on the account; a newer save or delete invalidates a slower list request.
+  const latestScenarios = useRef(0);
+  const loadScenarios = useCallback(async () => {
+    const id = ++latestScenarios.current;
+    try { const { scenarios: saved } = await budgetsApi.scenarios(); if (id === latestScenarios.current) setScenarios(saved); }
+    catch (error) { if (id === latestScenarios.current) setNotice(`Couldn't load your saved scenarios: ${errorMessage(error)}`); }
+  }, []);
+  useEffect(() => { if (active) { void load(); void loadScenarios(); } }, [active, load, loadScenarios]);
 
   const model = useMemo(() => data ? toSimModel(data) : null, [data]);
 
@@ -79,21 +86,33 @@ export default function WhatIfSimulator({ onBack, onRootChange, active = true }:
   };
   const createNewScenario = () => { setOverrides({}); setEditingScenarioId(null); go('editor'); };
 
-  const saveScenario = (name: string) => {
-    const existingIndex = editingScenarioId ? scenarios.findIndex(scenario => scenario.id === editingScenarioId) : -1;
-    if (existingIndex >= 0) {
-      setScenarios(previous => previous.map((scenario, index) => index === existingIndex ? { ...scenario, name, limits: draftLimits, savedAt: Date.now() } : scenario));
-      setNotice(`Updated "${name}".`);
-      return;
-    }
-    if (scenarios.length >= MAX_SAVED_SCENARIOS) { setNotice(`You already have ${MAX_SAVED_SCENARIOS} saved scenarios. Delete one before saving another.`); return; }
-    const scenario: Scenario = { id: `scenario-${Date.now()}`, name, limits: draftLimits, savedAt: Date.now() };
-    setScenarios(previous => [scenario, ...previous]);
-    setEditingScenarioId(scenario.id);
-    setNotice(`Saved "${name}". Saved scenarios last until you leave this session.`);
+  const saveScenario = async (name: string) => {
+    const existing = editingScenarioId ? scenarios.find(scenario => scenario.id === editingScenarioId) : undefined;
+    if (!existing && scenarios.length >= MAX_SAVED_SCENARIOS) { setNotice(`You already have ${MAX_SAVED_SCENARIOS} saved scenarios. Delete one before saving another.`); return; }
+    setNotice('');
+    try {
+      latestScenarios.current++;
+      if (existing) {
+        const { scenario } = await budgetsApi.updateScenario(existing.id, name, draftLimits);
+        setScenarios(previous => [scenario, ...previous.filter(item => item.id !== scenario.id)]);
+        setNotice(`Updated "${name}".`);
+        return;
+      }
+      const { scenario } = await budgetsApi.createScenario(name, draftLimits);
+      setScenarios(previous => [scenario, ...previous]);
+      setEditingScenarioId(scenario.id);
+      setNotice(`Saved "${name}" to your account.`);
+    } catch (error) { setNotice(errorMessage(error)); }
   };
 
-  const deleteScenario = (scenario: Scenario) => {
+  const deleteScenario = async (scenario: Scenario) => {
+    try {
+      latestScenarios.current++;
+      await budgetsApi.deleteScenario(scenario.id);
+    } catch (error) {
+      // A scenario already removed elsewhere (404) is gone either way.
+      if (!(error instanceof ApiError && error.status === 404)) { setNotice(errorMessage(error)); return; }
+    }
     setScenarios(previous => previous.filter(item => item.id !== scenario.id));
     setSelectedIds(previous => previous.filter(id => id !== scenario.id));
     if (editingScenarioId === scenario.id) setEditingScenarioId(null);

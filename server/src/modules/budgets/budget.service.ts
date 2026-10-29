@@ -1,6 +1,6 @@
 import { prisma } from '../../config/database.js';
 import { groupBalances } from '../expenses/expense.service.js';
-import { CATEGORY_KEYS, categorize, monthWindow, recentMonths, type CategoryKey } from './budget.categories.js';
+import { CATEGORY_KEYS, MAX_SAVED_SCENARIOS, categorize, monthWindow, recentMonths, type CategoryKey } from './budget.categories.js';
 
 export class BudgetError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -68,6 +68,33 @@ export async function saveLimits(userId: string, limits: Partial<Record<Category
   await prisma.$transaction(Object.entries(limits).map(([category, limitCents]) =>
     prisma.categoryLimit.upsert({ where: { userId_category: { userId, category } }, create: { userId, category, limitCents }, update: { limitCents } })));
   return personalBudget(userId);
+}
+
+type ScenarioLimits = Partial<Record<CategoryKey, number>>;
+const toScenario = (row: { id: string; name: string; limits: unknown; updatedAt: Date }) =>
+  ({ id: row.id, name: row.name, limits: row.limits as ScenarioLimits, savedAt: row.updatedAt.getTime() });
+
+/** The user's saved What-if scenarios, most recently saved first. They never change the real budget. */
+export async function listScenarios(userId: string) {
+  const rows = await prisma.whatIfScenario.findMany({ where: { userId }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }] });
+  return rows.map(toScenario);
+}
+
+export async function createScenario(userId: string, name: string, limits: ScenarioLimits) {
+  const saved = await prisma.whatIfScenario.count({ where: { userId } });
+  if (saved >= MAX_SAVED_SCENARIOS) throw new BudgetError(409, `You already have ${MAX_SAVED_SCENARIOS} saved scenarios. Delete one before saving another.`);
+  return toScenario(await prisma.whatIfScenario.create({ data: { userId, name, limits } }));
+}
+
+export async function updateScenario(userId: string, id: string, name: string, limits: ScenarioLimits) {
+  const { count } = await prisma.whatIfScenario.updateMany({ where: { id, userId }, data: { name, limits } });
+  if (!count) throw new BudgetError(404, 'Scenario not found');
+  return toScenario(await prisma.whatIfScenario.findUniqueOrThrow({ where: { id } }));
+}
+
+export async function deleteScenario(userId: string, id: string) {
+  const { count } = await prisma.whatIfScenario.deleteMany({ where: { id, userId } });
+  if (!count) throw new BudgetError(404, 'Scenario not found');
 }
 
 /**

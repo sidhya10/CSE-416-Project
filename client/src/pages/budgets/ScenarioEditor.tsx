@@ -120,7 +120,7 @@ export default function ScenarioEditor({
     <footer className="sim-footer">
       <button className="primary-button" type="button" onClick={() => setSaving(true)}>Save scenario</button>
       <button className="sim-secondary-button" type="button" disabled={!hasChanges} onClick={onApply}>Apply to budget</button>
-      <small>Saving keeps a scenario for this session. Apply to budget updates your real limits.</small>
+      <small>Saving keeps a scenario on your account. Apply to budget updates your real limits.</small>
     </footer>
     {saving && <SaveDialog defaultName={defaultSaveName} onCancel={() => setSaving(false)} onSave={name => { setSaving(false); onSave(name); }} />}
   </main>;

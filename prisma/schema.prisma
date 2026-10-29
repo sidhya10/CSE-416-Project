@@ -8,44 +8,45 @@ datasource db {
 }
 
 model User {
-  id                   String            @id @default(cuid())
-  email                String            @unique
-  username             String            @unique
-  passwordHash         String?
-  googleSubject        String?           @unique
-  name                 String
-  phone                String?           @unique
-  birthday             DateTime?
-  bio                  String            @default("")
-  photoUrl             String?           @db.Text
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  createdSettlements SettlementBatch[]
-  settlementNotices SettlementNotice[]
+  id                    String               @id @default(cuid())
+  email                 String               @unique
+  username              String               @unique
+  passwordHash          String?
+  googleSubject         String?              @unique
+  name                  String
+  phone                 String?              @unique
+  birthday              DateTime?
+  bio                   String               @default("")
+  photoUrl              String?              @db.Text
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  createdSettlements    SettlementBatch[]
+  settlementNotices     SettlementNotice[]
   createdRecurringBills RecurringBill[]
-  bankConnections      BankConnection[]
-  categoryLimits       CategoryLimit[]
-  createdExpenses      Expense[]         @relation("ExpenseCreator")
-  paidExpenses         Expense[]         @relation("ExpensePayer")
-  expenseShares        ExpenseShare[]
-  receiptScans         ReceiptScan[]
-  friendshipsOne       Friendship[]      @relation("FriendshipOne")
-  friendshipsTwo       Friendship[]      @relation("FriendshipTwo")
-  createdGroups        Group[]           @relation("GroupCreator")
-  groupMemberships     GroupMembership[]
-  groupInvitations     GroupInvitation[] @relation("GroupInvitationRecipient")
-  sentGroupInvitations GroupInvitation[] @relation("GroupInvitationSender")
-  passwordResetTokens PasswordResetToken[]
+  bankConnections       BankConnection[]
+  categoryLimits        CategoryLimit[]
+  whatIfScenarios       WhatIfScenario[]
+  createdExpenses       Expense[]            @relation("ExpenseCreator")
+  paidExpenses          Expense[]            @relation("ExpensePayer")
+  expenseShares         ExpenseShare[]
+  receiptScans          ReceiptScan[]
+  friendshipsOne        Friendship[]         @relation("FriendshipOne")
+  friendshipsTwo        Friendship[]         @relation("FriendshipTwo")
+  createdGroups         Group[]              @relation("GroupCreator")
+  groupMemberships      GroupMembership[]
+  groupInvitations      GroupInvitation[]    @relation("GroupInvitationRecipient")
+  sentGroupInvitations  GroupInvitation[]    @relation("GroupInvitationSender")
+  passwordResetTokens   PasswordResetToken[]
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   usedAt    DateTime?
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
 }
@@ -75,42 +76,42 @@ enum GroupInvitationStatus {
 }
 
 model Group {
-  id          String            @id @default(cuid())
-  name        String
-  description String            @default("")
-  type        String            @default("General")
-  color       String            @default("gold")
-  photoUrl    String?           @db.Text
-  startDate   DateTime?
-  endDate     DateTime?
-  createdById String
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  settlements SettlementBatch[]
-  expenses    Expense[]
-  memberships GroupMembership[]
+  id             String            @id @default(cuid())
+  name           String
+  description    String            @default("")
+  type           String            @default("General")
+  color          String            @default("gold")
+  photoUrl       String?           @db.Text
+  startDate      DateTime?
+  endDate        DateTime?
+  createdById    String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  createdBy      User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  settlements    SettlementBatch[]
+  expenses       Expense[]
+  memberships    GroupMembership[]
   recurringBills RecurringBill[]
-  budgetPlan GroupBudgetPlan?
-  archivedAt DateTime?
-  archiveReason String?
-  inactivityDays Int @default(60)
-  lastActivityAt DateTime @default(now())
-  invitations GroupInvitation[]
+  budgetPlan     GroupBudgetPlan?
+  archivedAt     DateTime?
+  archiveReason  String?
+  inactivityDays Int               @default(60)
+  lastActivityAt DateTime          @default(now())
+  invitations    GroupInvitation[]
 
   @@index([createdById])
   @@index([archivedAt, lastActivityAt])
 }
 
 model GroupMembership {
-  id       String    @id @default(cuid())
-  groupId  String
-  userId   String
-  role     GroupRole @default(MEMBER)
-  joinedAt DateTime  @default(now())
+  id             String    @id @default(cuid())
+  groupId        String
+  userId         String
+  role           GroupRole @default(MEMBER)
+  joinedAt       DateTime  @default(now())
   lastAccessedAt DateTime?
-  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group          Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, userId])
   @@index([userId])
@@ -141,38 +142,38 @@ enum ExpenseSplitMode {
 }
 
 model Expense {
-  id              String           @id @default(cuid())
+  id                String           @id @default(cuid())
   settlementBatchId String?
-  settlementBatch SettlementBatch? @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
-  groupId         String
-  group           Group            @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  createdByUserId String
-  creator         User             @relation("ExpenseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  paidByUserId    String
-  payer           User             @relation("ExpensePayer", fields: [paidByUserId], references: [id], onDelete: Restrict)
-  title           String
-  expenseDate     DateTime         @db.Date
-  currency        String           @default("USD")
-  splitMode       ExpenseSplitMode
-  taxCents        Int              @default(0)
-  tipCents        Int              @default(0)
-  otherCents      Int              @default(0)
-  totalCents      Int
-  version         Int              @default(1)
+  settlementBatch   SettlementBatch? @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
+  groupId           String
+  group             Group            @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  createdByUserId   String
+  creator           User             @relation("ExpenseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  paidByUserId      String
+  payer             User             @relation("ExpensePayer", fields: [paidByUserId], references: [id], onDelete: Restrict)
+  title             String
+  expenseDate       DateTime         @db.Date
+  currency          String           @default("USD")
+  splitMode         ExpenseSplitMode
+  taxCents          Int              @default(0)
+  tipCents          Int              @default(0)
+  otherCents        Int              @default(0)
+  totalCents        Int
+  version           Int              @default(1)
   // Retried create requests return the existing expense, rather than posting it twice.
-  clientRequestId String
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  recurringBillId String?
-  recurringBill RecurringBill? @relation(fields: [recurringBillId], references: [id], onDelete: Restrict)
-  cycleDate DateTime? @db.Date
-  receipt         ExpenseReceipt?
-  items           ExpenseItem[]
-  shares          ExpenseShare[]
+  clientRequestId   String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  recurringBillId   String?
+  recurringBill     RecurringBill?   @relation(fields: [recurringBillId], references: [id], onDelete: Restrict)
+  cycleDate         DateTime?        @db.Date
+  receipt           ExpenseReceipt?
+  items             ExpenseItem[]
+  shares            ExpenseShare[]
 
   @@unique([recurringBillId, cycleDate])
-  @@index([settlementBatchId])
   @@unique([createdByUserId, clientRequestId])
+  @@index([settlementBatchId])
   @@index([groupId, createdAt])
 }
 
@@ -191,16 +192,16 @@ model ExpenseItem {
 }
 
 model ExpenseShare {
-  expenseId   String
-  userId      String
-  expense     Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-  user        User             @relation(fields: [userId], references: [id], onDelete: Restrict)
-  position    Int
-  baseCents   Int
-  totalCents  Int
-  assignments ItemAssignment[]
+  expenseId       String
+  userId          String
+  expense         Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  position        Int
+  baseCents       Int
+  totalCents      Int
+  assignments     ItemAssignment[]
   settlementShare SettlementShare?
-  payments    ExpensePayment[]
+  payments        ExpensePayment[]
 
   @@id([expenseId, userId])
   @@unique([expenseId, position])
@@ -248,54 +249,57 @@ model ReceiptScan {
   status    String   @default("PENDING")
   result    Json?
   createdAt DateTime @default(now())
+
   @@unique([userId, hash])
   @@index([userId, createdAt])
 }
 
 // Conservative attempt counter survives cache deletion and process restarts.
 model ReceiptUsage {
-  id           String   @id
+  id           String    @id
   month        String
-  attempts     Int      @default(0)
+  attempts     Int       @default(0)
   busyUntil    DateTime?
   activeScanId String?
 }
 
 model ExpenseReceipt {
-  expenseId String @id
-  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-  name String
-  mimeType String
-  data Bytes
+  expenseId String  @id
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String
+  data      Bytes
 }
 
 model RecurringBill {
-  id String @id @default(cuid())
-  groupId String
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  createdById String
-  creator User @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  title String
-  amountCents Int
-  startDate DateTime @db.Date
+  id            String           @id @default(cuid())
+  groupId       String
+  group         Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById   String
+  creator       User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  title         String
+  amountCents   Int
+  startDate     DateTime         @db.Date
   intervalEvery Int
-  intervalUnit String
-  frequency String
-  defaultPlan Json
-  nextCycle Int @default(0)
-  paused Boolean @default(false)
-  error String?
-  createdAt DateTime @default(now())
-  cycles RecurringCycle[]
-  expenses Expense[]
+  intervalUnit  String
+  frequency     String
+  defaultPlan   Json
+  nextCycle     Int              @default(0)
+  paused        Boolean          @default(false)
+  error         String?
+  createdAt     DateTime         @default(now())
+  cycles        RecurringCycle[]
+  expenses      Expense[]
+
   @@index([groupId])
 }
 
 model RecurringCycle {
   billId String
-  bill RecurringBill @relation(fields: [billId], references: [id], onDelete: Cascade)
-  index Int
-  plan Json
+  bill   RecurringBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  index  Int
+  plan   Json
+
   @@id([billId, index])
 }
 
@@ -312,6 +316,7 @@ model BankConnection {
   lastSyncedAt    DateTime?
   createdAt       DateTime      @default(now())
   accounts        BankAccount[]
+
   @@index([userId])
 }
 
@@ -326,6 +331,7 @@ model BankAccount {
   balanceCents   Int               @default(0)
   hidden         Boolean           @default(false)
   transactions   BankTransaction[]
+
   @@index([connectionId])
 }
 
@@ -340,6 +346,7 @@ model BankTransaction {
   merchant           String?
   category           String?
   pending            Boolean     @default(false)
+
   @@index([accountId, date])
 }
 
@@ -356,6 +363,20 @@ model CategoryLimit {
   @@unique([userId, category])
 }
 
+// A named set of category limits saved from the What-if simulator. `limits` maps category keys to
+// monthly limits in cents. It never changes the real budget; applying a scenario writes CategoryLimit rows.
+model WhatIfScenario {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  limits    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
 // Shared monthly plan for a group, set by an owner or admin. No row means no plan is set.
 model GroupBudgetPlan {
   groupId      String   @id
@@ -366,41 +387,46 @@ model GroupBudgetPlan {
 
 // Each expense is assigned to at most one settlement period. Original shares remain the ledger.
 model SettlementBatch {
-  id String @id @default(cuid())
-  groupId String
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  createdById String?
-  creator User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  id              String             @id @default(cuid())
+  groupId         String
+  group           Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById     String?
+  creator         User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
   clientRequestId String
-  createdAt DateTime @default(now())
-  expenses Expense[]
-  shares SettlementShare[]
-  notices SettlementNotice[]
+  createdAt       DateTime           @default(now())
+  expenses        Expense[]
+  shares          SettlementShare[]
+  notices         SettlementNotice[]
+
   @@unique([createdById, clientRequestId])
   @@index([groupId, createdAt])
 }
+
 model SettlementShare {
-  expenseId String
-  userId String
-  source ExpenseShare @relation(fields: [expenseId, userId], references: [expenseId, userId], onDelete: Cascade)
-  batchId String
-  batch SettlementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  amountCents Int
+  expenseId              String
+  userId                 String
+  source                 ExpenseShare    @relation(fields: [expenseId, userId], references: [expenseId, userId], onDelete: Cascade)
+  batchId                String
+  batch                  SettlementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  amountCents            Int
   baselineConfirmedCents Int
+
   @@id([expenseId, userId])
   @@index([batchId])
 }
+
 model SettlementNotice {
-  id String @id @default(cuid())
-  batchId String
-  batch SettlementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  id          String          @id @default(cuid())
+  batchId     String
+  batch       SettlementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   recipientId String
-  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  actorId String
-  kind String
-  message String
-  createdAt DateTime @default(now())
-  readAt DateTime?
+  recipient   User            @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId     String
+  kind        String
+  message     String
+  createdAt   DateTime        @default(now())
+  readAt      DateTime?
+
   @@index([recipientId, readAt])
   @@index([batchId, actorId, recipientId, kind, createdAt])
 }

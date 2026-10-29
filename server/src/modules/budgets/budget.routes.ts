@@ -1,17 +1,19 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
-import { CATEGORY_KEYS, MAX_LIMIT_CENTS, type CategoryKey } from './budget.categories.js';
-import { BudgetError, groupBudgets, homeSummary, personalBudget, saveGroupPlan, saveLimits } from './budget.service.js';
+import { CATEGORY_KEYS, MAX_LIMIT_CENTS, MAX_SCENARIO_NAME_LENGTH, type CategoryKey } from './budget.categories.js';
+import {
+  BudgetError, createScenario, deleteScenario, groupBudgets, homeSummary, listScenarios, personalBudget, saveGroupPlan, saveLimits, updateScenario,
+} from './budget.service.js';
 
 export const budgetsRouter = Router();
 budgetsRouter.use(requireAuth);
 
 const cents = z.number().int().min(0).max(MAX_LIMIT_CENTS);
-const limitsBody = z.object({
-  limits: z.object(Object.fromEntries(CATEGORY_KEYS.map(key => [key, cents.optional()])) as Record<CategoryKey, z.ZodOptional<typeof cents>>).strict()
-    .refine(limits => Object.values(limits).some(value => value !== undefined), 'Provide at least one limit'),
-}).strict();
+const categoryLimits = z.object(Object.fromEntries(CATEGORY_KEYS.map(key => [key, cents.optional()])) as Record<CategoryKey, z.ZodOptional<typeof cents>>).strict()
+  .refine(limits => Object.values(limits).some(value => value !== undefined), 'Provide at least one limit');
+const limitsBody = z.object({ limits: categoryLimits }).strict();
+const scenarioBody = z.object({ name: z.string().trim().min(1).max(MAX_SCENARIO_NAME_LENGTH), limits: categoryLimits }).strict();
 const planBody = z.object({ plannedCents: cents }).strict();
 
 budgetsRouter.get('/personal', async (request, response) => {
@@ -21,6 +23,25 @@ budgetsRouter.get('/personal', async (request, response) => {
 budgetsRouter.put('/personal/limits', async (request, response) => {
   const { limits } = limitsBody.parse(request.body);
   response.json(await saveLimits(request.userId!, limits));
+});
+
+budgetsRouter.get('/scenarios', async (request, response) => {
+  response.json({ scenarios: await listScenarios(request.userId!) });
+});
+
+budgetsRouter.post('/scenarios', async (request, response) => {
+  const { name, limits } = scenarioBody.parse(request.body);
+  response.status(201).json({ scenario: await createScenario(request.userId!, name, limits) });
+});
+
+budgetsRouter.put('/scenarios/:id', async (request, response) => {
+  const { name, limits } = scenarioBody.parse(request.body);
+  response.json({ scenario: await updateScenario(request.userId!, request.params.id, name, limits) });
+});
+
+budgetsRouter.delete('/scenarios/:id', async (request, response) => {
+  await deleteScenario(request.userId!, request.params.id);
+  response.status(204).end();
 });
 
 budgetsRouter.get('/home', async (request, response) => {

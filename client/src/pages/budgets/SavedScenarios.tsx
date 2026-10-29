@@ -28,7 +28,7 @@ export default function SavedScenarios({
     <p className="sim-library-sub">You can store up to {MAX_SAVED_SCENARIOS} scenarios. {selectedIds.length} {selectedIds.length === 1 ? 'is' : 'are'} selected for comparison.</p>
     <div className="sim-library-card">
       <div className="sim-capacity-row"><strong>Library capacity</strong><span>{scenarios.length} of {MAX_SAVED_SCENARIOS} used</span></div>
-      <p className="sim-capacity-sub">Scenarios are kept for this session only. Apply one to make it your real budget.</p>
+      <p className="sim-capacity-sub">Scenarios are saved to your account. Apply one to make it your real budget.</p>
       <div className="sim-capacity-dots" role="presentation">{Array.from({ length: MAX_SAVED_SCENARIOS }, (_, index) =>
         <div key={index} className={`sim-capacity-dot${index < scenarios.length ? ' filled' : ''}`} />)}</div>
     </div>
