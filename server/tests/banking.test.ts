@@ -107,6 +107,42 @@ describe('bank connections', () => {
     await owner.patch(`/api/banking/accounts/${id}`).send({ nickname: '' }).expect(400);
   });
 
+  it('lists private transactions and saves categories, exclusions, notes, and exact category splits', async () => {
+    const transaction = await prisma.bankTransaction.findFirstOrThrow({ where: { account: { connection: { userId: userIds[0] } } } });
+    const listed = await owner.get('/api/banking/transactions').expect(200);
+    expect(listed.body.transactions).toContainEqual(expect.objectContaining({ id: transaction.id, reviewed: false, category: 'dining', excluded: false }));
+    await other.get('/api/banking/transactions').expect(200).expect(response => expect(response.body.transactions).toEqual([]));
+    await other.put(`/api/banking/transactions/${transaction.id}/review`).send({ category: 'shopping', excluded: false, reviewed: true, note: null, splits: [] }).expect(404);
+
+    await owner.put(`/api/banking/transactions/${transaction.id}/review`).send({
+      category: null, excluded: false, reviewed: true, note: 'Team lunch and supplies',
+      splits: [{ category: 'dining', amountCents: 200 }, { category: 'shopping', amountCents: 300 }],
+    }).expect(400);
+    const reviewed = await owner.put(`/api/banking/transactions/${transaction.id}/review`).send({
+      category: null, excluded: false, reviewed: true, note: 'Team lunch and supplies',
+      splits: [{ category: 'dining', amountCents: 200 }, { category: 'shopping', amountCents: transaction.amountCents - 200 }],
+    }).expect(200);
+    expect(reviewed.body.transaction).toMatchObject({ reviewed: true, note: 'Team lunch and supplies', splits: [
+      { category: 'dining', amountCents: 200 }, { category: 'shopping', amountCents: transaction.amountCents - 200 },
+    ] });
+    expect((await owner.get('/api/banking/transactions').query({ status: 'reviewed', query: 'team lunch' }).expect(200)).body.transactions).toHaveLength(1);
+
+    const excluded = await owner.put(`/api/banking/transactions/${transaction.id}/review`).send({ category: 'other', excluded: true, reviewed: true, note: null, splits: [] }).expect(200);
+    expect(excluded.body.transaction).toMatchObject({ excluded: true, category: 'other', splits: [] });
+    expect((await owner.get('/api/banking/transactions').query({ status: 'excluded' }).expect(200)).body.transactions[0].id).toBe(transaction.id);
+  });
+
+  it('runs an incremental bank sync after password login without letting Plaid failure block access', async () => {
+    await owner.post('/api/auth/logout').expect(204);
+    plaidMock.transactionsSync.mockResolvedValue({ data: { added: [tx('login-sync', 12)], modified: [], removed: [], next_cursor: 'login-cursor', has_more: false } });
+    await owner.post('/api/auth/login').send({ identifier: `bank_0_${run}`, password: 'password1' }).expect(200);
+    expect(await prisma.bankTransaction.count({ where: { plaidTransactionId: `login-sync-${run}` } })).toBe(1);
+
+    await owner.post('/api/auth/logout').expect(204);
+    plaidMock.transactionsSync.mockRejectedValueOnce(new Error('temporary Plaid outage'));
+    await owner.post('/api/auth/login').send({ identifier: `bank_0_${run}`, password: 'password1' }).expect(200);
+  });
+
   it('flags a connection that needs re-authentication and restores it afterwards', async () => {
     const connection = await prisma.bankConnection.findFirstOrThrow({ where: { userId: userIds[0] } });
     plaidMock.transactionsSync.mockRejectedValueOnce({ response: { data: { error_code: 'ITEM_LOGIN_REQUIRED' } } });

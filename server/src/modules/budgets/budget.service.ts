@@ -9,6 +9,10 @@ export class BudgetError extends Error {
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 
 type CategoryTransaction = { linkedBank?: { merchant: string; date: string; amountCents: number }; id: string; merchant: string; date: string; amountCents: number; pending: boolean };
+const reviewedCategory = (row: { categoryOverride: string | null; category: string | null; name: string; merchant: string | null }) =>
+  row.categoryOverride && CATEGORY_KEYS.includes(row.categoryOverride as CategoryKey)
+    ? row.categoryOverride as CategoryKey
+    : categorize(row);
 
 /** This month's personal budget: category limits plus spending from the user's visible bank accounts. */
 export async function personalBudget(userId: string, now = new Date()) {
@@ -18,7 +22,7 @@ export async function personalBudget(userId: string, now = new Date()) {
     // Plaid reports money leaving an account as a positive amount; refunds and deposits are negative.
     prisma.bankTransaction.findMany({
       where: { amountCents: { gt: 0 }, date: { gte: window.start, lt: window.end }, account: { hidden: false, connection: { userId } } },
-      include: { linkedExpense: { select: { id: true, budgetCategory: true } } },
+      include: { linkedExpense: { select: { id: true, budgetCategory: true } }, reviewSplits: { orderBy: { position: 'asc' } } },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }),
     prisma.bankConnection.findMany({ where: { userId }, select: { lastSyncedAt: true } }),
@@ -27,8 +31,16 @@ export async function personalBudget(userId: string, now = new Date()) {
   const transactions = Object.fromEntries(CATEGORY_KEYS.map(key => [key, [] as CategoryTransaction[]])) as Record<CategoryKey, CategoryTransaction[]>;
   const spent = Object.fromEntries(CATEGORY_KEYS.map(key => [key, 0])) as Record<CategoryKey, number>;
   for (const row of rows) {
-    if (row.linkedExpense) continue;
-    const key = categorize(row);
+    if (row.linkedExpense || row.excluded) continue;
+    if (row.reviewSplits.length) {
+      for (const split of row.reviewSplits) {
+        const key = CATEGORY_KEYS.includes(split.category as CategoryKey) ? split.category as CategoryKey : 'other';
+        transactions[key].push({ id: `${row.id}-split-${split.id}`, merchant: `${row.merchant ?? row.name} · Split`, date: isoDate(row.date), amountCents: split.amountCents, pending: row.pending });
+        spent[key] += split.amountCents;
+      }
+      continue;
+    }
+    const key = reviewedCategory(row);
     if (!key) continue;
     transactions[key].push({ id: row.id, merchant: row.merchant ?? row.name, date: isoDate(row.date), amountCents: row.amountCents, pending: row.pending });
     spent[key] += row.amountCents;
@@ -139,7 +151,7 @@ export async function homeSummary(userId: string, now = new Date()) {
   const [rows, pending, latest, shares] = await Promise.all([
     prisma.bankTransaction.findMany({
       where: { linkedExpense: null, date: { gte: start, lt: window.end }, account: { hidden: false, connection: { userId } } },
-      select: { date: true, amountCents: true, category: true, name: true, merchant: true },
+      select: { id: true, date: true, amountCents: true, category: true, categoryOverride: true, excluded: true, name: true, merchant: true, reviewSplits: { orderBy: { position: 'asc' } } },
     }),
     prisma.expensePayment.findMany({ where: { status: 'SENT', share: { expense: { paidByUserId: userId, group: inGroup } } }, select: { amountCents: true } }),
     prisma.expense.findFirst({
@@ -151,9 +163,12 @@ export async function homeSummary(userId: string, now = new Date()) {
   const months = new Map(keys.map(key => [key, { month: key, spendingCents: 0, incomeCents: 0 }]));
   for (const row of rows) {
     const month = months.get(row.date.toISOString().slice(0, 7));
-    if (!month) continue;
+    if (!month || row.excluded) continue;
     // Money leaving an account is a positive Plaid amount; only deposits categorized as income count as income.
-    if (row.amountCents > 0) { if (categorize(row)) month.spendingCents += row.amountCents; }
+    if (row.amountCents > 0) {
+      if (row.reviewSplits.length) month.spendingCents += row.reviewSplits.reduce((sum, split) => sum + split.amountCents, 0);
+      else if (reviewedCategory(row)) month.spendingCents += row.amountCents;
+    }
     else if (row.category === 'INCOME') month.incomeCents += -row.amountCents;
   }
   for (const share of shares) { const month = months.get(share.expense.expenseDate.toISOString().slice(0, 7)); if (month) month.spendingCents += share.totalCents; }

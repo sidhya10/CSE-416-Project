@@ -96,6 +96,28 @@ describe('personal budget', () => {
     expect(other.body.categories.every((category: Category) => category.spentCents === 0)).toBe(true);
   });
 
+  it('uses reviewed category overrides and splits and removes excluded transactions from spending', async () => {
+    const dining = await prisma.bankTransaction.findUniqueOrThrow({ where: { plaidTransactionId: `dining-${run}` } });
+    const grocery = await prisma.bankTransaction.findUniqueOrThrow({ where: { plaidTransactionId: `grocery-${run}` } });
+    const shop = await prisma.bankTransaction.findUniqueOrThrow({ where: { plaidTransactionId: `shop-${run}` } });
+    await owner.put(`/api/banking/transactions/${dining.id}/review`).send({ category: 'transit', excluded: false, reviewed: true, note: 'Taxi-like meal', splits: [] }).expect(200);
+    await owner.put(`/api/banking/transactions/${grocery.id}/review`).send({ category: 'groceries', excluded: true, reviewed: true, note: 'Reimbursed', splits: [] }).expect(200);
+    await owner.put(`/api/banking/transactions/${shop.id}/review`).send({ category: null, excluded: false, reviewed: true, note: null, splits: [
+      { category: 'dining', amountCents: 1000 }, { category: 'other', amountCents: 2000 },
+    ] }).expect(200);
+
+    const reviewed = await owner.get('/api/budgets/personal').expect(200);
+    expect(Object.fromEntries(Object.entries(byKey(reviewed.body.categories)).map(([key, value]) => [key, value.spentCents]))).toEqual({ dining: 1000, groceries: 0, transit: 1500, shopping: 0, other: 2800 });
+    expect(reviewed.body.transactions.groceries).toEqual([]);
+    expect(reviewed.body.transactions.dining).toContainEqual(expect.objectContaining({ merchant: 'Charge · Split', amountCents: 1000 }));
+    expect(reviewed.body.transactions.other).toContainEqual(expect.objectContaining({ merchant: 'Charge · Split', amountCents: 2000 }));
+
+    await prisma.bankTransactionSplit.deleteMany({ where: { bankTransactionId: shop.id } });
+    await prisma.bankTransaction.update({ where: { id: dining.id }, data: { categoryOverride: null, excluded: false, reviewNote: null, reviewedAt: null } });
+    await prisma.bankTransaction.update({ where: { id: grocery.id }, data: { categoryOverride: null, excluded: false, reviewNote: null, reviewedAt: null } });
+    await prisma.bankTransaction.update({ where: { id: shop.id }, data: { categoryOverride: null, excluded: false, reviewNote: null, reviewedAt: null } });
+  });
+
   it('saves limits, updates them in place, and keeps each user\'s limits private', async () => {
     const saved = await owner.put('/api/budgets/personal/limits').send({ limits: { dining: 36500, other: 0 } }).expect(200);
     expect(byKey(saved.body.categories).dining).toMatchObject({ plannedCents: 36500, spentCents: 1000 });

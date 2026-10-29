@@ -5,6 +5,7 @@ import { formatCents } from '../expenses/split';
 import { relativeTime } from '../../utils/dates';
 import { MENU_ACTIONS, institutionInitial, type Account, type MenuAction } from './banking';
 import './banking.css';
+import TransactionReviewCenter from './TransactionReviewCenter';
 
 function RenameDialog({ initialName, onCancel, onSave }: { initialName: string; onCancel: () => void; onSave: (name: string) => void }) {
   const [name, setName] = useState(initialName);
@@ -37,10 +38,10 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [pendingDisconnect, setPendingDisconnect] = useState<Account | null>(null);
-  const [autoSync, setAutoSync] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [lastAdded, setLastAdded] = useState<number | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   const renamingAccount = accounts.find(account => account.id === renamingId);
   const canSyncNow = accounts.some(account => account.status === 'synced' && !account.hidden);
@@ -94,9 +95,11 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
     setNotice('Account connected.');
   });
 
+  if (reviewing) return <TransactionReviewCenter onBack={() => setReviewing(false)} />;
+
   return <main className="banking-workspace">
     <header className="bank-header"><button type="button" aria-label="Back" onClick={onBack}>‹</button>
-      <div><h1>Connected accounts</h1><p>Securely sync transactions when you choose</p></div></header>
+      <div><h1>Connected accounts</h1><p>Syncs at sign-in or whenever you choose</p></div></header>
 
     <section className="bank-banner"><strong>Bank credentials stay with Plaid</strong>
       <small>The app stores encrypted connection tokens only.</small></section>
@@ -139,16 +142,18 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
     })}
 
     <section className="bank-sync-card">
-      <h2>Transaction sync</h2><p>Pull new transactions and refresh matches.</p>
+      <h2>Transaction sync</h2><p>New transactions are pulled after every successful login.</p>
       <div className="bank-sync-row">
         <button type="button" className="bank-sync-button" disabled={!canSyncNow || busy} onClick={() => void syncNow()}>
           <span aria-hidden="true">↻</span>{busy ? 'Working…' : 'Sync now'}</button>
-        <label className="bank-auto-sync"><span>Automatic sync<small>{autoSync ? 'On' : 'Off'}</small></span>
-          <span className="bank-switch"><input type="checkbox" checked={autoSync} onChange={event => setAutoSync(event.target.checked)} aria-label="Automatic sync" />
+        <label className="bank-auto-sync"><span>Sync at login<small>On</small></span>
+          <span className="bank-switch"><input type="checkbox" checked readOnly disabled aria-label="Sync at login enabled" />
             <span className="bank-switch-track" aria-hidden="true" /></span>
         </label>
       </div>
     </section>
+
+    <button type="button" className="bank-review-button" onClick={() => setReviewing(true)}><span><strong>Review transactions</strong><small>Categorize, split, exclude, and add notes</small></span><b aria-hidden="true">›</b></button>
 
     <button type="button" className="bank-connect-button" disabled={busy} onClick={() => void connectAccount()}>+ Connect another account</button>
 

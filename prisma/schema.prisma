@@ -343,7 +343,8 @@ model BankAccount {
 }
 
 model BankTransaction {
-  linkedExpense Expense?
+  linkedExpense    Expense?
+  reviewSplits     BankTransactionSplit[]
   id                 String      @id @default(cuid())
   accountId          String
   account            BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -354,8 +355,24 @@ model BankTransaction {
   merchant           String?
   category           String?
   pending            Boolean     @default(false)
+  categoryOverride   String?
+  excluded           Boolean     @default(false)
+  reviewNote         String?     @db.Text
+  reviewedAt         DateTime?
 
   @@index([accountId, date])
+}
+
+model BankTransactionSplit {
+  id                String          @id @default(cuid())
+  bankTransactionId String
+  bankTransaction   BankTransaction @relation(fields: [bankTransactionId], references: [id], onDelete: Cascade)
+  category          String
+  amountCents       Int
+  position          Int
+
+  @@unique([bankTransactionId, position])
+  @@index([bankTransactionId])
 }
 
 // Per-user monthly limit for one of the fixed budget categories (see budget.categories.ts).

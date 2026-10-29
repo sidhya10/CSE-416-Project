@@ -1,7 +1,9 @@
 import { CountryCode, Products, type AccountBase, type RemovedTransaction, type Transaction } from 'plaid';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database.js';
 import { decryptToken, encryptToken } from './bank.crypto.js';
 import { BankingError, plaid, plaidErrorCode } from './plaid.client.js';
+import { CATEGORY_KEYS, categorize, type CategoryKey } from '../budgets/budget.categories.js';
 
 const REAUTH_CODES = new Set(['ITEM_LOGIN_REQUIRED', 'PENDING_EXPIRATION', 'PENDING_DISCONNECT']);
 const cents = (amount: number | null | undefined) => Math.round((amount ?? 0) * 100);
@@ -86,6 +88,94 @@ export async function syncAll(userId: string) {
   return added;
 }
 
+export type TransactionReviewStatus = 'all' | 'unreviewed' | 'reviewed' | 'excluded';
+export type TransactionReviewPatch = {
+  category: CategoryKey | null;
+  excluded: boolean;
+  note: string | null;
+  reviewed: boolean;
+  splits: { category: CategoryKey; amountCents: number }[];
+};
+
+const presentedCategory = (row: { categoryOverride: string | null; category: string | null; name: string; merchant: string | null }) =>
+  row.categoryOverride && CATEGORY_KEYS.includes(row.categoryOverride as CategoryKey)
+    ? row.categoryOverride as CategoryKey
+    : categorize(row);
+
+const transactionReviewInclude = {
+  account: { include: { connection: { select: { institutionName: true } } } },
+  linkedExpense: { select: { id: true, title: true } },
+  reviewSplits: { orderBy: { position: 'asc' as const } },
+} satisfies Prisma.BankTransactionInclude;
+type TransactionReviewRow = Prisma.BankTransactionGetPayload<{ include: typeof transactionReviewInclude }>;
+const presentTransaction = (row: TransactionReviewRow) => ({
+  id: row.id,
+  accountId: row.accountId,
+  accountName: row.account.nickname ?? row.account.name,
+  institution: row.account.connection.institutionName,
+  merchant: row.merchant ?? row.name,
+  name: row.name,
+  date: row.date.toISOString().slice(0, 10),
+  amountCents: row.amountCents,
+  pending: row.pending,
+  providerCategory: row.category,
+  category: presentedCategory(row),
+  excluded: row.excluded,
+  note: row.reviewNote,
+  reviewed: !!row.reviewedAt,
+  reviewedAt: row.reviewedAt?.getTime() ?? null,
+  linkedExpense: row.linkedExpense,
+  splits: row.reviewSplits.map(split => ({ id: split.id, category: split.category as CategoryKey, amountCents: split.amountCents })),
+});
+
+export async function listTransactions(userId: string, filters: { query?: string; status: TransactionReviewStatus }) {
+  const query = filters.query?.trim();
+  const rows = await prisma.bankTransaction.findMany({
+    where: {
+      account: { connection: { userId } },
+      ...(filters.status === 'unreviewed' ? { reviewedAt: null, excluded: false }
+        : filters.status === 'reviewed' ? { reviewedAt: { not: null }, excluded: false }
+          : filters.status === 'excluded' ? { excluded: true } : {}),
+      ...(query ? { OR: [
+        { name: { contains: query, mode: 'insensitive' } },
+        { merchant: { contains: query, mode: 'insensitive' } },
+        { reviewNote: { contains: query, mode: 'insensitive' } },
+        { account: { name: { contains: query, mode: 'insensitive' } } },
+        { account: { nickname: { contains: query, mode: 'insensitive' } } },
+      ] } : {}),
+    },
+    include: transactionReviewInclude,
+    orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    take: 200,
+  });
+  return rows.map(presentTransaction);
+}
+
+export async function reviewTransaction(userId: string, id: string, patch: TransactionReviewPatch) {
+  const row = await prisma.bankTransaction.findFirst({ where: { id, account: { connection: { userId } } } });
+  if (!row) throw new BankingError('Transaction not found', 404);
+  if (patch.splits.length) {
+    if (row.amountCents <= 0) throw new BankingError('Only spending transactions can be split', 400);
+    if (patch.splits.reduce((sum, split) => sum + split.amountCents, 0) !== row.amountCents) throw new BankingError('Split amounts must equal the transaction total', 400);
+    if (new Set(patch.splits.map(split => split.category)).size !== patch.splits.length) throw new BankingError('Use each split category only once', 400);
+  }
+  await prisma.$transaction(async tx => {
+    await tx.bankTransactionSplit.deleteMany({ where: { bankTransactionId: row.id } });
+    await tx.bankTransaction.update({
+      where: { id: row.id },
+      data: {
+        categoryOverride: patch.splits.length ? null : patch.category,
+        excluded: patch.excluded,
+        reviewNote: patch.note,
+        reviewedAt: patch.reviewed ? new Date() : null,
+        ...(patch.splits.length ? { reviewSplits: { create: patch.splits.map((split, position) => ({ ...split, position })) } } : {}),
+      },
+    });
+  });
+  const saved = await prisma.bankTransaction.findFirstOrThrow({ where: { id, account: { connection: { userId } } }, include: transactionReviewInclude });
+  return presentTransaction(saved);
+}
+
 async function pull(accessToken: string, startCursor: string | null) {
   const added: Transaction[] = [], modified: Transaction[] = [], removed: RemovedTransaction[] = [];
   let cursor = startCursor ?? undefined, more = true;
@@ -119,9 +209,15 @@ export async function syncConnection(connectionId: string) {
       for (const item of [...result.added, ...result.modified]) {
         const accountId = accountIds.get(item.account_id);
         if (!accountId) continue;
+        const next = toRow(item);
+        const previous = await tx.bankTransaction.findUnique({ where: { plaidTransactionId: item.transaction_id }, select: { id: true, amountCents: true } });
         // A changed bank total must be reviewed again rather than silently excluded.
-        await tx.expense.updateMany({ where: { bankTransaction: { plaidTransactionId: item.transaction_id, amountCents: { not: toRow(item).amountCents } } }, data: { bankTransactionId: null } });
-        await tx.bankTransaction.upsert({ where: { plaidTransactionId: item.transaction_id }, create: { ...toRow(item), accountId, plaidTransactionId: item.transaction_id }, update: toRow(item) });
+        await tx.expense.updateMany({ where: { bankTransaction: { plaidTransactionId: item.transaction_id, amountCents: { not: next.amountCents } } }, data: { bankTransactionId: null } });
+        if (previous && previous.amountCents !== next.amountCents) {
+          await tx.bankTransactionSplit.deleteMany({ where: { bankTransactionId: previous.id } });
+          await tx.bankTransaction.update({ where: { id: previous.id }, data: { reviewedAt: null } });
+        }
+        await tx.bankTransaction.upsert({ where: { plaidTransactionId: item.transaction_id }, create: { ...next, accountId, plaidTransactionId: item.transaction_id }, update: next });
       }
       const removedIds = result.removed.map(item => item.transaction_id).filter((id): id is string => !!id);
       await tx.bankTransaction.deleteMany({ where: { plaidTransactionId: { in: removedIds }, account: { connectionId } } });

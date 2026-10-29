@@ -5,6 +5,18 @@ export type ApiBankAccount = {
   hidden: boolean; status: 'synced' | 'needs-attention'; statusDetail?: string; syncedAt: number | null;
 };
 type Accounts = { accounts: ApiBankAccount[] };
+export type BankReviewCategory = 'dining' | 'groceries' | 'transit' | 'shopping' | 'other';
+export type ApiBankTransaction = {
+  id: string; accountId: string; accountName: string; institution: string; merchant: string; name: string;
+  date: string; amountCents: number; pending: boolean; providerCategory: string | null;
+  category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean; reviewedAt: number | null;
+  linkedExpense: { id: string; title: string } | null;
+  splits: { id: string; category: BankReviewCategory; amountCents: number }[];
+};
+export type TransactionReview = {
+  category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean;
+  splits: { category: BankReviewCategory; amountCents: number }[];
+};
 
 export const bankingApi = {
   accounts: () => apiRequest<Accounts>('/banking/accounts'),
@@ -14,6 +26,13 @@ export const bankingApi = {
   update: (id: string, patch: { nickname?: string | null; hidden?: boolean }) => apiRequest<Accounts>(`/banking/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   disconnect: (connectionId: string) => apiRequest<void>(`/banking/connections/${connectionId}`, { method: 'DELETE' }),
   sync: () => apiRequest<Accounts & { added: number }>('/banking/sync', { method: 'POST' }),
+  transactions: (status: 'all' | 'unreviewed' | 'reviewed' | 'excluded' = 'unreviewed', query = '') => {
+    const params = new URLSearchParams({ status });
+    if (query.trim()) params.set('query', query.trim());
+    return apiRequest<{ transactions: ApiBankTransaction[] }>(`/banking/transactions?${params}`);
+  },
+  reviewTransaction: (id: string, review: TransactionReview) =>
+    apiRequest<{ transaction: ApiBankTransaction }>(`/banking/transactions/${id}/review`, { method: 'PUT', body: JSON.stringify(review) }),
 };
 
 type PlaidHandler = { open: () => void; destroy: () => void };

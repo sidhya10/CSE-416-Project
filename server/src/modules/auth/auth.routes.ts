@@ -10,6 +10,7 @@ import { presentUser } from '../users/user.presenter.js';
 import { clearSession, hashPassword, setSession, verifyPassword } from './auth.service.js';
 import { findUserByIdentifier, phoneSchema } from './identity.js';
 import { hashPasswordResetToken, newPasswordResetToken, passwordResetTtlMs, sendPasswordResetEmail } from './password-reset.js';
+import { syncAll as syncBankTransactions } from '../banking/bank.service.js';
 
 export const authRouter = Router();
 
@@ -25,6 +26,8 @@ const googleSchema = z.object({ credential: z.string().min(1).max(20000), state:
 
 const validationError = (issues: { message: string }[]) => ({ error: 'Invalid request', details: issues.map(issue => issue.message) });
 const conflictMessage = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+// A provider outage must never block account access; successful logins still attempt a complete incremental pull.
+const syncBanksAfterLogin = async (userId: string) => { await syncBankTransactions(userId).catch(() => undefined); };
 
 authRouter.post('/register', async (request, response, next) => {
   const parsed = accountSchema.safeParse(request.body);
@@ -49,6 +52,7 @@ authRouter.post('/login', async (request, response, next) => {
       return response.status(401).json({ error: 'Username, email, phone number, or password is incorrect' });
     }
     setSession(response, user.id);
+    await syncBanksAfterLogin(user.id);
     return response.json({ user: presentUser(user) });
   } catch (error) { next(error); }
 });
@@ -111,6 +115,7 @@ for (const intent of ['signin', 'link'] as const) {
       }
       clearGoogleAttempt(response);
       setSession(response, user.id);
+      if (intent === 'signin' && attempt.intent === 'signin') await syncBanksAfterLogin(user.id);
       return response.json({ user: presentUser(user) });
     } catch (error) {
       if (conflictMessage(error)) return response.status(409).json({ error: 'That Google account is already connected or the account was just created. Try signing in again.' });
