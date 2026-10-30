@@ -222,3 +222,53 @@ it('saves receipt bytes atomically, restricts viewing, and supports keep/replace
   await owner.put(`/api/expenses/${id}`).send({ version: 3, expense: { ...input(), receipt: null } }).expect(200);
   await member.get(`/api/expenses/${id}/receipt`).expect(404);
 });
+
+it('deletes unpaid expenses only for the creator or payer and cleans up their shares', async () => {
+  const { body: { expense } } = await create().expect(201);
+  await request(app).delete(`/api/expenses/${expense.id}`).expect(401);
+  await outsider.delete(`/api/expenses/${expense.id}`).expect(404);
+  await member.delete(`/api/expenses/${expense.id}`).expect(403);
+  await owner.delete(`/api/expenses/${expense.id}`).expect(204);
+  await owner.get(`/api/expenses/${expense.id}`).expect(404);
+  expect(await prisma.expenseShare.count({ where: { expenseId: expense.id } })).toBe(0);
+  expect(await prisma.budgetNotice.count({ where: { expenseId: expense.id } })).toBe(0);
+});
+
+it('blocks deletion after sent, disputed, or confirmed payments', async () => {
+  for (const status of ['SENT', 'ISSUE', 'CONFIRMED']) {
+    const { body: { expense } } = await create().expect(201);
+    const { body: { payment } } = await member.post(`/api/expenses/${expense.id}/payments`).send({ amountCents: 100, clientRequestId: randomUUID() }).expect(201);
+    if (status !== 'SENT') await owner.patch(`/api/expenses/${expense.id}/payments/${payment.id}`).send({ status }).expect(200);
+    await owner.delete(`/api/expenses/${expense.id}`).expect(409);
+    await owner.get(`/api/expenses/${expense.id}`).expect(200);
+  }
+});
+
+it('cannot delete an expense concurrently with a successful payment', async () => {
+  const { body: { expense } } = await create().expect(201);
+  const [deletion, payment] = await Promise.all([
+    owner.delete(`/api/expenses/${expense.id}`),
+    member.post(`/api/expenses/${expense.id}/payments`).send({ amountCents: 100, clientRequestId: randomUUID() }),
+  ]);
+  expect([deletion.status, payment.status].filter(status => status >= 200 && status < 300)).toHaveLength(1);
+  if (payment.status === 201) expect(await prisma.expense.findUnique({ where: { id: expense.id } })).not.toBeNull();
+});
+
+it('updates initialized splits and removes empty batches when unpaid expenses are deleted', async () => {
+  const result = await owner.post('/api/groups').send({ name: 'Delete unpaid split', memberIds: [memberId] }).expect(201);
+  const id = result.body.group.id;
+  groupIds.push(id);
+  const expenseIds: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    const response = await owner.post(`/api/groups/${id}/expenses`).send({ clientRequestId: randomUUID(), expense: input() }).expect(201);
+    expenseIds.push(response.body.expense.id);
+  }
+  const { body: preview } = await owner.get(`/api/groups/${id}/settlements/preview`).expect(200);
+  const { body: { batch } } = await owner.post(`/api/groups/${id}/settlements`).send({ clientRequestId: randomUUID(), expenseIds: preview.expenseIds, totalCents: preview.totalCents }).expect(201);
+  await owner.delete(`/api/expenses/${expenseIds[0]}`).expect(204);
+  expect(await prisma.settlementShare.count({ where: { expenseId: expenseIds[0] } })).toBe(0);
+  expect(await prisma.settlementBatch.findUnique({ where: { id: batch.id } })).not.toBeNull();
+  await owner.delete(`/api/expenses/${expenseIds[1]}`).expect(204);
+  expect(await prisma.settlementBatch.findUnique({ where: { id: batch.id } })).toBeNull();
+  expect(await prisma.settlementNotice.count({ where: { batchId: batch.id } })).toBe(0);
+});

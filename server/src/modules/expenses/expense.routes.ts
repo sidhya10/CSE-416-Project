@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { prisma } from '../../config/database.js';
 import { createExpenseInput, editExpenseInput } from './expense.validation.js';
-import { createExpense, editExpense, expenseInclude, groupBalances, readExpense, requireMember, resolvePayment, sendPayment, transaction } from './expense.service.js';
+import { deleteExpense, createExpense, editExpense, expenseInclude, groupBalances, readExpense, requireMember, resolvePayment, sendPayment, transaction } from './expense.service.js';
 
 export const expensesRouter = Router();
 expensesRouter.use(requireAuth);
@@ -30,6 +30,10 @@ expensesRouter.get('/expenses/:id', async (req, res) => {
 expensesRouter.put('/expenses/:id', async (req, res) => {
   const input = editExpenseInput.parse(req.body);
   res.json({ expense: await editExpense(req.params.id, req.userId!, input.version, input.expense) });
+});
+expensesRouter.delete('/expenses/:id', async (req, res) => {
+  await deleteExpense(req.params.id, req.userId!);
+  res.status(204).end();
 });
 expensesRouter.post('/expenses/:id/payments', async (req, res) => {
   const input = z.object({ amountCents: z.number().int().positive().max(2_000_000_000), clientRequestId: z.uuid(), method: z.enum(['Cash', 'Venmo', 'Zelle', 'Cash App', 'Other']).default('Other') }).strict().parse(req.body);

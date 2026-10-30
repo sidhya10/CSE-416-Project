@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import ExpenseDetails from './ExpenseDetails';
 import type { PreviewSplit } from './split';
@@ -38,4 +38,21 @@ it('shows all saved participants for equal splits without inventing per-item rou
   expect(cake.getByText('Shared equally by everyone')).toBeInTheDocument();
   expect(cake.getAllByRole('button')).toHaveLength(2);
   expect(cake.queryByText('$1.50')).not.toBeInTheDocument();
+});
+
+it('confirms deletion of an unpaid saved expense', async () => {
+  const onDelete = vi.fn().mockResolvedValue(undefined);
+  render(<ExpenseDetails expense={{ title: 'Dinner', subtitle: '', amount: '$8.01', split: { ...split, expenseId: 'saved', creatorId: 'you', hasPaymentHistory: false } }} groupName="Trip" members={[]} onBack={vi.fn()} onEdit={vi.fn()} onDelete={onDelete} onPaymentAction={vi.fn()} onPaymentViewChange={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Delete expense' }));
+  expect(onDelete).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Delete expense' }));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' })); });
+  expect(onDelete).toHaveBeenCalledOnce();
+});
+
+it('does not offer deletion for expenses with payment history', () => {
+  render(<ExpenseDetails expense={{ title: 'Dinner', subtitle: '', amount: '$8.01', split: { ...split, expenseId: 'saved', creatorId: 'you', hasPaymentHistory: true } }} groupName="Trip" members={[]} onBack={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onPaymentAction={vi.fn()} onPaymentViewChange={vi.fn()} />);
+  expect(screen.queryByRole('button', { name: 'Delete expense' })).not.toBeInTheDocument();
 });

@@ -139,6 +139,23 @@ export function editExpense(id: string, userId: string, version: number, input: 
   });
 }
 
+export function deleteExpense(id: string, userId: string) {
+  return transaction(async tx => {
+    const expense = await readExpense(tx, id, userId);
+    if (expense.createdByUserId !== userId && expense.paidByUserId !== userId) throw new ExpenseError(403, 'Only the creator or payer can delete this expense');
+    if (expense.shares.some(share => share.payments.length)) throw new ExpenseError(409, 'Expenses with payment history cannot be deleted');
+    // Serialize with edits and payment reporting; retries recheck the payment history.
+    await tx.group.update({ where: { id: expense.groupId }, data: { lastActivityAt: new Date() } });
+    await tx.expense.delete({ where: { id } });
+    if (expense.settlementBatchId) {
+      const batchId = expense.settlementBatchId;
+      const remaining = await tx.expense.count({ where: { settlementBatchId: batchId } });
+      if (!remaining) await tx.settlementBatch.delete({ where: { id: batchId } });
+      else await tx.settlementNotice.updateMany({ where: { batchId, kind: { in: ['SPLIT_CREATED', 'REMINDER'] } }, data: { message: 'This group split was updated after an unpaid expense was deleted. View the group for current balances.' } });
+    }
+  });
+}
+
 export function sendPayment(expenseId: string, userId: string, amountCents: number, clientRequestId: string, method = 'Other') {
   return transaction(async tx => {
     const expense = await readExpense(tx, expenseId, userId);

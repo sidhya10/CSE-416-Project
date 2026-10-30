@@ -1,3 +1,4 @@
+import ConfirmDeletion from '../../components/common/ConfirmDeletion';
 import ExpenseBudgetLink from './ExpenseBudgetLink';
 import ReceiptViewer from './ReceiptViewer';
 import Avatar from '../../components/common/Avatar';
@@ -12,9 +13,12 @@ import './details.css';
 
 type Expense = { title: string; subtitle: string; amount: string; split?: PreviewSplit };
 
-export default function ExpenseDetails({ expense, groupName, members, onBack, onEdit, onPaymentAction, onPaymentViewChange, initialBudgetOpen = false, highlightBudget = false }: { highlightBudget?: boolean; initialBudgetOpen?: boolean;
-  expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction, method?: string) => void | Promise<void>; onPaymentViewChange: (visible: boolean) => void;
+export default function ExpenseDetails({ expense, groupName, members, onBack, onEdit, onDelete, onPaymentAction, onPaymentViewChange, initialBudgetOpen = false, highlightBudget = false }: { highlightBudget?: boolean; initialBudgetOpen?: boolean;
+  onDelete?: () => Promise<void>; expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction, method?: string) => void | Promise<void>; onPaymentViewChange: (visible: boolean) => void;
 }) {
+  const [deleting, setDeleting] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [budgetSetupSaved, setBudgetSetupSaved] = useState(false);
   const emphasizeBudget = highlightBudget && !budgetSetupSaved;
   const [budgetOpen, setBudgetOpen] = useState(initialBudgetOpen);
@@ -28,9 +32,15 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
   const ownPayment = split ? paymentFor(split, 'you') : undefined;
   const payer = split?.payerId === 'you';
   const editLocked = !!split?.expenseId && (!!split.settlementBatchId || split.recurring || split.hasPaymentHistory || (split.creatorId !== 'you' && !payer));
+  const canDelete = !!onDelete && !!split?.expenseId && !split.hasPaymentHistory && (split.creatorId === 'you' || payer);
   const changeTab = (open: boolean) => { setPaymentsOpen(open); setNotice(''); onPaymentViewChange(open); };
   const paymentNotice = () => split ? changeTab(true) : setNotice('Payment records are unavailable for this sample.');
   return <main className="expense-screen expense-details-screen">
+    {deleting && <ConfirmDeletion title="Delete expense?" description={`Permanently delete “${expense.title}” and its shares and receipt from this group?${split?.recurring ? ' The recurring schedule will remain unchanged.' : ''}`} busy={deleteBusy} error={deleteError} onCancel={() => setDeleting(false)} onConfirm={() => {
+      if (deleteBusy) return;
+      setDeleteBusy(true); setDeleteError('');
+      void onDelete!().catch(error => setDeleteError(error instanceof Error ? error.message : 'Could not delete expense. Please retry.')).finally(() => setDeleteBusy(false));
+    }} />}
     {receiptOpen && split?.expenseId && split.receiptName && <ReceiptViewer expenseId={split.expenseId} name={split.receiptName} onClose={() => setReceiptOpen(false)} />}
     <header className="expense-header"><button type="button" aria-label="Back to group" onClick={onBack}><BackArrow /></button><h1>{paymentsOpen ? 'Payment status' : 'Expense details'}</h1></header>
     <div className={`expense-body details-body ${paymentsOpen ? `payment-body ${payer ? 'payer-payments' : ''}` : ''}`}>
@@ -98,6 +108,6 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
       {notice && <p className="form-notice" role="status">{notice}</p>}
       {split && !paymentsOpen && <p className="details-preview">{split.expenseId ? (editLocked ? split.settlementBatchId ? 'This transaction belongs to an initialized split; its recorded shares are locked.' : split.recurring ? 'Past recurring expenses keep their recorded shares. Change upcoming expenses from the schedule.' : split.hasPaymentHistory ? 'Editing is locked because this expense has payment history.' : 'Only the expense creator or payer can edit.' : 'Saved to your group.') : 'Session-only preview. Live balances are not connected.'}</p>}
     </div>
-    {!paymentsOpen && <footer className="expense-footer"><button type="button" className="expense-outline" disabled={editLocked} onClick={() => split ? onEdit() : setNotice('This sample has no item or split records to edit. Create an expense to try the editing flow.')}>Edit expense</button></footer>}
+    {!paymentsOpen && <footer className="expense-footer"><button type="button" className="expense-outline" disabled={editLocked} onClick={() => split ? onEdit() : setNotice('This sample has no item or split records to edit. Create an expense to try the editing flow.')}>Edit expense</button>{canDelete && <button type="button" className="expense-outline details-delete" onClick={() => { setDeleteError(''); setDeleting(true); }}>Delete expense</button>}</footer>}
   </main>;
 }
