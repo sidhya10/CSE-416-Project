@@ -34,7 +34,7 @@ describe('group creation and archive navigation', () => {
   it('shows all archives even with active filters and only a back button and archived list', () => {
     renderGroups();
     fireEvent.change(screen.getByLabelText('Search groups'), { target: { value: 'does not match' } });
-    fireEvent.click(screen.getByText('Filter and sort groups'));
+    fireEvent.click(screen.getByRole('button', { name: 'Filter and sort groups' }));
     fireEvent.change(screen.getByLabelText('Payment status'), { target: { value: 'owe' } });
     fireEvent.click(screen.getByRole('button', { name: 'Archived groups (1)' }));
     expect(screen.getByRole('heading', { name: 'Archived groups' })).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe('group creation and archive navigation', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /find friends|new group/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Balance overview')).not.toBeInTheDocument();
-    expect(screen.queryByText('Filter and sort groups')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Filter and sort groups' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('heading', { name: 'Groups' })).toBeInTheDocument();
     expect(screen.getByLabelText('Payment status')).toHaveValue('owe');

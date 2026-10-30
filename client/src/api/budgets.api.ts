@@ -22,6 +22,9 @@ export type ApiHomeSummary = {
   pendingPayments: { count: number; cents: number };
   latestExpense: { title: string; groupName: string; creatorName: string; isYou: boolean; totalCents: number; createdAt: string } | null;
 };
+export type ApiSpendingIncomeHistory = {
+  years: { year: number; months: { month: string; spendingCents: number; incomeCents: number }[] }[];
+};
 
 export const budgetsApi = {
   personal: () => apiRequest<ApiPersonalBudget>('/budgets/personal'),
@@ -35,6 +38,7 @@ export const budgetsApi = {
     apiRequest<{ scenario: ApiScenario }>(`/budgets/scenarios/${id}`, { method: 'PUT', body: JSON.stringify({ name, limits }) }),
   deleteScenario: (id: string) => apiRequest<void>(`/budgets/scenarios/${id}`, { method: 'DELETE' }),
   home: () => apiRequest<ApiHomeSummary>('/budgets/home'),
+  history: () => apiRequest<ApiSpendingIncomeHistory>('/budgets/history'),
   groups: () => apiRequest<{ groups: ApiGroupBudget[] }>('/budgets/groups'),
   saveGroupPlan: (groupId: string, plannedCents: number) =>
     apiRequest<{ groups: ApiGroupBudget[] }>(`/budgets/groups/${groupId}/plan`, { method: 'PUT', body: JSON.stringify({ plannedCents }) }),

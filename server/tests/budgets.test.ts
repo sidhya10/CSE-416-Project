@@ -45,6 +45,7 @@ describe('authentication', () => {
     await request(app).get('/api/budgets/personal/export.csv').expect(401);
     await request(app).put('/api/budgets/personal/limits').send({ limits: { dining: 1 } }).expect(401);
     await request(app).get('/api/budgets/groups').expect(401);
+    await request(app).get('/api/budgets/history').expect(401);
     await request(app).put(`/api/budgets/groups/${groupId}/plan`).send({ plannedCents: 1 }).expect(401);
   });
 });
@@ -212,16 +213,25 @@ describe('home summary', () => {
     await request(app).get('/api/budgets/home').expect(401);
   });
 
-  it('reports four months of spending and income from visible bank accounts', async () => {
+  it('reports three months of spending and income from visible bank accounts', async () => {
     const { body } = await owner.get('/api/budgets/home').expect(200);
-    expect(body.history.map((month: { month: string }) => month.month)).toEqual([monthKey(-3), monthKey(-2), monthKey(-1), monthKey(0)]);
+    expect(body.history.map((month: { month: string }) => month.month)).toEqual([monthKey(-2), monthKey(-1), monthKey(0)]);
     // Seeded earlier: spending excludes the transfer, refund, hidden account and next month; income is only the INCOME deposit.
     // The owner also fronted the cabin and was repaid $50.00 by then, whose own $50 share counts regardless of repayment.
-    expect(body.history[3]).toEqual({ month: monthKey(0), spendingCents: 7300 + 5000, incomeCents: 5000 });
-    expect(body.history[2]).toEqual({ month: monthKey(-1), spendingCents: 9999, incomeCents: 0 });
-    expect(body.history[0]).toEqual({ month: monthKey(-3), spendingCents: 0, incomeCents: 0 });
+    expect(body.history[2]).toEqual({ month: monthKey(0), spendingCents: 7300 + 5000, incomeCents: 5000 });
+    expect(body.history[1]).toEqual({ month: monthKey(-1), spendingCents: 9999, incomeCents: 0 });
+    expect(body.history[0]).toEqual({ month: monthKey(-2), spendingCents: 0, incomeCents: 0 });
     const other = await outsider.get('/api/budgets/home').expect(200);
     expect(other.body.history.every((month: { spendingCents: number; incomeCents: number }) => month.spendingCents === 0 && month.incomeCents === 0)).toBe(true);
+  });
+
+  it('returns all twelve months for each year in complete history', async () => {
+    const { body } = await owner.get('/api/budgets/history').expect(200);
+    expect(body.years[0].months).toHaveLength(12);
+    expect(body.years[0].months.map((month: { month: string }) => month.month)).toEqual(
+      Array.from({ length: 12 }, (_, index) => `${body.years[0].year}-${String(index + 1).padStart(2, '0')}`),
+    );
+    expect(body.years[0].months.find((month: { month: string }) => month.month === monthKey(0))).toMatchObject({ incomeCents: 5000 });
   });
 
   it('counts payments waiting for the payer to confirm and reports the latest group expense', async () => {

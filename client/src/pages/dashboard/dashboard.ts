@@ -1,10 +1,11 @@
 import type { ApiGroupBudget, ApiHomeSummary } from '../../api/budgets.api';
 import { formatCents } from '../expenses/split';
 
-export type MonthPoint = { label: string; spendingCents: number; incomeCents: number };
+export type MonthPoint = { key: string; label: string; spendingCents: number; incomeCents: number };
 
 export const toMonthPoints = (history: ApiHomeSummary['history']): MonthPoint[] =>
   history.map(item => ({
+    key: item.month,
     label: new Date(`${item.month}-01T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
     spendingCents: item.spendingCents, incomeCents: item.incomeCents,
   }));

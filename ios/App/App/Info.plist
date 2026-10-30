@@ -28,6 +28,8 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Use the camera to capture receipts for shared expenses.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Choose contacts to find people you already know who use CSE 416 Budget.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Choose receipt images and a profile photo to use in the app.</string>
 	<key>UIApplicationSceneManifest</key>

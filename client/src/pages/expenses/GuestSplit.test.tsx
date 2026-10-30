@@ -11,7 +11,7 @@ it('splits temporarily with named participants and clears on exit without API ca
   fireEvent.change(screen.getByLabelText('Person 1'), { target: { value: 'Eva' } });
   for (const [index, name] of ['Amy', 'Vivian', 'Nicole'].entries()) fireEvent.change(screen.getByLabelText(`Person ${index + 2}`), { target: { value: name } });
   fireEvent.click(screen.getByText('Continue to receipt'));
-  fireEvent.change(screen.getByLabelText('EXPENSE NAME'), { target: { value: 'Dinner' } });
+  expect(screen.queryByLabelText('EXPENSE NAME')).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Item 1 name'), { target: { value: 'Pizza' } });
   fireEvent.change(screen.getByLabelText('Item 1 amount'), { target: { value: '77.50' } });
   expect(screen.getByText(/Paid by Eva/)).toBeVisible();

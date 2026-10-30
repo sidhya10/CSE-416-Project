@@ -4,7 +4,7 @@ import { requireAuth } from '../../middleware/requireAuth.js';
 import { CATEGORY_KEYS, MAX_LIMIT_CENTS, MAX_SCENARIO_NAME_LENGTH, type CategoryKey } from './budget.categories.js';
 import { budgetCsv } from './budget.export.js';
 import {
-  BudgetError, createScenario, deleteScenario, groupBudgets, homeSummary, listScenarios, personalBudget, saveGroupPlan, saveLimits, updateScenario,
+  BudgetError, createScenario, deleteScenario, groupBudgets, homeSummary, listScenarios, personalBudget, saveGroupPlan, saveLimits, spendingIncomeHistory, updateScenario,
 } from './budget.service.js';
 
 export const budgetsRouter = Router();
@@ -58,6 +58,10 @@ budgetsRouter.delete('/scenarios/:id', async (request, response) => {
 
 budgetsRouter.get('/home', async (request, response) => {
   response.json(await homeSummary(request.userId!));
+});
+
+budgetsRouter.get('/history', async (request, response) => {
+  response.json(await spendingIncomeHistory(request.userId!));
 });
 
 budgetsRouter.get('/groups', async (request, response) => {

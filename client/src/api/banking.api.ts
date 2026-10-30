@@ -5,18 +5,19 @@ export type ApiBankAccount = {
   hidden: boolean; status: 'synced' | 'needs-attention'; statusDetail?: string; syncedAt: number | null;
 };
 type Accounts = { accounts: ApiBankAccount[] };
-export type BankReviewCategory = 'dining' | 'groceries' | 'transit' | 'shopping' | 'other';
+export type BankBudgetCategory = 'dining' | 'groceries' | 'transit' | 'shopping' | 'other';
+export type BankReviewCategory = BankBudgetCategory | 'income';
 export type ApiBankTransaction = {
   id: string; accountId: string; accountName: string; institution: string; merchant: string; name: string;
   date: string; amountCents: number; pending: boolean; providerCategory: string | null;
   source?: 'bank' | 'group_payment'; category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean; needsReview?: boolean; reviewedAt: number | null;
   linkedExpense: { id: string; title: string } | null;
   groupPayment?: { id: string; groupId: string; groupName: string; recipientName: string; method: string } | null;
-  splits: { id: string; category: BankReviewCategory; amountCents: number }[];
+  splits: { id: string; category: BankBudgetCategory; amountCents: number }[];
 };
 export type TransactionReview = {
   category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean;
-  splits: { category: BankReviewCategory; amountCents: number }[];
+  splits: { category: BankBudgetCategory; amountCents: number }[];
 };
 export type ExpenseMatchSuggestion = {
   id: string; merchant: string; name: string; amountCents: number; date: string; accountName: string;

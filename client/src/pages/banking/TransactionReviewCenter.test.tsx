@@ -46,3 +46,21 @@ it('requires split amounts to equal the charge before saving', async () => {
   fireEvent.change(screen.getByLabelText('Split 2 amount'), { target: { value: '7.50' } });
   expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
 });
+
+it('lets a user correct a deposit so it counts as income', async () => {
+  const deposit = { ...transaction, id: 'deposit-1', merchant: 'Stony Brook Payroll', amountCents: -125000, providerCategory: 'TRANSFER_IN', category: null, needsReview: false, reviewed: true };
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/banking/transactions?')) return new Response(JSON.stringify({ transactions: [deposit] }), { status: 200 });
+    if (url.endsWith('/banking/transactions/deposit-1/review')) return new Response(JSON.stringify({ transaction: { ...deposit, category: 'income' } }), { status: 200 });
+    return new Response('{}', { status: 500 });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  render(<TransactionReviewCenter onBack={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Stony Brook Payroll/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Count as income/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(expect.stringContaining('/banking/transactions/deposit-1/review'), expect.objectContaining({
+    body: JSON.stringify({ category: 'income', excluded: false, note: null, reviewed: true, splits: [] }),
+  })));
+});

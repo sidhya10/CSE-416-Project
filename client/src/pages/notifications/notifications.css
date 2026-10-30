@@ -1,7 +1,6 @@
 .notifications-page{width:100%;box-sizing:border-box;min-height:0;overflow-y:auto;padding:48px 23px 24px;color:var(--text)}
 .notifications-page header{display:flex;align-items:center;gap:10px;margin-bottom:24px}
 .notifications-page h1{font-size:22px;margin:0}.notifications-page header p{font-size:12px;color:var(--muted);margin:6px 0 0}
-.notifications-back{display:grid;place-items:center;min-width:44px;min-height:44px;padding:0;background:transparent;color:var(--text);border:0;border-radius:0}
 .notifications-count{font-size:12px;color:var(--muted)}
 .notifications-list{list-style:none;padding:0;margin:12px 0;display:flex;flex-direction:column;gap:12px}
 .notification-item{display:flex;gap:12px;padding:16px;border-radius:18px;background:var(--surface);border:1px solid var(--border)}

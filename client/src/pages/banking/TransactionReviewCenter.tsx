@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { bankingApi, type ApiBankTransaction, type BankReviewCategory, type TransactionReview } from '../../api/banking.api';
+import { bankingApi, type ApiBankTransaction, type BankBudgetCategory, type BankReviewCategory, type TransactionReview } from '../../api/banking.api';
 import { ApiError } from '../../api/client';
 import { formatCents } from '../expenses/split';
 
-const CATEGORIES: { key: BankReviewCategory; label: string }[] = [
+const CATEGORIES: { key: BankBudgetCategory; label: string }[] = [
   { key: 'dining', label: 'Dining' }, { key: 'groceries', label: 'Groceries' },
   { key: 'transit', label: 'Transit' }, { key: 'shopping', label: 'Shopping' }, { key: 'other', label: 'Other' },
 ];
@@ -11,7 +11,7 @@ type Filter = 'unreviewed' | 'excluded' | 'all';
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' }, { key: 'unreviewed', label: 'Needs category' }, { key: 'excluded', label: 'Excluded' },
 ];
-const labelFor = (key: BankReviewCategory | null) => CATEGORIES.find(item => item.key === key)?.label ?? 'Not categorized';
+const labelFor = (key: BankReviewCategory | null) => key === 'income' ? 'Income' : CATEGORIES.find(item => item.key === key)?.label ?? 'Not categorized';
 const message = (error: unknown) => error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'Unable to load transactions.';
 const dollars = (cents: number) => (cents / 100).toFixed(2);
 const cents = (value: string) => {
@@ -21,13 +21,14 @@ const cents = (value: string) => {
 };
 
 function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBankTransaction; onCancel: () => void; onSaved: (transaction: ApiBankTransaction) => void }) {
-  const [category, setCategory] = useState<BankReviewCategory>(transaction.category ?? 'other');
+  const [category, setCategory] = useState<BankBudgetCategory>(CATEGORIES.some(item => item.key === transaction.category) ? transaction.category as BankBudgetCategory : 'other');
+  const [income, setIncome] = useState(transaction.category === 'income');
   const [excluded, setExcluded] = useState(transaction.excluded);
   const [note, setNote] = useState(transaction.note ?? '');
   const [split, setSplit] = useState(transaction.splits.length > 0);
   const [parts, setParts] = useState(() => transaction.splits.length
     ? transaction.splits.map(item => ({ category: item.category, amount: dollars(item.amountCents) }))
-    : [{ category: 'dining' as BankReviewCategory, amount: '' }, { category: 'other' as BankReviewCategory, amount: '' }]);
+    : [{ category: 'dining' as BankBudgetCategory, amount: '' }, { category: 'other' as BankBudgetCategory, amount: '' }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const parsed = parts.map(part => ({ category: part.category, amountCents: cents(part.amount) }));
@@ -38,7 +39,7 @@ function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBank
     if (saving || !validSplit) return;
     setSaving(true); setError('');
     const review: TransactionReview = {
-      category: split || transaction.amountCents <= 0 ? null : category,
+      category: transaction.amountCents <= 0 ? (income ? 'income' : null) : split ? null : category,
       excluded,
       note: note.trim() || null,
       reviewed,
@@ -54,15 +55,17 @@ function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBank
       {transaction.linkedExpense && <p className="bank-linked-notice">Linked to “{transaction.linkedExpense.title}.” Its full bank charge is already replaced by your group share in the budget.</p>}
       <label className="review-check"><input type="checkbox" checked={excluded} disabled={saving || !!transaction.linkedExpense} onChange={event => { setExcluded(event.target.checked); if (event.target.checked) setSplit(false); }} />
         <span><strong>Exclude from budget</strong><small>Use for transfers, reimbursements, and duplicate charges.</small></span></label>
-      <label>CATEGORY<select value={category} disabled={saving || split || excluded || transaction.amountCents <= 0 || !!transaction.linkedExpense} onChange={event => setCategory(event.target.value as BankReviewCategory)}>
+      <label>CATEGORY<select value={category} disabled={saving || split || excluded || transaction.amountCents <= 0 || !!transaction.linkedExpense} onChange={event => setCategory(event.target.value as BankBudgetCategory)}>
         {CATEGORIES.map(item => <option value={item.key} key={item.key}>{item.label}</option>)}
       </select></label>
-      {transaction.amountCents <= 0 && <p className="bank-caption">Deposits and refunds do not count as budget spending. You can still add a note or exclude the transaction.</p>}
+      {transaction.amountCents <= 0 && <><label className="review-check"><input type="checkbox" checked={income} disabled={saving || excluded} onChange={event => setIncome(event.target.checked)} />
+        <span><strong>Count as income</strong><small>Turn this on for paychecks and other earned income. Leave refunds and transfers off.</small></span></label>
+        <p className="bank-caption">Deposits and refunds never count as spending. Only deposits marked as income appear in the income chart.</p></>}
       {transaction.amountCents > 0 && !transaction.linkedExpense && <label className="review-check"><input type="checkbox" checked={split} disabled={saving || excluded} onChange={event => setSplit(event.target.checked)} />
         <span><strong>Split across categories</strong><small>Every part must add up to {formatCents(transaction.amountCents)}.</small></span></label>}
       {split && !excluded && <div className="review-splits">
         {parts.map((part, index) => <div className="review-split-row" key={index}>
-          <select aria-label={`Split ${index + 1} category`} value={part.category} disabled={saving} onChange={event => setParts(parts.map((item, i) => i === index ? { ...item, category: event.target.value as BankReviewCategory } : item))}>
+          <select aria-label={`Split ${index + 1} category`} value={part.category} disabled={saving} onChange={event => setParts(parts.map((item, i) => i === index ? { ...item, category: event.target.value as BankBudgetCategory } : item))}>
             {CATEGORIES.map(item => <option value={item.key} key={item.key}>{item.label}</option>)}
           </select>
           <span>$</span><input aria-label={`Split ${index + 1} amount`} inputMode="decimal" placeholder="0.00" value={part.amount} disabled={saving} onChange={event => setParts(parts.map((item, i) => i === index ? { ...item, amount: event.target.value } : item))} />

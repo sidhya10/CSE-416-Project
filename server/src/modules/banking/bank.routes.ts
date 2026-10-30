@@ -10,6 +10,7 @@ const exchangeBody = z.object({ publicToken: z.string().min(1) });
 const linkTokenBody = z.object({ connectionId: z.string().min(1).optional() });
 const accountPatch = z.object({ nickname: z.string().trim().min(1).max(40).nullable().optional(), hidden: z.boolean().optional() });
 const category = z.enum(['dining', 'groceries', 'transit', 'shopping', 'other']);
+const reviewCategory = z.enum(['dining', 'groceries', 'transit', 'shopping', 'other', 'income']);
 const transactionQuery = z.object({
   query: z.string().trim().max(100).optional(),
   status: z.enum(['all', 'unreviewed', 'reviewed', 'excluded']).default('all'),
@@ -20,7 +21,7 @@ const expenseMatchQuery = z.object({
   merchant: z.string().trim().max(500).optional(),
 });
 const reviewBody = z.object({
-  category: category.nullable().default(null),
+  category: reviewCategory.nullable().default(null),
   excluded: z.boolean().default(false),
   note: z.string().trim().max(500).nullable().default(null),
   reviewed: z.boolean().default(true),

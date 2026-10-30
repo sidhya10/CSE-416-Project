@@ -14,6 +14,50 @@ const reviewedCategory = (row: { categoryOverride: string | null; category: stri
     ? row.categoryOverride as CategoryKey
     : categorize(row) ?? (NOT_SPENDING.has(row.category ?? '') ? null : 'other');
 
+type FinancialMonth = { month: string; spendingCents: number; incomeCents: number };
+const monthKey = (value: Date) => value.toISOString().slice(0, 7);
+const isIncome = (row: { categoryOverride: string | null; category: string | null }) =>
+  row.categoryOverride?.toLowerCase() === 'income' || row.category?.toUpperCase() === 'INCOME';
+
+async function financialActivity(userId: string, keys: string[], start?: Date, end?: Date) {
+  const date = start || end ? { ...(start ? { gte: start } : {}), ...(end ? { lt: end } : {}) } : undefined;
+  const [rows, shares, settlementTransactions] = await Promise.all([
+    prisma.bankTransaction.findMany({
+      where: { linkedExpense: null, settlementTransaction: null, autoExcludedReason: null, excluded: false,
+        ...(date ? { date } : {}), account: { hidden: false, connection: { userId } } },
+      select: { date: true, amountCents: true, category: true, categoryOverride: true, name: true, merchant: true, reviewSplits: { orderBy: { position: 'asc' } } },
+    }),
+    prisma.expenseShare.findMany({ where: { userId, ...(date ? { expense: { expenseDate: date } } : {}) }, select: {
+      totalCents: true, payments: { where: { status: { not: 'ISSUE' }, personalSettlementTransactionId: { not: null } }, select: { amountCents: true } }, expense: { select: { expenseDate: true } },
+    } }),
+    prisma.personalSettlementTransaction.findMany({ where: { userId, ...(date ? { sentAt: date } : {}), payments: { some: { status: { not: 'ISSUE' } } } }, select: {
+      sentAt: true, payments: { where: { status: { not: 'ISSUE' } }, select: { amountCents: true } },
+    } }),
+  ]);
+  const months = new Map(keys.map(key => [key, { month: key, spendingCents: 0, incomeCents: 0 } satisfies FinancialMonth]));
+  for (const row of rows) {
+    const month = months.get(monthKey(row.date));
+    if (!month) continue;
+    // Plaid reports money leaving an account as positive and deposits as negative.
+    if (row.amountCents > 0) {
+      if (row.reviewSplits.length) month.spendingCents += row.reviewSplits.reduce((sum, split) => sum + split.amountCents, 0);
+      else if (reviewedCategory(row)) month.spendingCents += row.amountCents;
+    } else if (row.amountCents < 0 && isIncome(row)) month.incomeCents += -row.amountCents;
+  }
+  for (const share of shares) {
+    const month = months.get(monthKey(share.expense.expenseDate));
+    if (month) month.spendingCents += Math.max(0, share.totalCents - share.payments.reduce((sum, payment) => sum + payment.amountCents, 0));
+  }
+  for (const settlement of settlementTransactions) {
+    const month = months.get(monthKey(settlement.sentAt));
+    if (month) month.spendingCents += settlement.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
+  }
+  const activityDates = [
+    ...rows.map(row => row.date), ...shares.map(share => share.expense.expenseDate), ...settlementTransactions.map(item => item.sentAt),
+  ];
+  return { months, activityDates };
+}
+
 /** This month's personal budget: category limits plus spending from the user's visible bank accounts. */
 export async function personalBudget(userId: string, now = new Date()) {
   const window = monthWindow(now);
@@ -167,47 +211,40 @@ export async function saveGroupPlan(userId: string, groupId: string, plannedCent
 /** What the Home tab needs beyond the budgets: monthly spending and income, payments awaiting confirmation, and the latest group expense. */
 export async function homeSummary(userId: string, now = new Date()) {
   const window = monthWindow(now);
-  const { keys, start } = recentMonths(now, 4);
+  const { keys, start } = recentMonths(now, 3);
   const inGroup = { memberships: { some: { userId } }, archivedAt: null };
-  const [rows, pending, latest, shares, settlementTransactions] = await Promise.all([
-    prisma.bankTransaction.findMany({
-      where: { linkedExpense: null, settlementTransaction: null, autoExcludedReason: null, date: { gte: start, lt: window.end }, account: { hidden: false, connection: { userId } } },
-      select: { id: true, date: true, amountCents: true, category: true, categoryOverride: true, excluded: true, name: true, merchant: true, reviewSplits: { orderBy: { position: 'asc' } } },
-    }),
+  const [activity, pending, latest] = await Promise.all([
+    financialActivity(userId, keys, start, window.end),
     prisma.expensePayment.findMany({ where: { status: 'SENT', share: { expense: { paidByUserId: userId, group: inGroup } } }, select: { amountCents: true } }),
     prisma.expense.findFirst({
       where: { group: inGroup }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { title: true, totalCents: true, createdAt: true, creator: { select: { id: true, name: true } }, group: { select: { name: true } } },
     }),
-    prisma.expenseShare.findMany({ where: { userId, expense: { expenseDate: { gte: start, lt: window.end } } }, select: {
-      totalCents: true, payments: { where: { status: { not: 'ISSUE' }, personalSettlementTransactionId: { not: null } }, select: { amountCents: true } }, expense: { select: { expenseDate: true } },
-    } }),
-    prisma.personalSettlementTransaction.findMany({ where: { userId, sentAt: { gte: start, lt: window.end }, payments: { some: { status: { not: 'ISSUE' } } } }, select: {
-      sentAt: true, payments: { where: { status: { not: 'ISSUE' } }, select: { amountCents: true } },
-    } }),
   ]);
-  const months = new Map(keys.map(key => [key, { month: key, spendingCents: 0, incomeCents: 0 }]));
-  for (const row of rows) {
-    const month = months.get(row.date.toISOString().slice(0, 7));
-    if (!month || row.excluded) continue;
-    // Money leaving an account is a positive Plaid amount; only deposits categorized as income count as income.
-    if (row.amountCents > 0) {
-      if (row.reviewSplits.length) month.spendingCents += row.reviewSplits.reduce((sum, split) => sum + split.amountCents, 0);
-      else if (reviewedCategory(row)) month.spendingCents += row.amountCents;
-    }
-    else if (row.category === 'INCOME') month.incomeCents += -row.amountCents;
-  }
-  for (const share of shares) {
-    const month = months.get(share.expense.expenseDate.toISOString().slice(0, 7));
-    if (month) month.spendingCents += Math.max(0, share.totalCents - share.payments.reduce((sum, payment) => sum + payment.amountCents, 0));
-  }
-  for (const settlement of settlementTransactions) {
-    const month = months.get(settlement.sentAt.toISOString().slice(0, 7));
-    if (month) month.spendingCents += settlement.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
-  }
   return {
-    history: keys.map(key => months.get(key)!),
+    history: keys.map(key => activity.months.get(key)!),
     pendingPayments: { count: pending.length, cents: pending.reduce((sum, payment) => sum + payment.amountCents, 0) },
     latestExpense: latest && { title: latest.title, groupName: latest.group.name, creatorName: latest.creator.name, isYou: latest.creator.id === userId, totalCents: latest.totalCents, createdAt: latest.createdAt.toISOString() },
+  };
+}
+
+/** Complete spending and income history, grouped into calendar years with all twelve months present. */
+export async function spendingIncomeHistory(userId: string, now = new Date()) {
+  const currentYear = now.getUTCFullYear();
+  const provisionalKeys = Array.from({ length: 12 }, (_, index) => `${currentYear}-${String(index + 1).padStart(2, '0')}`);
+  const firstPass = await financialActivity(userId, provisionalKeys);
+  const earliestYear = firstPass.activityDates.length
+    ? Math.min(...firstPass.activityDates.map(value => value.getUTCFullYear()), currentYear)
+    : currentYear;
+  const keys = Array.from({ length: (currentYear - earliestYear + 1) * 12 }, (_, index) => {
+    const year = earliestYear + Math.floor(index / 12), month = index % 12 + 1;
+    return `${year}-${String(month).padStart(2, '0')}`;
+  });
+  const activity = await financialActivity(userId, keys);
+  return {
+    years: Array.from({ length: currentYear - earliestYear + 1 }, (_, offset) => currentYear - offset).map(year => ({
+      year,
+      months: Array.from({ length: 12 }, (_, index) => activity.months.get(`${year}-${String(index + 1).padStart(2, '0')}`)!),
+    })),
   };
 }
