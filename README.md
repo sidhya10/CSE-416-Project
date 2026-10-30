@@ -159,7 +159,7 @@ The following product concepts are planned or incomplete and should not be treat
 - **Payer fairness:** The app shows how much each member paid, owes, or is owed, but it does not recommend who should pay next or rotate the payer across a group.
 - **Offline support:** There is no IndexedDB write queue, offline draft persistence, or service worker.
 - **Installable PWA support:** The interface is responsive, but a web app manifest and service worker are not configured.
-- **External notifications:** In-app settlement notices exist, but Web Push and email fallback are not implemented.
+- **External notifications:** In-app settlement notices and a weekly summary email (see [Weekly summary email](docs/weekly-email.md)) exist, but Web Push, email reminders, and a way for users to opt out of the weekly email are not implemented.
 - **Live server events:** The client refreshes relevant data periodically and when the browser tab becomes visible. Server-Sent Events are not implemented.
 - **Persistent trip planning:** Planned trip expenses and private trip budgets are local preview state.
 - **Invitation acceptance:** Adding a group member currently grants membership immediately; there is no pending invite/accept flow.
@@ -318,6 +318,7 @@ GitHub Actions installs dependencies, validates Prisma, applies migrations to Po
 
 - [Budget backend](docs/budget-backend.md)
 - [Bank connections (Plaid)](docs/banking-backend.md)
+- [Weekly summary email](docs/weekly-email.md)
 - [Expense persistence](docs/expense-backend.md)
 - [Current-period settlements](docs/period-settlements.md)
 - [Recurring bills and archives](docs/recurring-and-archives.md)

@@ -29,6 +29,7 @@ model User {
   bankConnections       BankConnection[]
   categoryLimits        CategoryLimit[]
   whatIfScenarios       WhatIfScenario[]
+  weeklyEmails          WeeklyEmailSend[]
   createdExpenses       Expense[]            @relation("ExpenseCreator")
   paidExpenses          Expense[]            @relation("ExpensePayer")
   expenseShares         ExpenseShare[]
@@ -403,6 +404,22 @@ model CategoryLimit {
 
 // A named set of category limits saved from the What-if simulator. `limits` maps category keys to
 // monthly limits in cents. It never changes the real budget; applying a scenario writes CategoryLimit rows.
+// One row per user per scheduled Friday send. The unique key is what keeps a restart or a second API
+// instance from emailing the same person twice. Status is SENDING, SENT, SKIPPED (nothing to report) or FAILED.
+model WeeklyEmailSend {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sendDate  DateTime @db.Date
+  status    String
+  attempts  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, sendDate])
+  @@index([sendDate, status])
+}
+
 model WhatIfScenario {
   id        String   @id @default(cuid())
   userId    String

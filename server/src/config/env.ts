@@ -19,6 +19,12 @@ const envSchema = z.object({
   RESEND_API_KEY: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   PASSWORD_RESET_FROM: z.preprocess(value => value || undefined, z.string().min(3).optional()),
   PASSWORD_RESET_REPLY_TO: z.preprocess(value => value || undefined, z.email().optional()),
+  // Weekly summary email. Off unless WEEKLY_EMAIL_ENABLED=true; it reuses RESEND_API_KEY and, without its own From, PASSWORD_RESET_FROM.
+  WEEKLY_EMAIL_ENABLED: z.preprocess(value => String(value ?? '').trim().toLowerCase() === 'true', z.boolean()),
+  WEEKLY_EMAIL_FROM: z.preprocess(value => value || undefined, z.string().min(3).optional()),
+  WEEKLY_EMAIL_REPLY_TO: z.preprocess(value => value || undefined, z.email().optional()),
+  // Comma-separated addresses. When set, only these users are emailed, which is how to test safely.
+  WEEKLY_EMAIL_ONLY: z.preprocess(value => value || undefined, z.string().optional()),
   PLAID_CLIENT_ID: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   PLAID_SECRET: z.preprocess(value => value || undefined, z.string().min(1).optional()),
   PLAID_ENV: z.enum(['sandbox', 'production']).default('sandbox'),

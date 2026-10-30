@@ -7,6 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "weekly-email:test": "tsx scripts/send-weekly-test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
