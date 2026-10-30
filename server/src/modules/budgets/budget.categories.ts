@@ -9,7 +9,11 @@ export const MAX_SCENARIO_NAME_LENGTH = 40;
 
 // Plaid primary categories that are money moving between the user's own accounts, income,
 // or loan/credit-card payments. Counting them would double count the spending they pay for.
-const NOT_SPENDING = new Set(['INCOME', 'TRANSFER_IN', 'TRANSFER_OUT', 'LOAN_PAYMENTS']);
+export const NOT_SPENDING = new Set(['INCOME', 'TRANSFER_IN', 'TRANSFER_OUT', 'LOAN_PAYMENTS']);
+const OTHER_SPENDING = new Set([
+  'BANK_FEES', 'ENTERTAINMENT', 'GENERAL_SERVICES', 'GOVERNMENT_AND_NON_PROFIT',
+  'HOME_IMPROVEMENT', 'MEDICAL', 'PERSONAL_CARE', 'RENT_AND_UTILITIES', 'TRAVEL',
+]);
 // Only the primary Plaid category is stored, so groceries are told apart from dining by merchant.
 const GROCERY_MERCHANT = /grocer|supermarket|trader joe|whole foods|safeway|kroger|aldi|publix|wegmans|sprouts|farmers? market/i;
 
@@ -22,8 +26,19 @@ export function categorize(transaction: CategorizableTransaction): CategoryKey |
     case 'FOOD_AND_DRINK': return GROCERY_MERCHANT.test(`${transaction.merchant ?? ''} ${transaction.name}`) ? 'groceries' : 'dining';
     case 'TRANSPORTATION': return 'transit';
     case 'GENERAL_MERCHANDISE': return 'shopping';
-    default: return 'other';
+    default: return transaction.category && OTHER_SPENDING.has(transaction.category) ? 'other' : null;
   }
+}
+
+/** Only positive spending that neither Plaid nor our deterministic rules can categorize needs review. */
+export function requiresCategoryReview(transaction: CategorizableTransaction & { amountCents: number }) {
+  return transaction.amountCents > 0 && !NOT_SPENDING.has(transaction.category ?? '') && categorize(transaction) === null;
+}
+
+const CARD_PAYMENT = /\b(?:credit card payment|card payment|payment thank you|autopay payment)\b/i;
+export function automaticExclusionReason(transaction: CategorizableTransaction) {
+  return CARD_PAYMENT.test(`${transaction.merchant ?? ''} ${transaction.name}`)
+    ? 'CREDIT_CARD_PAYMENT' : null;
 }
 
 export type MonthWindow = { month: string; start: Date; end: Date; daysInMonth: number; daysLeft: number };

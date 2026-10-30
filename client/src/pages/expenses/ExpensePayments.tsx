@@ -1,14 +1,16 @@
 import Avatar from '../../components/common/Avatar';
 import { formatCents, type PreviewSplit, type SplitMember } from './split';
 import { paymentFor, type PaymentAction } from './payments';
+import { useState } from 'react';
 import './payments.css';
 
 const timestamp = (date?: string) => date ? new Date(date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
 export default function ExpensePayments({ split, members, groupName, currentUserId = 'you', busy = false, onAction }: {
   split: PreviewSplit; members: SplitMember[]; groupName: string; currentUserId?: string; busy?: boolean;
-  onAction: (memberId: string, action: PaymentAction) => void;
+  onAction: (memberId: string, action: PaymentAction, method?: string) => void;
 }) {
+  const [method, setMethod] = useState('Zelle');
   const name = (id: string) => id === 'you' ? 'You' : members.find(member => member.id === id)?.name.split(' ')[0] ?? 'Member';
   const isPayer = currentUserId === split.payerId;
   const payerName = name(split.payerId);
@@ -49,7 +51,7 @@ export default function ExpensePayments({ split, members, groupName, currentUser
         <p>{own.status === 'Awaiting receipt' ? 'You reported sending' : own.status === 'Settled' ? `Paid to ${payerName}` : own.status === 'Payment issue' ? `${payerName} has not received` : own.status === 'No payment needed' ? 'You have no amount to reimburse' : `You owe ${payerName}`}</p>
         <strong className="payment-amount">{formatCents(own.record?.pendingCents || (own.status === 'Settled' ? own.received : own.remaining))}</strong>
         <p>{own.status === 'Awaiting receipt' ? `${payerName} will confirm when your payment arrives. Your balance stays open until then.` : own.status === 'Settled' ? `${payerName} confirmed receipt. You have $0.00 left to pay for this expense.` : own.status === 'Payment issue' ? `Check the recipient and payment details with ${payerName} before sending any more money.` : own.status === 'No payment needed' ? 'No payment is required for this expense.' : `Pay ${payerName} outside the app, then mark your payment as sent.`}</p>
-        {(own.status === 'Not sent' || own.status === 'Payment issue') && own.remaining > 0 && <button type="button" className="primary-button" disabled={busy} onClick={() => onAction(currentUserId, 'sent')}>Confirm payment</button>}
+        {(own.status === 'Not sent' || own.status === 'Payment issue') && own.remaining > 0 && <><label className="payment-method">How did you send it?<select aria-label="Payment method" value={method} onChange={event => setMethod(event.target.value)}><option>Zelle</option><option>Venmo</option><option>Cash App</option><option>Cash</option><option>Other</option></select></label><button type="button" className="primary-button" disabled={busy} onClick={() => onAction(currentUserId, 'sent', method)}>Confirm payment</button></>}
         {own.received > own.share && <p>Overpaid by {formatCents(own.received - own.share)} after expense edits. Arrange any refund with {payerName}.</p>}
       </section>
       <section className="details-card payment-card payment-progress" aria-label="Payment progress"><h2>Payment progress</h2>

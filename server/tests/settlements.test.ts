@@ -15,6 +15,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await prisma.expensePayment.deleteMany({ where: { share: { expense: { groupId: { in: groups } } } } });
+  await prisma.personalSettlementTransaction.deleteMany({ where: { groupId: { in: groups } } });
   await prisma.expense.deleteMany({ where: { groupId: { in: groups } } });
   await prisma.group.deleteMany({ where: { id: { in: groups } } });
   await prisma.user.deleteMany({ where: { id: { in: ids } } });
@@ -96,6 +97,13 @@ it('reports how money was sent atomically across expenses, confirms only as reci
   expect(pair).toMatchObject({ pendingCents: 3000, confirmedCents: 0, unreportedCents: 0 });
   expect(pair.pendingPayments).toHaveLength(2);
   expect(pair.pendingPayments.every((p: { method: string }) => p.method === 'Venmo')).toBe(true);
+  const personalPayment = await prisma.personalSettlementTransaction.findUniqueOrThrow({ where: { userId_requestKey: { userId: ids[1]!, requestKey: `period:${batchId}:${payload.clientRequestId}` } } });
+  expect(personalPayment).toMatchObject({ userId: ids[1], recipientUserId: ids[0], groupId: id, amountCents: 3000, method: 'Venmo', bankTransactionId: null });
+  expect(await prisma.expensePayment.count({ where: { personalSettlementTransactionId: personalPayment.id } })).toBe(2);
+  const personalTransactions = (await member!.get('/api/banking/transactions?status=all').expect(200)).body.transactions;
+  expect(personalTransactions).toContainEqual(expect.objectContaining({ source: 'group_payment', amountCents: 3000, merchant: 'Current period repayment', groupPayment: expect.objectContaining({ method: 'Venmo', groupId: id }) }));
+  const personalBudget = await member!.get('/api/budgets/personal').expect(200);
+  expect(personalBudget.body.categories.reduce((sum: number, category: { spentCents: number }) => sum + category.spentCents, 0)).toBe(3000);
   await member!.post(`/api/settlements/${batchId}/payments`).send({ ...payload, clientRequestId: randomUUID() }).expect(409);
   const sentNotices = await prisma.settlementNotice.findMany({ where: { batchId, kind: 'PAYMENT_SENT' } });
   expect(sentNotices).toHaveLength(1);

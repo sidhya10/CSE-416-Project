@@ -9,8 +9,9 @@ export type BankReviewCategory = 'dining' | 'groceries' | 'transit' | 'shopping'
 export type ApiBankTransaction = {
   id: string; accountId: string; accountName: string; institution: string; merchant: string; name: string;
   date: string; amountCents: number; pending: boolean; providerCategory: string | null;
-  category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean; reviewedAt: number | null;
+  source?: 'bank' | 'group_payment'; category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean; needsReview?: boolean; reviewedAt: number | null;
   linkedExpense: { id: string; title: string } | null;
+  groupPayment?: { id: string; groupId: string; groupName: string; recipientName: string; method: string } | null;
   splits: { id: string; category: BankReviewCategory; amountCents: number }[];
 };
 export type TransactionReview = {

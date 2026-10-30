@@ -136,9 +136,9 @@ describe('App account integration', () => {
     await screen.findByRole('heading', { name: homeGreeting });
     await waitFor(() => expect(document.querySelector('.tab-review-badge')).toHaveTextContent('1'));
     const todos = await screen.findByRole('region', { name: 'Your to-dos' });
-    const transactionTodo = within(todos).getByText('Review 1 transaction');
+    const transactionTodo = within(todos).getByText('Categorize 1 transaction');
     fireEvent.click(transactionTodo.closest('.home-todo-row')!.querySelector('button')!);
-    expect(await screen.findByRole('heading', { name: 'Review transactions' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Transactions' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.findByRole('heading', { name: 'Personal budget' })).toBeInTheDocument();

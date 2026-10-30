@@ -7,10 +7,9 @@ const CATEGORIES: { key: BankReviewCategory; label: string }[] = [
   { key: 'dining', label: 'Dining' }, { key: 'groceries', label: 'Groceries' },
   { key: 'transit', label: 'Transit' }, { key: 'shopping', label: 'Shopping' }, { key: 'other', label: 'Other' },
 ];
-type Filter = 'unreviewed' | 'reviewed' | 'excluded' | 'all';
+type Filter = 'unreviewed' | 'excluded' | 'all';
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'unreviewed', label: 'To review' }, { key: 'reviewed', label: 'Reviewed' },
-  { key: 'excluded', label: 'Excluded' }, { key: 'all', label: 'All' },
+  { key: 'all', label: 'All' }, { key: 'unreviewed', label: 'Needs category' }, { key: 'excluded', label: 'Excluded' },
 ];
 const labelFor = (key: BankReviewCategory | null) => CATEGORIES.find(item => item.key === key)?.label ?? 'Not categorized';
 const message = (error: unknown) => error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'Unable to load transactions.';
@@ -78,15 +77,15 @@ function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBank
       <label>NOTE<textarea maxLength={500} value={note} disabled={saving} placeholder="Optional note" onChange={event => setNote(event.target.value)} /></label>
       {error && <p className="form-notice" role="alert">{error}</p>}
       <div className="review-dialog-actions">
-        <button type="button" disabled={saving} onClick={() => void save(false)}>Mark unreviewed</button>
-        <button type="button" disabled={saving || !validSplit} onClick={() => void save(true)}>{saving ? 'Saving…' : 'Save review'}</button>
+        <button type="button" disabled={saving} onClick={onCancel}>Cancel</button>
+        <button type="button" disabled={saving || !validSplit} onClick={() => void save(true)}>{saving ? 'Saving…' : 'Save changes'}</button>
       </div>
     </div>
   </div>;
 }
 
 export default function TransactionReviewCenter({ onBack, onUnreviewedDelta }: { onBack: () => void; onUnreviewedDelta?: (delta: number) => void }) {
-  const [filter, setFilter] = useState<Filter>('unreviewed');
+  const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [transactions, setTransactions] = useState<ApiBankTransaction[]>([]);
   const [selected, setSelected] = useState<ApiBankTransaction | null>(null);
@@ -111,25 +110,24 @@ export default function TransactionReviewCenter({ onBack, onUnreviewedDelta }: {
     if (wasUnreviewed !== isUnreviewed) onUnreviewedDelta?.(isUnreviewed ? 1 : -1);
     setSelected(null);
     const belongs = filter === 'all' || filter === 'excluded' && transaction.excluded
-      || filter === 'reviewed' && transaction.reviewed && !transaction.excluded
       || filter === 'unreviewed' && !transaction.reviewed && !transaction.excluded;
     setTransactions(previous => belongs ? previous.map(item => item.id === transaction.id ? transaction : item) : previous.filter(item => item.id !== transaction.id));
   };
 
   return <main className="banking-workspace review-workspace">
     <header className="bank-header"><button type="button" aria-label="Back" onClick={onBack}>‹</button>
-      <div><h1>Review transactions</h1><p>Confirm categories before they shape your budget</p></div></header>
+      <div><h1>Transactions</h1><p>All visible bank activity and recorded group repayments</p></div></header>
     <input className="review-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search merchant, account, or note" aria-label="Search transactions" />
     <div className="review-filters" role="group" aria-label="Transaction status">
       {FILTERS.map(item => <button type="button" key={item.key} className={filter === item.key ? 'active' : ''} onClick={() => setFilter(item.key)}>{item.label}</button>)}
     </div>
     {loading && <p className="bank-caption" role="status">Loading transactions…</p>}
-    {!loading && !error && transactions.length === 0 && <section className="review-empty"><strong>{filter === 'unreviewed' ? 'You are all caught up' : 'No matching transactions'}</strong><p>{filter === 'unreviewed' ? 'Newly synchronized charges will appear here.' : 'Try another filter or search.'}</p></section>}
+    {!loading && !error && transactions.length === 0 && <section className="review-empty"><strong>{filter === 'unreviewed' ? 'Everything is categorized' : 'No matching transactions'}</strong><p>{filter === 'unreviewed' ? 'Only transactions the app could not categorize automatically appear here.' : 'Try another filter or search.'}</p></section>}
     {error && <p className="form-notice" role="alert">{error}</p>}
     <div className="review-list">
-      {transactions.map(transaction => <button type="button" className="review-card" key={transaction.id} onClick={() => setSelected(transaction)}>
+      {transactions.map(transaction => <button type="button" className="review-card" key={transaction.id} aria-disabled={transaction.source === 'group_payment'} onClick={() => { if (transaction.source !== 'group_payment') setSelected(transaction); }}>
         <span className="review-card-main"><strong>{transaction.merchant}</strong><small>{transaction.institution} · {transaction.accountName} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</small>
-          <span className="review-badges">{transaction.pending && <em>Pending</em>}{transaction.linkedExpense && <em>Linked expense</em>}{transaction.excluded ? <em>Excluded</em> : transaction.splits.length ? <em>{transaction.splits.length} category split</em> : <em>{labelFor(transaction.category)}</em>}{transaction.reviewed && <em>Reviewed</em>}</span>
+          <span className="review-badges">{transaction.pending && <em>Pending</em>}{transaction.linkedExpense && <em>Linked expense</em>}{transaction.groupPayment && <em>{transaction.groupPayment.method} · {transaction.groupPayment.groupName}</em>}{transaction.excluded ? <em>Excluded</em> : transaction.splits.length ? <em>{transaction.splits.length} category split</em> : <em>{labelFor(transaction.category)}</em>}{transaction.needsReview && <em>Needs category</em>}</span>
           {transaction.note && <small className="review-note">{transaction.note}</small>}</span>
         <span className={transaction.amountCents < 0 ? 'review-amount income' : 'review-amount'}>{formatCents(transaction.amountCents)}</span>
       </button>)}

@@ -13,7 +13,7 @@ import './details.css';
 type Expense = { title: string; subtitle: string; amount: string; split?: PreviewSplit };
 
 export default function ExpenseDetails({ expense, groupName, members, onBack, onEdit, onPaymentAction, onPaymentViewChange, initialBudgetOpen = false, highlightBudget = false }: { highlightBudget?: boolean; initialBudgetOpen?: boolean;
-  expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction) => void | Promise<void>; onPaymentViewChange: (visible: boolean) => void;
+  expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction, method?: string) => void | Promise<void>; onPaymentViewChange: (visible: boolean) => void;
 }) {
   const [budgetSetupSaved, setBudgetSetupSaved] = useState(false);
   const emphasizeBudget = highlightBudget && !budgetSetupSaved;
@@ -38,10 +38,10 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
         <button type="button" aria-pressed={!paymentsOpen} onClick={() => changeTab(false)}>Details</button>
         <button type="button" aria-pressed={paymentsOpen} onClick={paymentNotice}>Payments</button>
       </div>
-      {paymentsOpen && split ? <ExpensePayments split={split} groupName={groupName} members={members} busy={paymentBusy} onAction={async (memberId, action) => {
+      {paymentsOpen && split ? <ExpensePayments split={split} groupName={groupName} members={members} busy={paymentBusy} onAction={async (memberId, action, method) => {
         if (paymentBusy) return;
         setPaymentBusy(true); setNotice('');
-        try { await onPaymentAction(memberId, action); }
+        try { await onPaymentAction(memberId, action, method); }
         catch (error) { setNotice(error instanceof Error ? error.message : 'Could not update payment. Please retry.'); }
         finally { setPaymentBusy(false); }
       }} /> : <>

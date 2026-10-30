@@ -10,6 +10,7 @@
 .expense-body input:not([type=radio]):not([type=file]){width:100%;min-width:0;height:44px;padding:0 16px;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--text);font-size:14px}
 .expense-details{display:flex;flex-direction:column;gap:4px}
 .expense-details>label{font-size:10px;font-weight:600;line-height:14px;color:var(--muted)}
+.expense-details .expense-date{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px;margin-top:10px;font-size:12px}.expense-date span{font-weight:400}.expense-date input{grid-column:1/-1;min-height:44px;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font:inherit}.expense-date-help{color:var(--muted);font-size:11px;line-height:1.45}
 .expense-outline{display:flex;justify-content:center;align-items:center;min-height:52px;width:100%;padding:8px;border:1px solid var(--accent);border-radius:16px;background:var(--surface);color:var(--accent);font-size:14px;font-weight:600}
 .expense-receipt{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:17px;background:var(--soft-green)}
 .expense-receipt h2{color:var(--accent);font-size:14px;line-height:18px}

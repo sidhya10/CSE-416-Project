@@ -12,7 +12,7 @@ const accountPatch = z.object({ nickname: z.string().trim().min(1).max(40).nulla
 const category = z.enum(['dining', 'groceries', 'transit', 'shopping', 'other']);
 const transactionQuery = z.object({
   query: z.string().trim().max(100).optional(),
-  status: z.enum(['all', 'unreviewed', 'reviewed', 'excluded']).default('unreviewed'),
+  status: z.enum(['all', 'unreviewed', 'reviewed', 'excluded']).default('all'),
 });
 const expenseMatchQuery = z.object({
   amountCents: z.coerce.number().int().positive().max(2_000_000_000),

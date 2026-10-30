@@ -110,7 +110,7 @@ describe('bank connections', () => {
   it('lists private transactions and saves categories, exclusions, notes, and exact category splits', async () => {
     const transaction = await prisma.bankTransaction.findFirstOrThrow({ where: { account: { connection: { userId: userIds[0] } } } });
     const listed = await owner.get('/api/banking/transactions').expect(200);
-    expect(listed.body.transactions).toContainEqual(expect.objectContaining({ id: transaction.id, reviewed: false, category: 'dining', excluded: false }));
+    expect(listed.body.transactions).toContainEqual(expect.objectContaining({ id: transaction.id, reviewed: true, needsReview: false, category: 'dining', excluded: false }));
     await other.get('/api/banking/transactions').expect(200).expect(response => expect(response.body.transactions).toEqual([]));
     await other.put(`/api/banking/transactions/${transaction.id}/review`).send({ category: 'shopping', excluded: false, reviewed: true, note: null, splits: [] }).expect(404);
 
@@ -159,6 +159,20 @@ describe('bank connections', () => {
     await owner.post('/api/auth/logout').expect(204);
     plaidMock.transactionsSync.mockRejectedValueOnce(new Error('temporary Plaid outage'));
     await owner.post('/api/auth/login').send({ identifier: `bank_0_${run}`, password: 'password1' }).expect(200);
+  });
+
+  it('only asks for uncategorized spending and hides credit-card payoff transactions', async () => {
+    plaidMock.transactionsSync.mockResolvedValue({ data: { added: [
+      tx('uncategorized', 19, { name: 'Mystery purchase', merchant_name: null, personal_finance_category: null }),
+      tx('card-payment', 250, { name: 'AUTOPAY PAYMENT - THANK YOU', merchant_name: null, personal_finance_category: { primary: 'LOAN_PAYMENTS' } }),
+    ], modified: [], removed: [], next_cursor: 'category-cursor', has_more: false } });
+    await owner.post('/api/banking/sync').expect(200);
+    const needsCategory = await owner.get('/api/banking/transactions').query({ status: 'unreviewed' }).expect(200);
+    expect(needsCategory.body.transactions).toContainEqual(expect.objectContaining({ merchant: 'Mystery purchase', needsReview: true, reviewed: false }));
+    const all = await owner.get('/api/banking/transactions').query({ status: 'all' }).expect(200);
+    expect(all.body.transactions.some((item: { name: string }) => item.name.includes('AUTOPAY'))).toBe(false);
+    const hidden = await prisma.bankTransaction.findUniqueOrThrow({ where: { plaidTransactionId: `card-payment-${run}` } });
+    expect(hidden).toMatchObject({ excluded: true, autoExcludedReason: 'CREDIT_CARD_PAYMENT', needsReview: false });
   });
 
   it('flags a connection that needs re-authentication and restores it afterwards', async () => {

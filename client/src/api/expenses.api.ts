@@ -62,6 +62,6 @@ export const expensesApi = {
   get: (id: string) => apiRequest<{ expense: ApiExpense }>(`/expenses/${id}`),
   create: (groupId: string, split: PreviewSplit, userId: string, clientRequestId: string) => apiRequest<{ expense: ApiExpense }>(`/groups/${groupId}/expenses`, { method: 'POST', body: JSON.stringify({ clientRequestId, expense: toExpenseInput(split, userId) }) }),
   edit: (split: PreviewSplit, userId: string, id: string, version: number) => apiRequest<{ expense: ApiExpense }>(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify({ version, expense: toExpenseInput(split, userId) }) }),
-  send: (id: string, amountCents: number, clientRequestId: string) => apiRequest(`/expenses/${id}/payments`, { method: 'POST', body: JSON.stringify({ amountCents, clientRequestId }) }),
+  send: (id: string, amountCents: number, clientRequestId: string, paymentMethod = 'Other') => apiRequest(`/expenses/${id}/payments`, { method: 'POST', body: JSON.stringify({ amountCents, clientRequestId, method: paymentMethod }) }),
   resolve: (id: string, paymentId: string, status: 'CONFIRMED' | 'ISSUE') => apiRequest(`/expenses/${id}/payments/${paymentId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 };

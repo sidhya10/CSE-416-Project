@@ -6,7 +6,7 @@ const uniqueIds = z.array(id).min(1).max(100).refine(ids => new Set(ids).size ==
 export const expenseInput = z.object({
   receipt: z.object({ name: z.string().trim().min(1).max(255), mimeType: z.enum(['image/jpeg', 'application/pdf']), base64: z.string().max(5_592_408) }).strict().nullable().optional(),
   title: z.string().trim().min(1).max(500),
-  expenseDate: z.iso.date(),
+  expenseDate: z.iso.date().optional(),
   budgetCategory: z.enum(['dining', 'groceries', 'transit', 'shopping', 'other']).optional(),
   bankTransactionId: id.nullable().optional(),
   paidByUserId: id,
