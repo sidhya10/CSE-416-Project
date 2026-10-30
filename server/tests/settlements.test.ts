@@ -86,6 +86,8 @@ it('rejects stale previews and concurrent initialization cannot double-charge ex
   expect(await prisma.settlementShare.count({ where: { batch: { groupId: id } } })).toBe(4);
 });
 it('reports how money was sent atomically across expenses, confirms only as recipient and does not count it twice', async () => {
+  const priorBudget = await member!.get('/api/budgets/personal').expect(200);
+  const priorSpending = priorBudget.body.categories.reduce((sum: number, category: { spentCents: number }) => sum + category.spentCents, 0);
   const id = await group(); await expense(id); await expense(id, 'Taxi', ids[0]!, 3000);
   const batch = (await initialize(id)).body.batch;
   const batchId = batch.id as string;
@@ -103,7 +105,8 @@ it('reports how money was sent atomically across expenses, confirms only as reci
   const personalTransactions = (await member!.get('/api/banking/transactions?status=all').expect(200)).body.transactions;
   expect(personalTransactions).toContainEqual(expect.objectContaining({ source: 'group_payment', amountCents: 3000, merchant: 'Current period repayment', groupPayment: expect.objectContaining({ method: 'Venmo', groupId: id }) }));
   const personalBudget = await member!.get('/api/budgets/personal').expect(200);
-  expect(personalBudget.body.categories.reduce((sum: number, category: { spentCents: number }) => sum + category.spentCents, 0)).toBe(3000);
+  // The two new shares total $30. The reported repayment must not add another $30.
+  expect(personalBudget.body.categories.reduce((sum: number, category: { spentCents: number }) => sum + category.spentCents, 0)).toBe(priorSpending + 3000);
   await member!.post(`/api/settlements/${batchId}/payments`).send({ ...payload, clientRequestId: randomUUID() }).expect(409);
   const sentNotices = await prisma.settlementNotice.findMany({ where: { batchId, kind: 'PAYMENT_SENT' } });
   expect(sentNotices).toHaveLength(1);
