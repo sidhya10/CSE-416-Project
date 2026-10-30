@@ -10,7 +10,7 @@ describe('group and friend filter controls', () => {
       { id: 'one', name: 'Apartment', description: 'Bills', type: 'General', members: ['alex'], color: 'green', photo: null, startDate: '', endDate: '', balance: -30, amountOwesCents: 3000, hasUnresolved: true, privateBudget: null, plans: [], bills: [] },
       { id: 'two', name: 'Solo', description: '', type: 'General', members: [], color: 'gold', photo: null, startDate: '', endDate: '', balance: 0, privateBudget: null, plans: [], bills: [] },
     ]} />);
-    fireEvent.click(screen.getByText('Filter and sort groups'));
+    fireEvent.click(screen.getByRole('button', { name: 'Filter and sort groups' }));
     fireEvent.change(screen.getByLabelText('With friend'), { target: { value: 'alex' } });
     expect(screen.getByRole('group', { name: 'Apartment' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Solo' })).not.toBeInTheDocument();
@@ -34,6 +34,7 @@ describe('group and friend filter controls', () => {
       await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining(`query=${encodeURIComponent(query)}&field=all&sort=name`), expect.anything()));
     }
     expect(screen.queryByLabelText('Search field')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sort people' }));
     fireEvent.change(screen.getByLabelText('Sort people by'), { target: { value: 'username' } });
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('&field=all&sort=username'), expect.anything()));
   });

@@ -133,7 +133,7 @@ export async function suggestExpenseMatches(userId: string, input: ExpenseMatchI
 
 export type TransactionReviewStatus = 'all' | 'unreviewed' | 'reviewed' | 'excluded';
 export type TransactionReviewPatch = {
-  category: CategoryKey | null;
+  category: CategoryKey | 'income' | null;
   excluded: boolean;
   note: string | null;
   reviewed: boolean;
@@ -141,7 +141,9 @@ export type TransactionReviewPatch = {
 };
 
 const presentedCategory = (row: { categoryOverride: string | null; category: string | null; name: string; merchant: string | null }) =>
-  row.categoryOverride && CATEGORY_KEYS.includes(row.categoryOverride as CategoryKey)
+  row.categoryOverride?.toLowerCase() === 'income' || row.category?.toUpperCase() === 'INCOME'
+    ? 'income' as const
+    : row.categoryOverride && CATEGORY_KEYS.includes(row.categoryOverride as CategoryKey)
     ? row.categoryOverride as CategoryKey
     : categorize(row);
 
@@ -237,6 +239,8 @@ export async function listTransactions(userId: string, filters: { query?: string
 export async function reviewTransaction(userId: string, id: string, patch: TransactionReviewPatch) {
   const row = await prisma.bankTransaction.findFirst({ where: { id, account: { connection: { userId } } } });
   if (!row) throw new BankingError('Transaction not found', 404);
+  if (patch.category === 'income' && row.amountCents >= 0) throw new BankingError('Only deposits can be counted as income', 400);
+  if (row.amountCents <= 0 && patch.category && patch.category !== 'income') throw new BankingError('Deposits cannot use a spending category', 400);
   if (patch.splits.length) {
     if (row.amountCents <= 0) throw new BankingError('Only spending transactions can be split', 400);
     if (patch.splits.reduce((sum, split) => sum + split.amountCents, 0) !== row.amountCents) throw new BankingError('Split amounts must equal the transaction total', 400);

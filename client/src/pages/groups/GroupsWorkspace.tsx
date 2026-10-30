@@ -19,6 +19,7 @@ import { formatCents, type PreviewSplit } from '../expenses/split';
 import SplitSaved from '../expenses/SplitSaved';
 import ExpenseEntry from '../expenses/ExpenseEntry';
 import RunningTotalSplit from './RunningTotalSplit';
+import { ContactSelectionUnavailableError, selectContactIdentifiers } from '../../native/contactSelection';
 
 type GroupType = 'General' | 'Trip' | 'Recurring';
 type Friend = FriendUser & { handle: string; color: string };
@@ -135,6 +136,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const [editingMembers, setEditingMembers] = useState(false);
   const [memberSelectionSnapshot, setMemberSelectionSnapshot] = useState<string[]>([]);
   const [friendSort, setFriendSort] = useState('name');
+  const [groupFiltersOpen, setGroupFiltersOpen] = useState(false);
+  const [friendSortOpen, setFriendSortOpen] = useState(false);
   const [billBusy, setBillBusy] = useState(false);
   const [deletion, setDeletion] = useState<{ kind: 'group' | 'bill'; id: number | string; groupId: number | string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -370,19 +373,22 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not remove this friend.'); }
   };
   const matchContacts = async () => {
-    const contacts = (navigator as Navigator & { contacts?: { select: (properties: ('email' | 'tel')[], options: { multiple: boolean }) => Promise<{ email?: string[]; tel?: string[] }[]> } }).contacts;
-    if (!contacts) { setMessage('Contact matching is not supported by this browser. You can still search by name, username, email, or phone.'); return; }
     setPeopleLoading(true); setMessage('');
     try {
-      const selectedContacts = await contacts.select(['email', 'tel'], { multiple: true });
-      const result = await usersApi.matchContacts({
-        emails: selectedContacts.flatMap(contact => contact.email ?? []),
-        phones: selectedContacts.flatMap(contact => contact.tel ?? []),
-      });
+      const selectedContacts = await selectContactIdentifiers();
+      if (!selectedContacts) return;
+      if (!selectedContacts.emails.length && !selectedContacts.phones.length) {
+        setMessage('That contact does not have an email address or phone number to match.');
+        return;
+      }
+      const result = await usersApi.matchContacts(selectedContacts);
       setSearchResults(result.users.map(toFriend));
       if (!result.users.length) setMessage('No app accounts matched the contacts you selected.');
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (error instanceof ContactSelectionUnavailableError) {
+        setMessage('Contact matching is not supported by this browser. You can still search by name, username, email, or phone.');
+        return;
+      }
       setMessage(error instanceof ApiError ? error.message : 'Could not match your selected contacts.');
     } finally { setPeopleLoading(false); }
   };
@@ -565,7 +571,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     {(screen === 'list' || screen === 'archive') && <>
       {screen === 'archive' ? <Header title="Archived groups" back={() => go('list')} /> : <>
       <Header title="Groups" subtitle="Split, plan, and settle with people you trust" />
-      <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search groups" aria-label="Search groups" /></label>
+      <div className="group-search-row"><label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search groups" aria-label="Search groups" /></label><button className="group-filter-trigger" type="button" aria-label="Filter and sort groups" aria-expanded={groupFiltersOpen} onClick={() => setGroupFiltersOpen(true)}><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg></button></div>
       <div className="group-actions"><button type="button" onClick={() => go('friends')}>+&nbsp; Find friends</button><button type="button" onClick={startCreate}>+&nbsp; New group</button></div>
       <section className="group-balance" aria-label="Balance overview">
         <small>Across all groups</small>
@@ -578,7 +584,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
           <strong>{balanceMoney(youOwe)}</strong>
         </div>
       </section>
-      <details className="group-filters"><summary>Filter and sort groups</summary><div className="group-form filter-grid">
+      {groupFiltersOpen && <div className="group-filter-backdrop" role="presentation" onMouseDown={() => setGroupFiltersOpen(false)}><section className="group-filter-dialog" role="dialog" aria-modal="true" aria-labelledby="group-filter-title" onMouseDown={event => event.stopPropagation()}><header><div><h2 id="group-filter-title">Filter and sort</h2><p>Narrow your group list</p></div><button type="button" aria-label="Close filters" onClick={() => setGroupFiltersOpen(false)}>×</button></header><div className="group-form filter-grid">
         <label>Sort by<select value={filters.sort} onChange={event => setFilters({ ...filters, sort: event.target.value })}>
           <option value="activity">Most recently active</option><option value="created">Newest created</option><option value="accessed">Last accessed</option><option value="owe">Amount you owe</option><option value="owed">Amount owed to you</option></select></label>
         <label>Payment status<select value={filters.balance} onChange={event => setFilters({ ...filters, balance: event.target.value })}>
@@ -588,8 +594,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         {(['createdAfter', 'createdBefore', 'accessedAfter', 'accessedBefore'] as const).map(key => <label key={key}>{{createdAfter: 'Created from', createdBefore: 'Created through', accessedAfter: 'Accessed from', accessedBefore: 'Accessed through'}[key]}<input type="date" value={filters[key]} onChange={event => setFilters({ ...filters, [key]: event.target.value })} /></label>)}
         <label>Minimum amount ($)<input type="number" min="0" step="0.01" value={filters.minAmount} onChange={event => setFilters({ ...filters, minAmount: event.target.value })} /></label>
         <label>Maximum amount ($)<input type="number" min="0" step="0.01" value={filters.maxAmount} onChange={event => setFilters({ ...filters, maxAmount: event.target.value })} /></label>
-        <button type="button" onClick={() => { setFilters(defaultFilters); setQuery(''); }}>Clear filters</button>
-      </div><small>Unresolved splits stay first. Amount filters use your selected owed/owing direction, or the larger amount when viewing both.</small></details>
+        <button className="group-filter-clear" type="button" onClick={() => { setFilters(defaultFilters); setQuery(''); }}>Clear filters</button>
+      </div><small>Unresolved splits stay first. Amount filters use your selected owed/owing direction, or the larger amount when viewing both.</small><button className="group-primary group-filter-done" type="button" onClick={() => setGroupFiltersOpen(false)}>Show groups</button></section></div>}
       </>}
       {message && <p className="group-notice" role="status">{message}</p>}
       {screen === 'list' && !initialGroupsData && <SettlementInbox active={visible} onChanged={() => void refreshGroups()} />}
@@ -623,11 +629,10 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     </>}
     {screen === 'friends' && <>
       <Header title="Find friends" subtitle="Search by full name, username, email, or phone number" back={() => go('list')} />
-      <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, @username, email, or phone" aria-label="Search friends" /></label>
-      <button className="group-secondary contact-match-button" type="button" onClick={() => void matchContacts()}>Find people from selected contacts</button>
-      <p className="group-caption contact-privacy">Your address book is never uploaded or stored. Only contacts you explicitly select are checked for email or phone matches.</p>
-      <div className="group-form filter-grid">
-      <label>Sort people by<select value={friendSort} onChange={event => setFriendSort(event.target.value)}><option value="name">Name</option><option value="username">Username</option><option value="email">Email</option></select></label></div>
+      <div className="group-search-row"><label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, @username, email, or phone" aria-label="Search friends" /></label><button className="group-filter-trigger" type="button" aria-label="Sort people" aria-expanded={friendSortOpen} onClick={() => setFriendSortOpen(true)}><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M8 6h12M8 12h8M8 18h4M4 5v14m0 0-2-2m2 2 2-2" /></svg></button></div>
+      <button className="group-secondary contact-match-button" type="button" onClick={() => void matchContacts()} disabled={peopleLoading}>Choose contacts to find friends</button>
+      <p className="group-caption contact-privacy">Your address book is never read or stored. Only the phone numbers and email addresses from contacts you choose are checked for account matches.</p>
+      {friendSortOpen && <div className="group-filter-backdrop" role="presentation" onMouseDown={() => setFriendSortOpen(false)}><section className="group-filter-dialog friend-sort-dialog" role="dialog" aria-modal="true" aria-labelledby="friend-sort-title" onMouseDown={event => event.stopPropagation()}><header><h2 id="friend-sort-title">Sort people</h2><button type="button" aria-label="Close sort" onClick={() => setFriendSortOpen(false)}>×</button></header><label>Sort people by<select value={friendSort} onChange={event => { setFriendSort(event.target.value); setFriendSortOpen(false); }}><option value="name">Name</option><option value="username">Username</option><option value="email">Email</option></select></label></section></div>}
       <h2 className="group-overline">SEARCH RESULTS</h2>
       {peopleLoading && <p className="group-caption" role="status">Searching accounts…</p>}
       {!peopleLoading && !query.trim() && searchResults.length === 0 && <p className="group-caption">People are not shown until you search or select contacts.</p>}

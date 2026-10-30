@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import type { ApiGroupBudget, ApiHomeSummary, ApiPersonalBudget } from '../../api/budgets.api';
+import type { ApiGroupBudget, ApiHomeSummary, ApiPersonalBudget, ApiSpendingIncomeHistory } from '../../api/budgets.api';
 import type { ApiBankTransaction } from '../../api/banking.api';
 import HomeDashboard from './HomeDashboard';
 import { barHeightPct, buildTodos, firstName, greetingFor, maxMonthCents, toMonthPoints } from './dashboard';
@@ -28,6 +28,9 @@ const home = (): ApiHomeSummary => ({
   pendingPayments: { count: 2, cents: 1500 },
   latestExpense: { title: 'Dinner', groupName: 'Weekend Trip', creatorName: 'Alex', isYou: false, totalCents: 4000, createdAt: '2026-10-15T00:00:00.000Z' },
 });
+const history = (): ApiSpendingIncomeHistory => ({ years: [{ year: 2026, months: Array.from({ length: 12 }, (_, index) => ({
+  month: `2026-${String(index + 1).padStart(2, '0')}`, spendingCents: index === 9 ? 89100 : 0, incomeCents: index === 8 ? 220000 : 0,
+})) }] });
 const transaction = (id: string, merchant: string, amountCents: number, category: ApiBankTransaction['category'] = null): ApiBankTransaction => ({
   id, accountId: 'account-1', accountName: 'Checking', institution: 'Test Bank', merchant, name: merchant.toUpperCase(),
   date: '2026-10-29', amountCents, pending: false, providerCategory: null, category, excluded: false, note: null,
@@ -36,7 +39,7 @@ const transaction = (id: string, merchant: string, amountCents: number, category
 const transactions = () => [transaction('t2', 'Spotify', 1199)];
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
-function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]; home?: ApiHomeSummary; transactions?: ApiBankTransaction[] } = {}, overrides: Record<string, () => Response> = {}) {
+function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]; home?: ApiHomeSummary; history?: ApiSpendingIncomeHistory; transactions?: ApiBankTransaction[] } = {}, overrides: Record<string, () => Response> = {}) {
   const urls: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     urls.push(url);
@@ -45,6 +48,7 @@ function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]
     if (url.endsWith('/budgets/personal')) return json(data.personal ?? personal());
     if (url.endsWith('/budgets/groups')) return json({ groups: data.groups ?? groups() });
     if (url.endsWith('/budgets/home')) return json(data.home ?? home());
+    if (url.endsWith('/budgets/history')) return json(data.history ?? history());
     if (url.includes('/banking/transactions?')) return json({ transactions: data.transactions ?? transactions() });
     if (url.endsWith('/settlement-notices')) return json({ notices: [] });
     throw new Error(`Unexpected request ${url}`);
@@ -88,10 +92,11 @@ describe('home dashboard with real data', () => {
     expect(categories.getByText('100%')).toBeInTheDocument();
     expect(categories.getByText('93%')).toBeInTheDocument();
     expect(categories.queryByText('Transit')).not.toBeInTheDocument();
-    for (const label of ['Jul', 'Aug', 'Sep', 'Oct']) expect(screen.getByText(label)).toBeInTheDocument();
+    for (const label of ['Aug', 'Sep', 'Oct']) expect(screen.getByRole('button', { name: new RegExp(`^${label}:`) })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Jul:/ })).not.toBeInTheDocument();
     expect(await screen.findByText('Confirm 2 payments sent to you ($15.00)')).toBeInTheDocument();
     const todos = screen.getByRole('region', { name: 'Your to-dos' });
-    expect(todos.compareDocumentPosition(screen.getByRole('region', { name: 'Budget summary' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Budget summary' }).compareDocumentPosition(todos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Group payment notifications' })).not.toBeInTheDocument();
     expect(screen.getByText('You owe $38.20 in 1 group')).toBeInTheDocument();
     expect(screen.queryByText('Over budget: Dining')).not.toBeInTheDocument();
@@ -124,15 +129,27 @@ describe('home dashboard with real data', () => {
     expect(await screen.findByText('$1,252.00 over')).toBeInTheDocument();
   });
 
-  it('opens the related tab from a to-do or the settings button', async () => {
+  it('opens the related tab from a to-do without a duplicate settings shortcut', async () => {
     stubApi();
     const onNavigate = vi.fn();
     render(<HomeDashboard userName="Nicole" onNavigate={onNavigate} />);
     const rows = await screen.findAllByText(/^(Review|Settle|View) ›$/);
     fireEvent.click(rows[0]!);
     fireEvent.click(screen.getByRole('button', { name: 'Settle ›' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    expect(onNavigate.mock.calls.map(call => call[0])).toEqual(['Groups', 'Groups', 'Profile']);
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(onNavigate.mock.calls.map(call => call[0])).toEqual(['Groups', 'Groups']);
+  });
+
+  it('shows exact chart amounts and opens twelve scrollable months by year', async () => {
+    stubApi();
+    render(<HomeDashboard userName="Nicole" onNavigate={() => {}} />);
+    const october = await screen.findByRole('button', { name: 'Oct: spending $891.00, income $0.00' });
+    fireEvent.click(october);
+    expect(october).toHaveClass('selected');
+    fireEvent.click(screen.getByRole('button', { name: 'View history ›' }));
+    expect(await screen.findByRole('heading', { name: 'Spending & income' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '2026' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /: spending .* income/ })).toHaveLength(12);
   });
 
   it('opens the full transaction review center from the Home preview', async () => {

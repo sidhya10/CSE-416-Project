@@ -1,8 +1,8 @@
-.guest-banner { display:flex; justify-content:space-between; align-items:center; gap:12px; background:#e5f2e9; color:#17654e; padding:16px 24px; font-size:14px; }
+.guest-banner { display:flex; justify-content:space-between; align-items:center; gap:12px; background:#e5f2e9; color:#17654e; padding:max(10px,env(safe-area-inset-top)) 18px 10px; font-size:12px; font-weight:600; }
 .guest-banner button, .guest-actions button, .guest-exit button { border:1px solid #207459; border-radius:14px; background:white; color:#17654e; padding:10px 16px; cursor:pointer; }
-.guest-body { padding:28px 24px 40px; }
-.guest-body h1 { font-size:32px; margin:0 0 16px; }
-.guest-body p { line-height:1.6; color:var(--muted, #65756d); margin:18px 0; }
+.guest-body { padding:18px 20px max(24px,env(safe-area-inset-bottom)); }
+.guest-body h1 { font-size:26px; margin:0 0 10px; }
+.guest-body p { line-height:1.5; color:var(--muted, #65756d); margin:12px 0; }
 .guest-person { display:grid; grid-template-columns:32px minmax(0, 1fr) 40px; align-items:center; gap:12px; margin:12px 0; }
 .guest-person input { min-width:0; padding:14px; border:1px solid #d9ddcf; border-radius:14px; background:white; color:#192923; }
 .guest-actions { display:flex; gap:12px; margin:20px 0; flex-wrap:wrap; }
@@ -36,7 +36,15 @@
 .guest-split { flex:1; min-height:0; overflow-y:auto; overscroll-behavior-y:contain; }
 .guest-split .expense-body { flex:none; overflow:visible; }
 .guest-split .expense-footer { flex:none; }
-.guest-split .expense-header { padding-top:16px; }
+.guest-split .expense-header { padding:12px 18px 8px; }
+.guest-split .expense-header button { display:grid; place-items:center; width:44px; height:44px; padding:0; border:1px solid var(--border); border-radius:14px; background:var(--surface); }
+.guest-split .expense-header h1 { font-size:20px; }
+.guest-split .expense-body { padding-inline:18px; }
+.guest-split .expense-footer { padding:8px 18px max(12px,env(safe-area-inset-bottom)); }
+.guest-split .split-legend>div>button { min-height:48px; padding:9px 12px; font-size:13px; }
+.guest-split .split-legend>div>button .split-avatar { width:28px; height:28px; }
+.guest-split .split-assignment button { width:42px; height:42px; }
+.guest-split .split-assignment .split-avatar { width:36px; height:36px; }
 
 .guest-owed { background:var(--danger-soft); border-left:4px solid var(--danger); align-items:center; }
 .guest-owed>span { display:grid; gap:6px; }

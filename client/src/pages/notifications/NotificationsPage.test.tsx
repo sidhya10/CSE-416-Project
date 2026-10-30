@@ -7,8 +7,7 @@ it('keeps notices unread until requested and retains read history', async () => 
   const notice = { groupId: 'g1', id: 'n1', message: 'Eva confirmed your payment.', kind: 'CONFIRMED', createdAt: '2026-10-26T12:00:00Z', readAt: null };
   const load = vi.spyOn(settlementsApi, 'notifications').mockResolvedValue({ notices: [notice] });
   const dismiss = vi.spyOn(settlementsApi, 'dismiss').mockResolvedValue(undefined);
-  const back = vi.fn();
-  render(<NotificationsPage active onBack={back} />);
+  render(<NotificationsPage active />);
   expect(await screen.findByText(notice.message)).toBeVisible();
   expect(dismiss).not.toHaveBeenCalled();
   load.mockResolvedValue({ notices: [{ ...notice, readAt: '2026-10-26T13:00:00Z' }] });
@@ -16,12 +15,11 @@ it('keeps notices unread until requested and retains read history', async () => 
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark as read' })).not.toBeInTheDocument());
   expect(dismiss).toHaveBeenCalledWith('n1');
   expect(screen.getByText(notice.message)).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Back to Home' }));
-  expect(back).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', { name: 'Back to Home' })).not.toBeInTheDocument();
 });
 it('shows an empty state', async () => {
   vi.spyOn(settlementsApi, 'notifications').mockResolvedValue({ notices: [] });
-  render(<NotificationsPage active onBack={() => {}} />);
+  render(<NotificationsPage active />);
   expect(await screen.findByText('You’re all caught up')).toBeVisible();
 });
 
@@ -29,7 +27,7 @@ it('opens the group from a split notice and marks it read', async () => {
   vi.spyOn(settlementsApi, 'notifications').mockResolvedValue({ notices: [{ id: 'split', groupId: 'g1', kind: 'SPLIT_CREATED', message: 'You owe $30.00.', createdAt: '2026-10-26T12:00:00Z', readAt: null }] });
   const dismiss = vi.spyOn(settlementsApi, 'dismiss').mockResolvedValue(undefined);
   const open = vi.fn();
-  render(<NotificationsPage active onBack={() => {}} onOpenGroup={open} />);
+  render(<NotificationsPage active onOpenGroup={open} />);
   const link = await screen.findByRole('button', { name: /You owe.*View group/ });
   await act(async () => { fireEvent.click(link); });
   expect(open).toHaveBeenCalledWith('g1');
@@ -43,7 +41,7 @@ it.each([
   vi.spyOn(settlementsApi, 'notifications').mockResolvedValue({ notices: [{ id: 'payment', groupId: 'group-payment', kind, message, createdAt: '2026-10-26T12:00:00Z', readAt: null }] });
   const dismiss = vi.spyOn(settlementsApi, 'dismiss').mockResolvedValue(undefined);
   const open = vi.fn();
-  render(<NotificationsPage active onBack={() => {}} onOpenGroup={open} />);
+  render(<NotificationsPage active onOpenGroup={open} />);
   expect(await screen.findByText(title)).toBeVisible();
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: /View group/ })); });
   expect(open).toHaveBeenCalledWith('group-payment');
@@ -52,7 +50,7 @@ it.each([
 
 it('shows over-budget alerts as informational notifications without a group task', async () => {
   vi.spyOn(settlementsApi, 'notifications').mockResolvedValue({ notices: [{ id: 'budget', groupId: null, kind: 'CATEGORY_OVER_BUDGET', message: 'Dining is $5.00 over your October budget.', createdAt: '2026-10-29T12:00:00Z', readAt: null }] });
-  render(<NotificationsPage active onBack={() => {}} onOpenGroup={vi.fn()} />);
+  render(<NotificationsPage active onOpenGroup={vi.fn()} />);
   expect(await screen.findByText('Category budget exceeded')).toBeInTheDocument();
   expect(screen.getByText('Dining is $5.00 over your October budget.')).toBeInTheDocument();
   expect(screen.queryByText('View group →')).not.toBeInTheDocument();

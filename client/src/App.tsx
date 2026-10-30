@@ -119,7 +119,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   return <div className="device">
     {user ? <>
       <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} onReviewCountChange={setTransactionReviewCount} onReviewTransactions={() => { setSimulatorOpen(false); setTransactionsOpen(true); setTab('Budget'); }} /></div>
-      <div hidden={tab !== 'Notifications'} className="profile-content"><NotificationsPage key={user.id} active={tab === 'Notifications'} onBack={() => setTab('Home')} onOpenGroup={(groupId, expenseId) => { setNotificationTarget({ groupId, expenseId, request: Date.now() }); setTab('Groups'); }} /></div>
+      <div hidden={tab !== 'Notifications'} className="profile-content"><NotificationsPage key={user.id} active={tab === 'Notifications'} onOpenGroup={(groupId, expenseId) => { setNotificationTarget({ groupId, expenseId, request: Date.now() }); setTab('Groups'); }} /></div>
       <div hidden={tab !== 'Budget' || simulatorOpen || transactionsOpen} className="profile-content"><CategoryBudgets onClearExpenseTarget={() => setBudgetTarget(null)} expenseTarget={budgetTarget} active={tab === 'Budget' && !simulatorOpen && !transactionsOpen} onReviewCountChange={setTransactionReviewCount} onOpenTransactions={() => { setSimulatorOpen(false); setTransactionsOpen(true); }} onOpenSimulator={() => { setSimulatorVisited(true); setTransactionsOpen(false); setSimulatorOpen(true); }} /></div>
       <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator active={tab === 'Budget' && simulatorOpen} onBack={() => setSimulatorOpen(false)} />}</div>
       <div hidden={tab !== 'Budget' || !transactionsOpen} className="profile-content">{transactionsOpen && <TransactionReviewCenter onBack={() => setTransactionsOpen(false)} onUnreviewedDelta={delta => setTransactionReviewCount(current => Math.max(0, current + delta))} />}</div>
@@ -128,7 +128,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
       {(tab === 'Home' || tab === 'Notifications' || (tab === 'Budget' && !simulatorOpen && !transactionsOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
         {tabs.map(({ label, glyph }) => label === 'Notifications' ? <NotificationsNavButton key={`${user.id}-notifications`} selected={tab === label} onClick={() => setTab(label)} /> : <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'} aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}><span className="tab-glyph" aria-hidden="true">{glyph}{label === 'Budget' && transactionReviewCount > 0 && <b className="tab-review-badge">{transactionReviewCount > 9 ? '9+' : transactionReviewCount}</b>}</span><span>{label}</span></button>)}
       </nav>}
-    </> : view === 'login' ? <main key="login" className="login-screen">
+    </> : view === 'login' ? <main key="login" className="login-screen auth-login">
       <div className="login-intro"><div className="logo-tile"><img src={receiptLogo} width="52" height="52" alt="" /></div><h1>Welcome back</h1><p>Keep personal and shared spending in sync.</p></div>
       <form className="login-form" onSubmit={login}>
         <label>USERNAME, EMAIL, OR PHONE<input name="identifier" autoComplete="username" required placeholder="@username, email, or phone" /></label>
@@ -162,7 +162,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
         <button type="submit" className="primary-button" disabled={submitting || !resetToken}>{submitting ? 'Updating…' : 'Reset password'}</button>
       </form>
       {notice && <p className="form-notice" role="status">{notice}</p>}
-    </main> : <main key="signup" className="signup-screen">
+    </main> : <main key="signup" className="signup-screen auth-signup">
       <header className="signup-intro"><button type="button" className="back-button" aria-label="Back to log in" onClick={() => changeView('login')}>‹</button><h1>Create your account</h1><p>Start budgeting alone or with friends.</p></header>
       <label className="google-phone-field">PHONE NUMBER · REQUIRED<input type="tel" value={googlePhone} onChange={event => setGooglePhone(event.target.value)} autoComplete="tel" required placeholder="+1 555 010 0000" /></label>
       <GoogleSignInButton signup phone={googlePhone} onBusyChange={setGoogleSubmitting} disabled={submitting || googlePhone.replace(/\D/g, '').length < 7} onSuccess={account => { setUser(account); setTab('Home'); setNotice(''); }} />

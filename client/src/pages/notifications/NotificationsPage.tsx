@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import BackArrow from '../../components/common/BackArrow';
 import { settlementsApi } from '../../api/settlements.api';
 import { useLiveData } from '../dashboard/useLiveData';
 import './notifications.css';
 
-export default function NotificationsPage({ active, onBack, onOpenGroup }: { active: boolean; onBack: () => void; onOpenGroup?: (groupId: string, expenseId?: string) => void }) {
+export default function NotificationsPage({ active, onOpenGroup }: { active: boolean; onOpenGroup?: (groupId: string, expenseId?: string) => void }) {
   const { data, error, refresh } = useLiveData(settlementsApi.notifications, active);
   const [saving, setSaving] = useState<string | null>(null);
   const [saveError, setSaveError] = useState('');
@@ -28,7 +27,7 @@ export default function NotificationsPage({ active, onBack, onOpenGroup }: { act
     finally { setSaving(null); }
   }
   return <main className="notifications-page">
-    <header><button className="notifications-back" type="button" aria-label="Back to Home" onClick={onBack}><BackArrow /></button><div><h1>Notifications</h1><p>Budget alerts, reminders, and payment updates</p></div></header>
+    <header><div><h1>Notifications</h1><p>Budget alerts, reminders, and payment updates</p></div></header>
     {(error || saveError) && <div className="notifications-error" role="alert"><p>{saveError || error}</p>{error && <button type="button" onClick={() => void refresh()}>Try again</button>}</div>}
     {!data && !error && <p role="status">Loading notifications…</p>}
     {data && !data.notices.length && <section className="notifications-empty"><span aria-hidden="true">✓</span><h2>You’re all caught up</h2><p>Your budget alerts, reminders, and payment confirmations will appear here.</p></section>}

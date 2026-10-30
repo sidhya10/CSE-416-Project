@@ -5,7 +5,6 @@
 .home-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .home-header h1{margin:0;font-size:22px;line-height:27px;font-weight:700}
 .home-header p{margin-top:4px;color:var(--muted);font-size:12px}
-.home-gear{flex:none;display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:50%;background:var(--surface);color:var(--text);font-size:15px}
 
 .home-synced-badge{display:inline-flex;margin-top:10px;padding:6px 12px;border-radius:11px;background:var(--soft-mint);color:var(--accent);font-size:11px;font-weight:600}
 
@@ -29,18 +28,19 @@
 .home-category-bar>div{height:100%;border-radius:5px;transition:width .15s ease}
 
 .home-chart-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.home-chart-head small{color:var(--muted);font-size:11px}
+.home-chart-head small{color:var(--muted);font-size:11px}.home-chart-head button{border:0;background:transparent;color:var(--accent);font-size:11px;font-weight:700;padding:6px}
 .home-chart-legend{display:flex;gap:14px;margin-top:8px;color:var(--muted);font-size:11px}
 .home-chart-legend span{display:inline-flex;align-items:center;gap:5px}
 .home-chart-legend i{display:inline-block;width:8px;height:8px;border-radius:50%}
 .home-chart-legend i.spending{background:var(--coral)}.home-chart-legend i.income{background:var(--primary)}
 .home-chart{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;height:120px;margin-top:16px}
-.home-chart-col{display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%}
+.home-chart-col{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;min-width:0;padding:0;border:0;background:transparent;color:var(--text)}
 .home-chart-bars{display:flex;align-items:flex-end;gap:5px;flex:1;width:100%;justify-content:center}
 .home-chart-bars .bar{width:9px;min-height:4px;border-radius:4px}
 .home-chart-bars .bar.spending{background:var(--coral)}
 .home-chart-bars .bar.income{background:var(--primary)}
 .home-chart-col span{color:var(--muted);font-size:10px}
+.home-chart-tooltip{position:absolute;left:50%;top:-8px;z-index:4;display:none;width:max-content;max-width:180px;transform:translate(-50%,-100%);padding:9px 11px;border:1px solid var(--border);border-radius:11px;background:var(--surface);box-shadow:0 8px 24px #0002;text-align:left;line-height:1.4}.home-chart-tooltip b,.home-chart-tooltip span{display:block;color:var(--text);font-size:11px}.home-chart-tooltip span{color:var(--muted)}.home-chart-col:hover .home-chart-tooltip,.home-chart-col:focus-visible .home-chart-tooltip,.home-chart-col.selected .home-chart-tooltip{display:block}.home-chart-col:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:8px}
 
 .home-todos{border:1px solid var(--border);border-left:4px solid var(--accent)}
 .home-todos-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -58,4 +58,4 @@
 .home-retry{margin-top:8px;min-height:34px;padding:6px 12px;border:1px solid var(--danger);border-radius:10px;background:var(--surface);color:var(--danger);font-size:11px;font-weight:700}
 .home-empty{margin:12px 0 0;color:var(--muted);font-size:12px}
 
-.home-header-actions{display:flex;gap:6px;flex:none}.home-header-actions .home-gear{width:40px;height:44px;cursor:pointer}.home-header-actions button:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.home-detail-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}.home-detail-header>button{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;background:transparent;color:var(--text);font-size:30px}.home-detail-header h1{font-size:22px}.home-detail-header p{margin-top:3px;color:var(--muted);font-size:12px}.home-history-screen>.home-chart-legend{margin:8px 0 4px}.home-year{overflow:hidden}.home-year-scroll{width:100%;overflow-x:auto;overflow-y:visible;padding-top:58px;margin-top:-42px;overscroll-behavior-x:contain}.home-year-chart{width:650px;min-width:650px;height:150px;justify-content:flex-start;gap:8px;padding:0 6px}.home-year-chart .home-chart-col{flex:0 0 45px}.home-year-chart .home-chart-tooltip{top:4px}.home-year-chart .home-chart-bars{padding-top:36px}

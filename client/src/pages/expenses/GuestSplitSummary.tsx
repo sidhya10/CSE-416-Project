@@ -30,7 +30,7 @@ export default function GuestSplitSummary({ split, members, onEdit }: { split: P
   const own = split.shares.find(share => share.memberId === split.payerId);
   const others = split.shares.filter(share => share.memberId !== split.payerId);
   const collecting = others.reduce((total, share) => total + share.reimbursementCents, 0);
-  const text = [`Divvy · ${split.name}`, `Receipt total: ${formatCents(split.totalCents)}`, `${payer} paid the bill.`,
+  const text = ['Divvy · Quick split', `Receipt total: ${formatCents(split.totalCents)}`, `${payer} paid the bill.`,
     `${payer}’s own share: ${formatCents(own?.totalCents ?? 0)}`, '',
     ...others.map(share => `${name(share.memberId)} → ${payer}: ${formatCents(share.reimbursementCents)}${share.reimbursementCents === 0 ? ' (nothing owed)' : ''}`)].join('\n');
   async function copy() {
@@ -38,10 +38,10 @@ export default function GuestSplitSummary({ split, members, onEdit }: { split: P
     catch { setStatus('Could not copy automatically. Select and copy the text below.'); }
   }
   async function share() {
-    try { await navigator.share({ title: `Divvy · ${split.name}`, text }); setStatus('Share sheet closed.'); }
+    try { await navigator.share({ title: 'Divvy · Quick split', text }); setStatus('Share sheet closed.'); }
     catch (error) { if (!(error instanceof Error && error.name === 'AbortError')) setStatus('Sharing is unavailable. Copy the text below instead.'); }
   }
-  return <main className="guest-body"><h1>Your split</h1><p>{split.name}</p>
+  return <main className="guest-body"><h1>Your split</h1>
     <section className="guest-total"><span>Receipt total · Paid by {payer}</span><strong>{formatCents(split.totalCents)}</strong></section>
     <section className="guest-payer-summary"><h3>{payer} paid the bill</h3><div><span>Own share</span><strong>{formatCents(own?.totalCents ?? 0)}</strong></div><div><span>To collect from others</span><strong>{formatCents(collecting)}</strong></div></section>
     <h2>Who owes what</h2>

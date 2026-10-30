@@ -50,7 +50,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [assignments, setAssignments] = useState<SplitAssignments>(initialSplit?.assignments ?? {});
   const [date, setDate] = useState(() => initialSplit?.date ?? (() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; })());
   const [budgetCategory, setBudgetCategory] = useState(initialSplit?.budgetCategory ?? 'other');
-  const [name, setName] = useState(initialSplit?.name ?? '');
+  const [name, setName] = useState(initialSplit?.name ?? (guest ? 'Quick split' : ''));
   const [items, setItems] = useState<Item[]>(initialSplit?.items.map(item => ({ id: item.id, name: item.name, amount: ((item.unitCents ?? item.cents) / 100).toFixed(2), quantity: String(item.quantity ?? 1) })) ?? [{ id: 0, name: '', amount: '', quantity: '1' }]);
   const nextId = useRef(Math.max(0, ...items.map(item => item.id)) + 1);
   const [fees, setFees] = useState({ Tax: ((initialSplit?.feeBreakdown?.tax ?? 0) / 100).toFixed(2), Tip: ((initialSplit?.feeBreakdown?.tip ?? 0) / 100).toFixed(2), Other: ((initialSplit?.feeBreakdown?.other ?? initialSplit?.feeCents ?? 0) / 100).toFixed(2) });
@@ -204,8 +204,8 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     </> : <>
       <div className="expense-body">
         <section className="expense-details">
-          <ExpandingNameInput label="EXPENSE NAME" placeholder="e.g. Dinner at Myers + Chang" value={name} onChange={setName} />
-          <p>{groupName} · Created by {initialSplit?.creatorId && initialSplit.creatorId !== 'you' ? initialSplit.creatorName : 'you'}</p>
+          {!guest && <><ExpandingNameInput label="EXPENSE NAME" placeholder="e.g. Dinner at Myers + Chang" value={name} onChange={setName} />
+          <p>{groupName} · Created by {initialSplit?.creatorId && initialSplit.creatorId !== 'you' ? initialSplit.creatorName : 'you'}</p></>}
           <button className="expense-outline" type="button" onClick={() => { setChoice(payer); setChoosing(true); }}>Paid by {displayName(payer)} · Change</button>
           <label className="expense-date">Expense date <span>(optional)</span><input type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
           <small className="expense-date-help">A date improves automatic bank-transaction matching. Today is used by default.</small>

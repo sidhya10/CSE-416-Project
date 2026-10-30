@@ -1,6 +1,6 @@
 :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:var(--canvas);font-synthesis:none;text-rendering:optimizeLegibility}
-*{box-sizing:border-box}body{margin:0;min-width:320px}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.device{position:relative;display:flex;flex-direction:column;width:min(100%,390px);height:844px;margin:0 auto;background:var(--page);border:1px solid var(--border);border-radius:28px;overflow:hidden}
+*{box-sizing:border-box}html,body,#root{min-height:100%;height:100%}body{margin:0;min-width:320px}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.device{position:relative;display:flex;flex-direction:column;width:min(100%,390px);height:min(844px,100dvh);margin:0 auto;background:var(--page);border:1px solid var(--border);border-radius:28px;overflow:hidden}
 .login-screen,.signup-screen{padding:0 23px;display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto}
 .login-intro{text-align:center}.logo-tile{width:88px;height:88px;border-radius:26px;background:var(--primary);margin:73px auto 22px;display:grid;place-items:center}.logo-tile img{width:52px;height:52px}
 h1,p{margin:0}.login-intro h1{font-size:26px;line-height:32px;font-weight:700}.login-intro p{margin-top:6px;color:var(--muted);font-size:12px}
@@ -26,7 +26,7 @@ form input::placeholder{color:var(--muted);opacity:1}
 .password-hint{display:flex;align-items:center;height:54px;padding:0 14px;border-radius:14px;background:var(--soft-green);color:var(--accent);font-size:10px;margin-top:2px}
 .signup-form .primary-button{margin-top:14px}.signup-screen .switch-auth{margin-top:27px}.signup-screen .preview-link{margin-bottom:10px}
 .placeholder-page{flex:1;padding:7px 23px}.placeholder-page h1{font-size:24px}
-.bottom-nav{height:64px;flex:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:0 23px 24px;border:1px solid var(--border);border-radius:22px;background:var(--surface);overflow:hidden}
+.bottom-nav{height:64px;flex:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:0 23px max(10px,env(safe-area-inset-bottom));border:1px solid var(--border);border-radius:22px;background:var(--surface);overflow:hidden}
 .tab{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:var(--muted);font-size:9px}.tab.active{color:var(--accent);font-weight:600}.tab-glyph{position:relative;height:28px;font-size:20px;line-height:25px}.tab-review-badge{position:absolute;top:-3px;right:-12px;min-width:16px;height:16px;padding:0 4px;border:2px solid var(--surface);border-radius:999px;background:var(--danger);color:#fff;font-size:9px;line-height:12px;text-align:center}
 .profile-content{display:flex;flex:1;min-width:0;width:100%;min-height:0}.profile-content[hidden]{display:none}
 .settings-screen{width:100%;min-height:0;overflow-y:auto;padding:56px 23px 20px;scrollbar-width:thin}
@@ -47,7 +47,7 @@ form input::placeholder{color:var(--muted);opacity:1}
 .connected-card{display:flex;align-items:center;gap:14px;min-height:72px;padding:14px;border-radius:16px;background:var(--surface)}.connected-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:13px;background:var(--connected-blue);color:var(--blue-text);font-size:15px;font-weight:700}.connected-card>span:last-child{color:var(--muted);font-size:10px}
 .connect-google{width:100%;min-height:52px;margin-top:4px;border:1px solid var(--border);border-radius:15px;background:var(--surface);color:var(--accent);font-size:12px;font-weight:600}.delete-account{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:58px;margin-top:22px;padding:0 16px;border:0;border-radius:15px;background:var(--surface);color:var(--danger-strong);text-align:left;font-size:13px;font-weight:600}.delete-account span{font-size:20px;color:var(--muted)}
 .setting-notice{margin:10px 0;padding:12px;border-radius:12px;background:var(--soft-green);color:var(--accent);font-size:11px;line-height:1.45}.preference-control input{accent-color:var(--accent)}.appearance-options{border:0;padding:0}.appearance-options legend{margin-bottom:12px;color:var(--muted);font-size:12px}.appearance-options label{display:flex;align-items:center;gap:12px;min-height:52px;margin-bottom:8px;padding:0 16px;border-radius:14px;background:var(--surface);font-size:13px}.appearance-options input{accent-color:var(--accent)}.appearance-options p,.setting-info{margin-top:14px;color:var(--muted);font-size:12px;line-height:1.5}
-@media(max-width:390px){.device{border-radius:0;height:100dvh}.bottom-nav{margin-bottom:max(24px,env(safe-area-inset-bottom))}}
+@media(max-width:600px){body{overflow:hidden}.device{width:100%;height:100dvh;border:0;border-radius:0}.bottom-nav{margin-bottom:max(8px,env(safe-area-inset-bottom))}}
 
 .password-form { gap: 16px; }
 .password-form .primary-button { margin-top: 8px; }
@@ -67,10 +67,16 @@ button:disabled { cursor: not-allowed; }
 .notifications-nav-badge{position:absolute;top:-2px;right:-10px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:10px;background:var(--danger-strong);color:#fff;border:2px solid var(--surface);font-size:9px;font-weight:700;line-height:13px;text-align:center}
 .bottom-nav .tab{min-width:0;cursor:pointer}.bottom-nav .tab:focus-visible{outline:2px solid var(--focus);outline-offset:-4px;border-radius:16px}
 
-.guest-login-link { display:block; width:fit-content; margin:14px auto 0; padding:10px 12px; border:0; border-radius:8px; background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:500; cursor:pointer; }
-.guest-login-link:hover:not(:disabled) { color:var(--text); text-decoration:underline; text-underline-offset:3px; }
+.guest-login-link { display:block; width:100%; min-height:44px; margin:12px auto 0; padding:10px 14px; border:1px solid var(--accent); border-radius:14px; background:var(--soft-green); color:var(--accent); font:inherit; font-size:12px; font-weight:700; cursor:pointer; }
+.guest-login-link:hover:not(:disabled) { background:var(--green-hover); color:var(--accent); }
 .guest-login-link:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 .guest-login-link:disabled { opacity:.5; cursor:default; }
+
+/* Login and registration stay within the phone viewport; password-recovery pages may still scroll. */
+.auth-login,.auth-signup{overflow:hidden;padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom))}
+.auth-login .logo-tile{width:70px;height:70px;margin:clamp(18px,5vh,44px) auto 14px;border-radius:21px}.auth-login .logo-tile img{width:43px;height:43px}.auth-login .login-form{gap:12px;margin-top:20px}.auth-login .login-form input{height:46px}.auth-login .login-form .primary-button{height:46px;margin-top:3px}.auth-login .divider{margin:12px 0}.auth-login .switch-auth{margin-top:14px}.auth-login .terms{margin-top:10px}.auth-login .google-button-target{min-height:42px}
+.auth-signup .signup-intro{height:61px;margin-top:4px}.auth-signup .signup-intro h1{font-size:21px;line-height:25px}.auth-signup .google-phone-field{margin:5px 0 6px}.auth-signup .google-phone-field input,.auth-signup .signup-form input{height:42px}.auth-signup .google-button-target{min-height:40px}.auth-signup .manual-divider{margin:7px 0}.auth-signup .signup-form{gap:5px}.auth-signup .signup-form label{gap:3px}.auth-signup .password-hint{height:30px;padding:0 10px}.auth-signup .signup-form .primary-button{height:44px;margin-top:3px}.auth-signup .switch-auth{margin-top:8px}
+@media(max-height:700px){.auth-login .login-intro p,.auth-signup .signup-intro p,.auth-login .terms{display:none}.auth-login .logo-tile{width:58px;height:58px;margin:10px auto 8px}.auth-login .logo-tile img{width:36px;height:36px}.auth-login .login-form{margin-top:12px}.auth-login .switch-auth{margin-top:8px}.auth-signup .signup-intro{height:42px}.auth-signup .google-phone-field input,.auth-signup .signup-form input{height:38px}.auth-signup .signup-form{gap:3px}.auth-signup .password-hint{display:none}.auth-signup .signup-form .primary-button{height:40px}}
 
 /* Consistent compact scrollbars for every app scroll container. */
 * { scrollbar-width:thin; scrollbar-color:var(--muted) transparent; }
