@@ -220,7 +220,8 @@ describe('home summary', () => {
     // The owner also fronted the cabin and was repaid $50.00 by then, whose own $50 share counts regardless of repayment.
     expect(body.history[2]).toEqual({ month: monthKey(0), spendingCents: 7300 + 5000, incomeCents: 5000 });
     expect(body.history[1]).toEqual({ month: monthKey(-1), spendingCents: 9999, incomeCents: 0 });
-    expect(body.history[0]).toEqual({ month: monthKey(-2), spendingCents: 0, incomeCents: 0 });
+    // The seeded $20 Old expense contributes the owner's $10 share two months ago.
+    expect(body.history[0]).toEqual({ month: monthKey(-2), spendingCents: 1000, incomeCents: 0 });
     const other = await outsider.get('/api/budgets/home').expect(200);
     expect(other.body.history.every((month: { spendingCents: number; incomeCents: number }) => month.spendingCents === 0 && month.incomeCents === 0)).toBe(true);
   });
