@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categorize, monthWindow, recentMonths } from '../src/modules/budgets/budget.categories.js';
+import { automaticExclusionReason, categorize, monthWindow, recentMonths, requiresCategoryReview } from '../src/modules/budgets/budget.categories.js';
 
 const tx = (category: string | null, name = 'Store', merchant: string | null = null) => ({ category, name, merchant });
 
@@ -16,8 +16,17 @@ describe('categorize', () => {
     expect(categorize(tx('FOOD_AND_DRINK', 'WHOLE FOODS MKT'))).toBe('groceries');
     expect(categorize(tx('GENERAL_MERCHANDISE', 'Whole Foods'))).toBe('shopping');
   });
-  it('files uncategorized spending under other', () => {
-    expect(categorize(tx(null))).toBe('other');
+  it('leaves unknown spending for the user to categorize', () => {
+    expect(categorize(tx(null))).toBeNull();
+    expect(requiresCategoryReview({ ...tx(null), amountCents: 1200 })).toBe(true);
+    expect(requiresCategoryReview({ ...tx('FOOD_AND_DRINK'), amountCents: 1200 })).toBe(false);
+    expect(requiresCategoryReview({ ...tx('TRANSFER_OUT'), amountCents: 1200 })).toBe(false);
+  });
+  it('recognizes credit-card payoff transactions that should be hidden', () => {
+    expect(automaticExclusionReason(tx('LOAN_PAYMENTS', 'Mortgage payment'))).toBeNull();
+    expect(automaticExclusionReason(tx('LOAN_PAYMENTS', 'Credit card payment'))).toBe('CREDIT_CARD_PAYMENT');
+    expect(automaticExclusionReason(tx('TRANSFER_OUT', 'AUTOPAY PAYMENT - THANK YOU'))).toBe('CREDIT_CARD_PAYMENT');
+    expect(automaticExclusionReason(tx('TRANSFER_OUT', 'Zelle to Alex'))).toBeNull();
   });
   it('skips income, transfers, and loan or card payments', () => {
     for (const category of ['INCOME', 'TRANSFER_IN', 'TRANSFER_OUT', 'LOAN_PAYMENTS']) expect(categorize(tx(category))).toBeNull();

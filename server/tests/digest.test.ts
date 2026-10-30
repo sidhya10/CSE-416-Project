@@ -138,9 +138,11 @@ describe('weekly digest from group activity', () => {
     expect(digest.comingUp).toEqual([{ title: 'Rent', date: dayOffset(3), shareCents: 1000 }]);
   });
 
-  it('adds the member\'s share of the expense to their weekly spending', async () => {
+  it('counts the member\'s unpaid share in their weekly spending, and the money they sent under the day they sent it', async () => {
+    // Their $10.00 share is dated yesterday. The $4.00 they have already sent is its own settlement item dated
+    // today, which falls outside the week, so the week shows the $6.00 still owed on the share.
     const digest = await buildWeeklyDigest(memberId, now);
-    expect(digest.spending?.weekCents).toBe(1000);
+    expect(digest.spending?.weekCents).toBe(600);
   });
 
   it('leaves a bill that is more than seven days away out of the email', async () => {

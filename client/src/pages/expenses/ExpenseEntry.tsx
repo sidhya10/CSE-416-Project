@@ -48,7 +48,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [splitting, setSplitting] = useState(false);
   const [splitMode, setSplitMode] = useState<SplitMode>(initialSplit?.mode ?? 'equal');
   const [assignments, setAssignments] = useState<SplitAssignments>(initialSplit?.assignments ?? {});
-  const [date] = useState(() => initialSplit?.date ?? (() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; })());
+  const [date, setDate] = useState(() => initialSplit?.date ?? (() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; })());
   const [budgetCategory, setBudgetCategory] = useState(initialSplit?.budgetCategory ?? 'other');
   const [name, setName] = useState(initialSplit?.name ?? '');
   const [items, setItems] = useState<Item[]>(initialSplit?.items.map(item => ({ id: item.id, name: item.name, amount: ((item.unitCents ?? item.cents) / 100).toFixed(2), quantity: String(item.quantity ?? 1) })) ?? [{ id: 0, name: '', amount: '', quantity: '1' }]);
@@ -177,7 +177,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   };
 
   if (splitting) return <SplitExpense editing={!!initialSplit} name={name.trim()} items={items.map(item => ({ id: item.id, name: item.name.trim(), cents: cents(item.amount)! * (quantityValue(item.quantity) ?? 0), unitCents: cents(item.amount)!, quantity: quantityValue(item.quantity)! }))}
-    feeCents={Object.values(fees).reduce((sum, value) => sum + (cents(value) ?? 0), 0)} members={members} payerId={payer} date={date}
+    feeCents={Object.values(fees).reduce((sum, value) => sum + (cents(value) ?? 0), 0)} members={members} payerId={payer} date={date || new Date().toISOString().slice(0, 10)}
     mode={splitMode} assignments={assignments} onModeChange={setSplitMode} onAssignmentsChange={setAssignments}
     onBack={() => setSplitting(false)} onConfirm={async split => {
       const receiptAttachment = guest ? undefined : receiptFile ? await prepareReceiptAttachment(receiptFile) : !receiptName && initialSplit?.receiptName ? null : undefined;
@@ -207,6 +207,8 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           <ExpandingNameInput label="EXPENSE NAME" placeholder="e.g. Dinner at Myers + Chang" value={name} onChange={setName} />
           <p>{groupName} · Created by {initialSplit?.creatorId && initialSplit.creatorId !== 'you' ? initialSplit.creatorName : 'you'}</p>
           <button className="expense-outline" type="button" onClick={() => { setChoice(payer); setChoosing(true); }}>Paid by {displayName(payer)} · Change</button>
+          <label className="expense-date">Expense date <span>(optional)</span><input type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
+          <small className="expense-date-help">A date improves automatic bank-transaction matching. Today is used by default.</small>
         </section>
         {!guest && <section className="expense-category">
           <label htmlFor="expense-category">Budget category <span>(optional)</span></label>

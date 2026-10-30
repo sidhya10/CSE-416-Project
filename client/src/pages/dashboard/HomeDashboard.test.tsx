@@ -33,7 +33,7 @@ const transaction = (id: string, merchant: string, amountCents: number, category
   date: '2026-10-29', amountCents, pending: false, providerCategory: null, category, excluded: false, note: null,
   reviewed: false, reviewedAt: null, linkedExpense: null, splits: [],
 });
-const transactions = () => [transaction('t1', 'Trader Joe’s', 4218, 'groceries'), transaction('t2', 'Spotify', 1199), transaction('t3', 'Target', 6724, 'shopping'), transaction('t4', 'Corner Cafe', 1250, 'dining')];
+const transactions = () => [transaction('t2', 'Spotify', 1199)];
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 function stubApi(data: { personal?: ApiPersonalBudget; groups?: ApiGroupBudget[]; home?: ApiHomeSummary; transactions?: ApiBankTransaction[] } = {}, overrides: Record<string, () => Response> = {}) {
@@ -96,7 +96,7 @@ describe('home dashboard with real data', () => {
     expect(screen.getByText('You owe $38.20 in 1 group')).toBeInTheDocument();
     expect(screen.queryByText('Over budget: Dining')).not.toBeInTheDocument();
     expect(screen.getByText('3 items need attention')).toBeInTheDocument();
-    expect(screen.getByText('Review 4 transactions')).toBeInTheDocument();
+    expect(screen.getByText('Categorize 1 transaction')).toBeInTheDocument();
     expect(screen.getByText('Latest: Alex added Dinner in Weekend Trip · $40.00')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Transactions to review' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Apartment rent|matched bank charge|group updates/)).not.toBeInTheDocument();
@@ -140,10 +140,10 @@ describe('home dashboard with real data', () => {
     const onReviewTransactions = vi.fn();
     const onReviewCountChange = vi.fn();
     render(<HomeDashboard userName="Nicole" onNavigate={() => {}} onReviewTransactions={onReviewTransactions} onReviewCountChange={onReviewCountChange} />);
-    const transactionTodo = await screen.findByText('Review 4 transactions');
+    const transactionTodo = await screen.findByText('Categorize 1 transaction');
     fireEvent.click(transactionTodo.closest('.home-todo-row')!.querySelector('button')!);
     expect(onReviewTransactions).toHaveBeenCalledOnce();
-    expect(onReviewCountChange).toHaveBeenCalledWith(4);
+    expect(onReviewCountChange).toHaveBeenCalledWith(1);
   });
 
   it('does not fetch while hidden, then loads when shown', async () => {

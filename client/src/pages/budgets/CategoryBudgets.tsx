@@ -182,13 +182,13 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
           <button type="button" onClick={() => setDetail({ kind: 'insights' })}>View insights ›</button>
         </div>
       </section>
-      {unreviewed.length > 0 && <section className="cb-review-card" aria-label="Transactions to review">
-        <div className="cb-review-head"><div><h2>Transactions to review</h2><small>{unreviewed.length} {unreviewed.length === 1 ? 'transaction needs' : 'transactions need'} a category check</small></div><span>{unreviewed.length}</span></div>
+      {unreviewed.length > 0 && <section className="cb-review-card" aria-label="Transactions to categorize">
+        <div className="cb-review-head"><div><h2>Transactions to categorize</h2><small>{unreviewed.length} {unreviewed.length === 1 ? 'transaction could' : 'transactions could'} not be categorized automatically</small></div><span>{unreviewed.length}</span></div>
         {unreviewed.slice(0, 3).map(transaction => <div className="cb-review-row" key={transaction.id}>
           <span><strong>{transaction.merchant}</strong><small>{transaction.category ? transaction.category.charAt(0).toUpperCase() + transaction.category.slice(1) : 'Uncategorized'} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</small></span>
           <b className={transaction.amountCents < 0 ? 'income' : ''}>{formatCents(transaction.amountCents)}</b>
         </div>)}
-        <button type="button" className="cb-review-all" onClick={onOpenTransactions}>Review all transactions ›</button>
+        <button type="button" className="cb-review-all" onClick={onOpenTransactions}>Categorize transactions ›</button>
       </section>}
       {!personal.hasBankConnection && <p className="cb-notice" role="status">Group expense shares appear here automatically. Connect a bank account in Profile to include other spending.</p>}
       {overLimit.length > 0 && <p className="cb-notice cb-warn" role="status">Over budget this month: {overLimit.map(item => item.label).join(', ')}.</p>}

@@ -32,8 +32,8 @@ expensesRouter.put('/expenses/:id', async (req, res) => {
   res.json({ expense: await editExpense(req.params.id, req.userId!, input.version, input.expense) });
 });
 expensesRouter.post('/expenses/:id/payments', async (req, res) => {
-  const input = z.object({ amountCents: z.number().int().positive().max(2_000_000_000), clientRequestId: z.uuid() }).strict().parse(req.body);
-  res.status(201).json({ payment: await sendPayment(req.params.id, req.userId!, input.amountCents, input.clientRequestId) });
+  const input = z.object({ amountCents: z.number().int().positive().max(2_000_000_000), clientRequestId: z.uuid(), method: z.enum(['Cash', 'Venmo', 'Zelle', 'Cash App', 'Other']).default('Other') }).strict().parse(req.body);
+  res.status(201).json({ payment: await sendPayment(req.params.id, req.userId!, input.amountCents, input.clientRequestId, input.method) });
 });
 expensesRouter.patch('/expenses/:id/payments/:paymentId', async (req, res) => {
   const input = z.object({ status: z.enum(['CONFIRMED', 'ISSUE']) }).strict().parse(req.body);
@@ -52,7 +52,7 @@ expensesRouter.get('/expenses/:id/budget-link', async (req, res) => {
   const expense = await readExpense(prisma, req.params.id, req.userId!);
   const canLink = expense.paidByUserId === req.userId;
   const candidates = canLink ? await prisma.bankTransaction.findMany({
-    where: { pending: false, amountCents: { gt: 0 }, account: { hidden: false, connection: { userId: req.userId! } }, OR: [{ linkedExpense: null }, { linkedExpense: { id: expense.id } }] },
+    where: { pending: false, excluded: false, autoExcludedReason: null, amountCents: { gt: 0 }, settlementTransaction: null, account: { hidden: false, connection: { userId: req.userId! } }, OR: [{ linkedExpense: null }, { linkedExpense: { id: expense.id } }] },
     select: { id: true, name: true, merchant: true, amountCents: true, date: true, pending: true, category: true }, orderBy: { date: 'desc' },
   }) : [];
   res.json({ reviewed: expense.budgetLinkReviewed, expenseTotalCents: expense.totalCents, category: expense.shares.find(s => s.userId === req.userId)?.budgetCategory ?? 'other', linked: !!expense.bankTransactionId, transactionId: canLink ? expense.bankTransactionId : null, canLink, ownShareCents: expense.shares.find(s => s.userId === req.userId)?.totalCents ?? 0, candidates: candidates.map(t => ({ ...t, category: categorize(t) ?? 'other' })) });
@@ -63,7 +63,7 @@ expensesRouter.put('/expenses/:id/budget-link', async (req, res) => {
     const expense = await readExpense(tx, req.params.id, req.userId!);
     if (expense.paidByUserId !== req.userId) throw new ExpenseError(403, 'Only the payer can link their bank transaction');
     if (input.transactionId) {
-      const bank = await tx.bankTransaction.findFirst({ where: { id: input.transactionId, pending: false, amountCents: { gt: 0 }, account: { connection: { userId: req.userId! } } }, include: { linkedExpense: { select: { id: true } } } });
+      const bank = await tx.bankTransaction.findFirst({ where: { id: input.transactionId, pending: false, excluded: false, autoExcludedReason: null, amountCents: { gt: 0 }, settlementTransaction: null, account: { connection: { userId: req.userId! } } }, include: { linkedExpense: { select: { id: true } } } });
       if (!bank || (bank.linkedExpense && bank.linkedExpense.id !== expense.id)) throw new ExpenseError(409, 'Choose an available posted charge from your own account.');
     }
     await tx.expense.update({ where: { id: expense.id }, data: { budgetLinkReviewed: true, bankTransactionId: input.transactionId, version: { increment: 1 } } });

@@ -492,7 +492,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     else { setSavedSplit(saved); go('saved'); }
     void refreshGroups();
   };
-  const applyRemotePayment = async (memberId: string, action: PaymentAction) => {
+  const applyRemotePayment = async (memberId: string, action: PaymentAction, method?: string) => {
     const split = viewedExpense?.split;
     if (!active || !split?.expenseId) return;
     ++refreshSequence.current;
@@ -501,7 +501,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       const key = `${split.expenseId}:${memberId}`;
       const requestKey = paymentRequestIds.current.get(key) ?? createRequestId();
       paymentRequestIds.current.set(key, requestKey);
-      await expensesApi.send(split.expenseId, state.remaining, requestKey);
+      await expensesApi.send(split.expenseId, state.remaining, requestKey, method);
 
     } else {
       for (const paymentId of state.record?.pendingIds ?? []) await expensesApi.resolve(split.expenseId, paymentId, action === 'received' ? 'CONFIRMED' : 'ISSUE');
@@ -551,9 +551,9 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     go('expense-details');
   }} />;
 
-  if (screen === 'expense-details' && active && viewedExpense) return <ExpenseDetails highlightBudget={!!budgetSetupTarget && budgetSetupTarget === viewedExpense.split?.expenseId} initialBudgetOpen={(!!budgetSetupTarget && budgetSetupTarget === viewedExpense.split?.expenseId) || notificationTarget?.expenseId === viewedExpense.split?.expenseId} onPaymentViewChange={onRootChange} onPaymentAction={(memberId: string, action: PaymentAction) => {
+  if (screen === 'expense-details' && active && viewedExpense) return <ExpenseDetails highlightBudget={!!budgetSetupTarget && budgetSetupTarget === viewedExpense.split?.expenseId} initialBudgetOpen={(!!budgetSetupTarget && budgetSetupTarget === viewedExpense.split?.expenseId) || notificationTarget?.expenseId === viewedExpense.split?.expenseId} onPaymentViewChange={onRootChange} onPaymentAction={(memberId: string, action: PaymentAction, method?: string) => {
     if (!viewedExpense.split) return;
-    if (!initialGroupsData) return applyRemotePayment(memberId, action);
+    if (!initialGroupsData) return applyRemotePayment(memberId, action, method);
     const split = updatePayment(viewedExpense.split, 'you', memberId, action);
     setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
     setViewedExpense({ ...viewedExpense, split });

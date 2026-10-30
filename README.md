@@ -8,7 +8,7 @@
 
 This project is a mobile-responsive web application for young adults who manage personal budgets while regularly sharing expenses with roommates, friends, and travel groups. It combines group expense splitting, settlement tracking, connected bank transactions, and personal category budgets in one application.
 
-The product's central workflow is now implemented: every participant's share of a group expense is counted once in their personal budget. While entering a split, the payer receives ranked suggestions from their own posted Plaid charges based on amount, date, and merchant, then explicitly confirms a match. When linked, the full bank charge is excluded from the payer's spending total and replaced by the payer's own share.
+The product's central workflow is now implemented: every participant's share of a group expense is counted once in their personal budget. The app first tries to match a payer's split to one unambiguous posted bank charge using its amount, expense date, and merchant. If no safe automatic match exists, the payer can search the existing ranked suggestions and choose one manually. When linked, the full bank charge is excluded from the payer's spending total and replaced by the payer's own share.
 
 The app records that payments were sent and received, but it does not move money. It currently supports USD only.
 
@@ -58,6 +58,7 @@ All group types share group information, members, expenses, balances, settings, 
 - Continue without an account to calculate a temporary quick split with named participants, manual item entry, or a guest receipt scan. Guest data is kept only in the current browser session and is discarded on exit or refresh.
 - Add and edit General and Trip expenses.
 - Select the member who paid.
+- Optionally set the date the expense occurred; new expenses default to today when no date is supplied.
 - Enter item names, quantities, prices, tax, tip, and additional fees.
 - Split an expense equally, by assigned items, or with custom shares.
 - Validate on the server that all shares equal the expense total to the cent.
@@ -83,6 +84,7 @@ Receipt scanning currently processes one uploaded file and the first page or pri
 - Any group member can initialize a settlement for expenses that have not already entered a settlement period.
 - Previously settled expenses remain in history and do not enter a later settlement again.
 - Debtors can report that they sent money and record a payment method.
+- When a debtor reports a payment, the app looks for a corresponding posted Zelle or bank transfer. If none exists yet, it creates a personal transaction containing the amount, method, group, recipient, and sent date. A later bank sync can replace that generated entry with the real transfer.
 - Creditors can confirm receipt or report an issue.
 - Only confirmed payments reduce the underlying debt.
 - A separate Group payments section above the group list displays payment tasks, confirmation tasks, collection progress, and in-app reminders. Home shows its to-do summary near the top, linking to Groups for payment actions.
@@ -112,13 +114,15 @@ The application does not initiate ACH, card, Venmo, Cash App, or other real-mone
 - Reauthenticate connections that need attention.
 - Disconnect an institution.
 - Automatically synchronize every active Plaid connection after a successful password or Google login, while keeping login available if Plaid is temporarily unavailable.
-- See one consolidated Home to-do with the number of transactions needing review, plus a three-transaction preview and review-count badge in Personal Budget. Open the private searchable Transaction Review Center from either location to filter by status, override categories, exclude non-spending charges, add notes, and mark items reviewed or unreviewed.
+- View imported bank activity in the private, searchable Transactions screen. Transactions that can be categorized automatically require no action; only purchases without a reliable category appear in the Home to-do and the Personal Budget review count.
+- Automatically hide credit-card payoff transactions from the transaction list and spending totals so the original purchases are not counted a second time.
+- Categorize unresolved purchases, override categories, exclude non-spending charges, add notes, and split one purchase across categories.
 - Split one spending transaction across multiple budget categories, with server validation that the allocations equal the charge to the cent.
-- Suggest up to five available posted charges while the payer enters a split, ranked by amount, date proximity, and merchant similarity. Bank details remain private and the payer makes the final selection.
+- Automatically link a payer's split when there is one unambiguous exact-amount charge near the expense date. If the result is ambiguous, suggest up to five posted charges ranked by amount, date proximity, and merchant similarity for the payer to search and select privately.
 - Let the payer add, change, or remove the bank link after saving the expense.
 - Automatically remove a saved link if a later Plaid sync changes that charge's amount.
 
-The application keeps Plaid's provider category as source data while storing the user's review decisions separately. Users can still choose **Sync now** between logins. Transactions linked to group expenses remain governed by the group-share reconciliation workflow so the payer's full charge is not counted twice.
+The application keeps Plaid's provider category as source data while storing the user's review decisions separately. Uncategorized spending is provisionally counted under Other so totals are not understated while it awaits categorization. Users can still choose **Sync now** between logins. Transactions linked to group expenses or repayments remain governed by the group-share reconciliation workflow so bank activity and group shares are not counted twice.
 
 ### Personal budgets
 
@@ -128,6 +132,7 @@ The application keeps Plaid's provider category as source data while storing the
 - Open a category to view its contributing transactions.
 - Categorize each group-expense share independently for the participant's own budget.
 - For a linked expense, exclude the payer's full bank charge and count only that payer's share, preventing double counting. Other participants' shares count even when they do not have a corresponding bank charge.
+- After a non-payer reports sending their share, represent that spending with the matched Zelle/bank transfer or a generated group-payment transaction. This replaces the original share line rather than adding a second copy of the spending.
 - Display an over-budget item on the Home dashboard when a category exceeds its limit.
 - Show a four-month spending and income comparison on Home using the same linked-charge deduplication and group-share totals.
 - Display the most recently added group expense and a prominent to-do summary on Home; detailed payment cards are on Groups.
@@ -154,7 +159,7 @@ Saved scenarios (up to eight per user) are stored in PostgreSQL on the user's ac
 
 The following product concepts are planned or incomplete and should not be treated as implemented behavior:
 
-- **Automatic bank/group matching:** The app automatically generates ranked suggestions, but deliberately requires payer confirmation and never commits a financial match on its own.
+- **Automatic bank/group matching:** Conservative exact-amount matching is implemented for payer charges and debtor Zelle/bank transfers. Ambiguous matches still require the existing manual search flow; matching does not yet use Plaid webhooks or machine-learned merchant models.
 - **Background bank synchronization:** Plaid connections synchronize on successful login and on demand, but there is no webhook-driven or scheduled synchronization while the user is logged out.
 - **Payer fairness:** The app shows how much each member paid, owes, or is owed, but it does not recommend who should pay next or rotate the payer across a group.
 - **Offline support:** There is no IndexedDB write queue, offline draft persistence, or service worker.
@@ -202,6 +207,8 @@ TanStack Query, IndexedDB, Redis/BullMQ, Server-Sent Events, external object sto
 - Group balances are derived from expense shares and confirmed payments.
 - Every user's group-expense share counts once in their personal budget on the expense date.
 - A bank transaction can be linked to at most one group expense. A linked full charge is excluded from budget spending and replaced by the user's share.
+- Credit-card payoff transactions are hidden and excluded automatically because the underlying card purchases already represent the spending.
+- A reported group repayment is represented by either one matched bank transfer or one generated personal transaction, and it replaces the corresponding group-share line so the amount is counted exactly once.
 - A debtor reporting a payment does not clear the debt until the creditor confirms it.
 - Settled expenses do not enter later settlement periods.
 - Bank access tokens are encrypted before storage.

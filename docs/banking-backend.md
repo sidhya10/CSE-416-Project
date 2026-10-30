@@ -21,7 +21,8 @@ Keep `BANK_TOKEN_KEY` (or `JWT_SECRET` if the key is unset) stable. Changing it 
 
 - `BankConnection`: one Plaid Item per linked institution. Holds the institution name, the encrypted access token, the Plaid sync cursor, `status` (`ACTIVE` or `NEEDS_ATTENTION`), `statusDetail`, and `lastSyncedAt`. `plaidItemId` is unique.
 - `BankAccount`: the accounts under a connection, with Plaid name, last four digits, `balanceCents`, an optional user `nickname`, and a `hidden` flag.
-- `BankTransaction`: amount in integer cents, date, name, merchant, Plaid primary category, and `pending`. `plaidTransactionId` is unique, so repeated syncs update rather than duplicate.
+- `BankTransaction`: amount in integer cents, date, name, merchant, Plaid primary category, `pending`, review state, and any automatic exclusion reason. `plaidTransactionId` is unique, so repeated syncs update rather than duplicate.
+- `PersonalSettlementTransaction`: a debtor-side personal ledger entry created when the user reports paying a group debt. It records the amount, method, group, recipient, and sent date, and optionally links to one matching bank transfer.
 
 Deleting a user deletes their connections, accounts, and transactions.
 
@@ -35,6 +36,8 @@ All routes are under `/api/banking` and require the session cookie.
 | `POST /link-token` | Optional body `{ "connectionId": "..." }`. Without it, returns a Link token for a new connection. With it, returns an update-mode token for re-authenticating that connection (404 if it is not the user's). |
 | `POST /exchange` | Body `{ "publicToken": "..." }`. Exchanges the Link public token, stores the encrypted access token and accounts, runs a first sync, and returns the accounts with status 201. |
 | `POST /sync` | Syncs every `ACTIVE` connection and returns `{ added, accounts }`. A connection that fails is skipped and counts as zero. |
+| `GET /transactions` | Returns the user's searchable bank activity plus generated group-payment entries. `status=unreviewed` returns only transactions whose category could not be determined. Automatically detected credit-card payments are omitted. |
+| `PUT /transactions/:id/review` | Saves a category, note, manual exclusion, or category split for the user's bank transaction. |
 | `POST /connections/:id/reauthenticated` | Call after update-mode Link succeeds. Marks the connection `ACTIVE` and syncs it. |
 | `PATCH /accounts/:id` | Body `{ "nickname": "Checking", "hidden": true }`. Nickname is 1 to 40 characters or `null` to clear. Other users' accounts return 404. |
 | `DELETE /connections/:id` | Revokes the Item at Plaid, then deletes the connection with its accounts and transactions. Returns 204. |
@@ -46,6 +49,9 @@ All routes are under `/api/banking` and require the session cookie.
 - Balances are refreshed on every sync. Credit and loan balances are stored as negative numbers because Plaid reports them as amounts owed.
 - If data changes while paging, Plaid returns `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION`. The sync restarts from the last saved cursor once.
 - The cursor, balances, and transactions are written in one database transaction, so a failed sync leaves the previous state intact.
+- Categorized purchases are marked ready automatically. Only positive purchases that cannot be mapped to a budget category require review.
+- Credit-card payoff transactions are automatically hidden and excluded so card purchases are not counted again when the statement balance is paid.
+- After each sync, the server conservatively links exact-amount group expenses to a nearby payer charge and reported group repayments to a nearby Zelle/bank transfer when the match is unambiguous. Manual expense matching remains available as the fallback.
 - A failed first sync during `/exchange` does not undo the link. Use Sync now to retry.
 - `ITEM_LOGIN_REQUIRED`, `PENDING_EXPIRATION`, or `PENDING_DISCONNECT` set the connection to `NEEDS_ATTENTION` with "Consent expired". `POST /sync` skips it until the user re-authenticates.
 - If Plaid fails during disconnect, the local record is kept so the user can retry. An `ITEM_NOT_FOUND` response is treated as already revoked.
@@ -58,13 +64,13 @@ All routes are under `/api/banking` and require the session cookie.
 
 ## Connected frontend
 
-Connected accounts lets the user connect a bank through Plaid Link, rename or hide accounts, re-authenticate a connection that needs attention, disconnect, and run Sync now. Sync now is disabled unless at least one visible account is synced. After a sync it shows how many new transactions were imported. Hidden accounts are excluded from budget spending.
+Connected accounts lets the user connect a bank through Plaid Link, rename or hide accounts, re-authenticate a connection that needs attention, disconnect, and run Sync now. Active connections also sync after password or Google login without blocking login if Plaid is unavailable. After a sync it shows how many new transactions were imported. Hidden accounts are excluded from budget spending.
 
 ## Testing in the Plaid sandbox
 
 1. Set sandbox credentials in `.env` and run `npm run dev`.
 2. Open Connected accounts and connect a bank. In Plaid Link, choose any institution and sign in with username `user_good` and password `pass_good`.
-3. Confirm the accounts appear with balances, then press Sync now and check that transactions appear in the Budget tab.
+3. Confirm the accounts appear with balances, then press Sync now and check that transactions appear in Personal Budget → Transactions.
 4. Rename and hide an account, then check that a hidden account's spending leaves the Budget tab.
 5. Disconnect and confirm the accounts and their transactions disappear.
 
@@ -72,7 +78,7 @@ Automated tests in `server/tests/banking.test.ts` mock Plaid, so they use no san
 
 ## Known gaps
 
-- Sync runs only when the user presses Sync now. There is no webhook or scheduled sync, and the Automatic sync toggle on the screen is not wired to the server yet.
+- Sync runs after login and when the user presses Sync now. There is no webhook or scheduled sync while the user is logged out.
 - Only the Transactions product is requested. Plaid's detailed category is not stored.
-- Reviewed matching of bank charges to group expenses, and avoiding double counting, is not built.
+- Automatic matching is intentionally conservative; ambiguous expenses and transfers require manual handling.
 - `production` mode needs Plaid production approval and has not been tested.

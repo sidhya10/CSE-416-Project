@@ -2,6 +2,7 @@ import { validateReceipt } from '../receipts/receipt.validation.js';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database.js';
 import { calculateExpense, type ExpenseInput } from './expense.validation.js';
+import { automaticExpenseMatch, automaticSettlementMatch } from '../banking/bank.matching.js';
 
 import { ExpenseError } from './expense.error.js';
 export { ExpenseError } from './expense.error.js';
@@ -62,8 +63,9 @@ async function writeReceipt(tx: Transaction, expenseId: string, input: ExpenseIn
 }
 
 function expenseFields(input: ExpenseInput) {
+  const expenseDate = input.expenseDate ? new Date(`${input.expenseDate}T00:00:00.000Z`) : new Date(new Date().toISOString().slice(0, 10));
   return {
-    title: input.title, paidByUserId: input.paidByUserId, expenseDate: new Date(`${input.expenseDate}T00:00:00.000Z`),
+    title: input.title, paidByUserId: input.paidByUserId, expenseDate,
     splitMode: input.splitMode, taxCents: input.taxCents, tipCents: input.tipCents, otherCents: input.otherCents,
     totalCents: calculateExpense(input).totalCents,
     ...(input.budgetCategory !== undefined ? { budgetCategory: input.budgetCategory } : {}),
@@ -95,15 +97,19 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
       } });
       if (!bank) throw new ExpenseError(409, 'That bank transaction is no longer available. Refresh the suggestions and try again.');
     }
+    const fields = expenseFields(input);
+    const automaticBankTransactionId = !input.bankTransactionId && input.paidByUserId === userId
+      ? await automaticExpenseMatch(tx, userId, { amountCents: fields.totalCents, date: fields.expenseDate, merchant: input.title }) : null;
+    const bankTransactionId = input.bankTransactionId ?? automaticBankTransactionId;
     const expense = await tx.expense.create({ data: {
-      groupId, createdByUserId: userId, clientRequestId, ...expenseFields(input),
-      bankTransactionId: input.bankTransactionId ?? null, budgetLinkReviewed: !!input.bankTransactionId,
+      groupId, createdByUserId: userId, clientRequestId, ...fields,
+      bankTransactionId, budgetLinkReviewed: !!bankTransactionId,
     } });
     await tx.group.update({ where: { id: groupId }, data: { lastActivityAt: new Date() } });
     await writeItemsAndShares(tx, expense.id, input);
     if (input.budgetCategory) await tx.expenseShare.updateMany({ where: { expenseId: expense.id, userId }, data: { budgetCategory: input.budgetCategory } });
     await writeReceipt(tx, expense.id, input);
-    if (!input.bankTransactionId) await notifyBudgetPayer(tx, expense.id, input);
+    if (!bankTransactionId) await notifyBudgetPayer(tx, expense.id, input);
     return readExpense(tx, expense.id, userId);
   });
 }
@@ -133,7 +139,7 @@ export function editExpense(id: string, userId: string, version: number, input: 
   });
 }
 
-export function sendPayment(expenseId: string, userId: string, amountCents: number, clientRequestId: string) {
+export function sendPayment(expenseId: string, userId: string, amountCents: number, clientRequestId: string, method = 'Other') {
   return transaction(async tx => {
     const expense = await readExpense(tx, expenseId, userId);
     if (expense.paidByUserId === userId) throw new ExpenseError(400, 'The expense payer does not reimburse themselves');
@@ -141,13 +147,20 @@ export function sendPayment(expenseId: string, userId: string, amountCents: numb
     if (!share) throw new ExpenseError(403, 'You do not have a share in this expense');
     const previous = await tx.expensePayment.findUnique({ where: { senderUserId_clientRequestId: { senderUserId: userId, clientRequestId } } });
     if (previous) {
-      if (previous.expenseId !== expenseId || previous.amountCents !== amountCents) throw new ExpenseError(409, 'Request ID already used for another payment');
+      if (previous.expenseId !== expenseId || previous.amountCents !== amountCents || (previous.method ?? 'Other') !== method) throw new ExpenseError(409, 'Request ID already used for another payment');
       return previous;
     }
     const committed = share.payments.filter(payment => payment.status !== 'ISSUE').reduce((sum, payment) => sum + payment.amountCents, 0);
     if (amountCents > share.totalCents - committed) throw new ExpenseError(409, 'Payment exceeds the remaining unreported amount');
     await tx.group.update({ where: { id: expense.groupId }, data: { lastActivityAt: new Date() } });
-    const payment = await tx.expensePayment.create({ data: { expenseId, senderUserId: userId, amountCents, clientRequestId } });
+    const recipient = await tx.user.findUniqueOrThrow({ where: { id: expense.paidByUserId }, select: { name: true } });
+    const sentAt = new Date();
+    const bankTransactionId = await automaticSettlementMatch(tx, userId, { amountCents, date: sentAt, method, recipientName: recipient.name });
+    const personal = await tx.personalSettlementTransaction.create({ data: {
+      userId, recipientUserId: expense.paidByUserId, groupId: expense.groupId, amountCents, method, sentAt,
+      requestKey: `expense:${expenseId}:${clientRequestId}`, bankTransactionId,
+    } });
+    const payment = await tx.expensePayment.create({ data: { expenseId, senderUserId: userId, amountCents, method, clientRequestId, sentAt, personalSettlementTransactionId: personal.id } });
     if (expense.settlementBatchId) {
       const sender = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true } });
       await tx.settlementNotice.create({ data: { batchId: expense.settlementBatchId, recipientId: expense.paidByUserId, actorId: userId, kind: 'PAYMENT_SENT',

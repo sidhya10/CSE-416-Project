@@ -1,6 +1,6 @@
 import { prisma } from '../../config/database.js';
 import { groupBalances } from '../expenses/expense.service.js';
-import { CATEGORY_KEYS, MAX_SAVED_SCENARIOS, categorize, monthWindow, recentMonths, type CategoryKey } from './budget.categories.js';
+import { CATEGORY_KEYS, MAX_SAVED_SCENARIOS, NOT_SPENDING, categorize, monthWindow, recentMonths, type CategoryKey } from './budget.categories.js';
 
 export class BudgetError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -12,26 +12,33 @@ type CategoryTransaction = { linkedBank?: { merchant: string; date: string; amou
 const reviewedCategory = (row: { categoryOverride: string | null; category: string | null; name: string; merchant: string | null }) =>
   row.categoryOverride && CATEGORY_KEYS.includes(row.categoryOverride as CategoryKey)
     ? row.categoryOverride as CategoryKey
-    : categorize(row);
+    : categorize(row) ?? (NOT_SPENDING.has(row.category ?? '') ? null : 'other');
 
 /** This month's personal budget: category limits plus spending from the user's visible bank accounts. */
 export async function personalBudget(userId: string, now = new Date()) {
   const window = monthWindow(now);
-  const [limits, rows, connections, shares] = await Promise.all([
+  const [limits, rows, connections, shares, settlementTransactions] = await Promise.all([
     prisma.categoryLimit.findMany({ where: { userId } }),
     // Plaid reports money leaving an account as a positive amount; refunds and deposits are negative.
     prisma.bankTransaction.findMany({
-      where: { amountCents: { gt: 0 }, date: { gte: window.start, lt: window.end }, account: { hidden: false, connection: { userId } } },
-      include: { linkedExpense: { select: { id: true, budgetCategory: true } }, reviewSplits: { orderBy: { position: 'asc' } } },
+      where: { amountCents: { gt: 0 }, autoExcludedReason: null, date: { gte: window.start, lt: window.end }, account: { hidden: false, connection: { userId } } },
+      include: { linkedExpense: { select: { id: true, budgetCategory: true } }, settlementTransaction: { select: { id: true } }, reviewSplits: { orderBy: { position: 'asc' } } },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }),
     prisma.bankConnection.findMany({ where: { userId }, select: { lastSyncedAt: true } }),
-    prisma.expenseShare.findMany({ where: { userId, expense: { expenseDate: { gte: window.start, lt: window.end } } }, include: { expense: { include: { group: { select: { name: true } }, bankTransaction: { select: { merchant: true, name: true, date: true, amountCents: true } } } } } }),
+    prisma.expenseShare.findMany({ where: { userId, expense: { expenseDate: { gte: window.start, lt: window.end } } }, include: {
+      payments: { where: { status: { not: 'ISSUE' }, personalSettlementTransactionId: { not: null } }, select: { amountCents: true } },
+      expense: { include: { group: { select: { name: true } }, bankTransaction: { select: { merchant: true, name: true, date: true, amountCents: true } } } },
+    } }),
+    prisma.personalSettlementTransaction.findMany({
+      where: { userId, sentAt: { gte: window.start, lt: window.end }, payments: { some: { status: { not: 'ISSUE' } } } },
+      include: { group: { select: { name: true } }, recipient: { select: { name: true } }, payments: { where: { status: { not: 'ISSUE' } }, include: { share: { select: { budgetCategory: true } } } } },
+    }),
   ]);
   const transactions = Object.fromEntries(CATEGORY_KEYS.map(key => [key, [] as CategoryTransaction[]])) as Record<CategoryKey, CategoryTransaction[]>;
   const spent = Object.fromEntries(CATEGORY_KEYS.map(key => [key, 0])) as Record<CategoryKey, number>;
   for (const row of rows) {
-    if (row.linkedExpense || row.excluded) continue;
+    if (row.linkedExpense || row.settlementTransaction || row.excluded) continue;
     if (row.reviewSplits.length) {
       for (const split of row.reviewSplits) {
         const key = CATEGORY_KEYS.includes(split.category as CategoryKey) ? split.category as CategoryKey : 'other';
@@ -48,9 +55,23 @@ export async function personalBudget(userId: string, now = new Date()) {
   for (const share of shares) {
     const expense = share.expense;
     const key = CATEGORY_KEYS.includes(share.budgetCategory as CategoryKey) ? share.budgetCategory as CategoryKey : 'other';
-    spent[key] += share.totalCents;
-    transactions[key].push({ id: `share-${expense.id}`, merchant: `${expense.title} · Your share · ${expense.group.name}`, date: isoDate(expense.expenseDate), amountCents: share.totalCents, pending: false,
+    const representedCents = share.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
+    const remainingCents = Math.max(0, share.totalCents - representedCents);
+    if (!remainingCents) continue;
+    spent[key] += remainingCents;
+    transactions[key].push({ id: `share-${expense.id}`, merchant: `${expense.title} · Your share · ${expense.group.name}`, date: isoDate(expense.expenseDate), amountCents: remainingCents, pending: false,
       ...(expense.paidByUserId === userId && expense.bankTransaction ? { linkedBank: { merchant: expense.bankTransaction.merchant ?? expense.bankTransaction.name, date: isoDate(expense.bankTransaction.date), amountCents: expense.bankTransaction.amountCents } } : {}) });
+  }
+  for (const settlement of settlementTransactions) {
+    const grouped = new Map<CategoryKey, number>();
+    for (const payment of settlement.payments) {
+      const key = CATEGORY_KEYS.includes(payment.share.budgetCategory as CategoryKey) ? payment.share.budgetCategory as CategoryKey : 'other';
+      grouped.set(key, (grouped.get(key) ?? 0) + payment.amountCents);
+    }
+    for (const [key, amountCents] of grouped) {
+      spent[key] += amountCents;
+      transactions[key].push({ id: `settlement-${settlement.id}-${key}`, merchant: `${settlement.group.name} · Paid ${settlement.recipient.name} via ${settlement.method}`, date: isoDate(settlement.sentAt), amountCents, pending: false });
+    }
   }
   for (const key of CATEGORY_KEYS) transactions[key].sort((a, b) => b.date.localeCompare(a.date));
   const limitFor = new Map(limits.map(limit => [limit.category, limit.limitCents]));
@@ -148,9 +169,9 @@ export async function homeSummary(userId: string, now = new Date()) {
   const window = monthWindow(now);
   const { keys, start } = recentMonths(now, 4);
   const inGroup = { memberships: { some: { userId } }, archivedAt: null };
-  const [rows, pending, latest, shares] = await Promise.all([
+  const [rows, pending, latest, shares, settlementTransactions] = await Promise.all([
     prisma.bankTransaction.findMany({
-      where: { linkedExpense: null, date: { gte: start, lt: window.end }, account: { hidden: false, connection: { userId } } },
+      where: { linkedExpense: null, settlementTransaction: null, autoExcludedReason: null, date: { gte: start, lt: window.end }, account: { hidden: false, connection: { userId } } },
       select: { id: true, date: true, amountCents: true, category: true, categoryOverride: true, excluded: true, name: true, merchant: true, reviewSplits: { orderBy: { position: 'asc' } } },
     }),
     prisma.expensePayment.findMany({ where: { status: 'SENT', share: { expense: { paidByUserId: userId, group: inGroup } } }, select: { amountCents: true } }),
@@ -158,7 +179,12 @@ export async function homeSummary(userId: string, now = new Date()) {
       where: { group: inGroup }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { title: true, totalCents: true, createdAt: true, creator: { select: { id: true, name: true } }, group: { select: { name: true } } },
     }),
-    prisma.expenseShare.findMany({ where: { userId, expense: { expenseDate: { gte: start, lt: window.end } } }, select: { totalCents: true, expense: { select: { expenseDate: true } } } }),
+    prisma.expenseShare.findMany({ where: { userId, expense: { expenseDate: { gte: start, lt: window.end } } }, select: {
+      totalCents: true, payments: { where: { status: { not: 'ISSUE' }, personalSettlementTransactionId: { not: null } }, select: { amountCents: true } }, expense: { select: { expenseDate: true } },
+    } }),
+    prisma.personalSettlementTransaction.findMany({ where: { userId, sentAt: { gte: start, lt: window.end }, payments: { some: { status: { not: 'ISSUE' } } } }, select: {
+      sentAt: true, payments: { where: { status: { not: 'ISSUE' } }, select: { amountCents: true } },
+    } }),
   ]);
   const months = new Map(keys.map(key => [key, { month: key, spendingCents: 0, incomeCents: 0 }]));
   for (const row of rows) {
@@ -171,7 +197,14 @@ export async function homeSummary(userId: string, now = new Date()) {
     }
     else if (row.category === 'INCOME') month.incomeCents += -row.amountCents;
   }
-  for (const share of shares) { const month = months.get(share.expense.expenseDate.toISOString().slice(0, 7)); if (month) month.spendingCents += share.totalCents; }
+  for (const share of shares) {
+    const month = months.get(share.expense.expenseDate.toISOString().slice(0, 7));
+    if (month) month.spendingCents += Math.max(0, share.totalCents - share.payments.reduce((sum, payment) => sum + payment.amountCents, 0));
+  }
+  for (const settlement of settlementTransactions) {
+    const month = months.get(settlement.sentAt.toISOString().slice(0, 7));
+    if (month) month.spendingCents += settlement.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
+  }
   return {
     history: keys.map(key => months.get(key)!),
     pendingPayments: { count: pending.length, cents: pending.reduce((sum, payment) => sum + payment.amountCents, 0) },

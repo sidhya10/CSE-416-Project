@@ -8,40 +8,42 @@ datasource db {
 }
 
 model User {
-  categoryBudgetNotices CategoryBudgetNotice[]
-  budgetNotices BudgetNotice[]
-  id                    String               @id @default(cuid())
-  email                 String               @unique
-  username              String               @unique
-  passwordHash          String?
-  sessionVersion        Int                  @default(0)
-  googleSubject         String?              @unique
-  name                  String
-  phone                 String?              @unique
-  birthday              DateTime?
-  bio                   String               @default("")
-  photoUrl              String?              @db.Text
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  createdSettlements    SettlementBatch[]
-  settlementNotices     SettlementNotice[]
-  createdRecurringBills RecurringBill[]
-  bankConnections       BankConnection[]
-  categoryLimits        CategoryLimit[]
-  whatIfScenarios       WhatIfScenario[]
-  weeklyEmails          WeeklyEmailSend[]
-  createdExpenses       Expense[]            @relation("ExpenseCreator")
-  paidExpenses          Expense[]            @relation("ExpensePayer")
-  expenseShares         ExpenseShare[]
-  receiptScans          ReceiptScan[]
-  friendshipsOne        Friendship[]         @relation("FriendshipOne")
-  friendshipsTwo        Friendship[]         @relation("FriendshipTwo")
-  createdGroups         Group[]              @relation("GroupCreator")
-  groupMemberships      GroupMembership[]
-  groupInvitations      GroupInvitation[]    @relation("GroupInvitationRecipient")
-  sentGroupInvitations  GroupInvitation[]    @relation("GroupInvitationSender")
-  passwordResetTokens   PasswordResetToken[]
-  recoveryCodes         RecoveryCode[]
+  categoryBudgetNotices          CategoryBudgetNotice[]
+  budgetNotices                  BudgetNotice[]
+  id                             String                          @id @default(cuid())
+  email                          String                          @unique
+  username                       String                          @unique
+  passwordHash                   String?
+  sessionVersion                 Int                             @default(0)
+  googleSubject                  String?                         @unique
+  name                           String
+  phone                          String?                         @unique
+  birthday                       DateTime?
+  bio                            String                          @default("")
+  photoUrl                       String?                         @db.Text
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  createdSettlements             SettlementBatch[]
+  settlementNotices              SettlementNotice[]
+  createdRecurringBills          RecurringBill[]
+  bankConnections                BankConnection[]
+  personalSettlementTransactions PersonalSettlementTransaction[] @relation("SettlementSender")
+  receivedSettlementTransactions PersonalSettlementTransaction[] @relation("SettlementRecipient")
+  categoryLimits                 CategoryLimit[]
+  whatIfScenarios                WhatIfScenario[]
+  weeklyEmails                   WeeklyEmailSend[]
+  createdExpenses                Expense[]                       @relation("ExpenseCreator")
+  paidExpenses                   Expense[]                       @relation("ExpensePayer")
+  expenseShares                  ExpenseShare[]
+  receiptScans                   ReceiptScan[]
+  friendshipsOne                 Friendship[]                    @relation("FriendshipOne")
+  friendshipsTwo                 Friendship[]                    @relation("FriendshipTwo")
+  createdGroups                  Group[]                         @relation("GroupCreator")
+  groupMemberships               GroupMembership[]
+  groupInvitations               GroupInvitation[]               @relation("GroupInvitationRecipient")
+  sentGroupInvitations           GroupInvitation[]               @relation("GroupInvitationSender")
+  passwordResetTokens            PasswordResetToken[]
+  recoveryCodes                  RecoveryCode[]
 }
 
 model PasswordResetToken {
@@ -91,28 +93,29 @@ enum GroupInvitationStatus {
 }
 
 model Group {
-  id             String            @id @default(cuid())
-  name           String
-  description    String            @default("")
-  type           String            @default("General")
-  color          String            @default("gold")
-  photoUrl       String?           @db.Text
-  startDate      DateTime?
-  endDate        DateTime?
-  createdById    String
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  createdBy      User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  settlements    SettlementBatch[]
-  expenses       Expense[]
-  memberships    GroupMembership[]
-  recurringBills RecurringBill[]
-  budgetPlan     GroupBudgetPlan?
-  archivedAt     DateTime?
-  archiveReason  String?
-  inactivityDays Int               @default(60)
-  lastActivityAt DateTime          @default(now())
-  invitations    GroupInvitation[]
+  id                             String                          @id @default(cuid())
+  name                           String
+  description                    String                          @default("")
+  type                           String                          @default("General")
+  color                          String                          @default("gold")
+  photoUrl                       String?                         @db.Text
+  startDate                      DateTime?
+  endDate                        DateTime?
+  createdById                    String
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  createdBy                      User                            @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  settlements                    SettlementBatch[]
+  expenses                       Expense[]
+  memberships                    GroupMembership[]
+  recurringBills                 RecurringBill[]
+  budgetPlan                     GroupBudgetPlan?
+  archivedAt                     DateTime?
+  archiveReason                  String?
+  inactivityDays                 Int                             @default(60)
+  lastActivityAt                 DateTime                        @default(now())
+  invitations                    GroupInvitation[]
+  personalSettlementTransactions PersonalSettlementTransaction[]
 
   @@index([createdById])
   @@index([archivedAt, lastActivityAt])
@@ -157,39 +160,39 @@ enum ExpenseSplitMode {
 }
 
 model Expense {
-  budgetNotices BudgetNotice[]
-  budgetCategory String @default("other")
-  budgetLinkReviewed Boolean @default(false)
-  bankTransactionId String? @unique
-  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
-  id                String           @id @default(cuid())
-  settlementBatchId String?
-  settlementBatch   SettlementBatch? @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
-  groupId           String
-  group             Group            @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  createdByUserId   String
-  creator           User             @relation("ExpenseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  paidByUserId      String
-  payer             User             @relation("ExpensePayer", fields: [paidByUserId], references: [id], onDelete: Restrict)
-  title             String
-  expenseDate       DateTime         @db.Date
-  currency          String           @default("USD")
-  splitMode         ExpenseSplitMode
-  taxCents          Int              @default(0)
-  tipCents          Int              @default(0)
-  otherCents        Int              @default(0)
-  totalCents        Int
-  version           Int              @default(1)
+  budgetNotices      BudgetNotice[]
+  budgetCategory     String           @default("other")
+  budgetLinkReviewed Boolean          @default(false)
+  bankTransactionId  String?          @unique
+  bankTransaction    BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  id                 String           @id @default(cuid())
+  settlementBatchId  String?
+  settlementBatch    SettlementBatch? @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
+  groupId            String
+  group              Group            @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  createdByUserId    String
+  creator            User             @relation("ExpenseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  paidByUserId       String
+  payer              User             @relation("ExpensePayer", fields: [paidByUserId], references: [id], onDelete: Restrict)
+  title              String
+  expenseDate        DateTime         @db.Date
+  currency           String           @default("USD")
+  splitMode          ExpenseSplitMode
+  taxCents           Int              @default(0)
+  tipCents           Int              @default(0)
+  otherCents         Int              @default(0)
+  totalCents         Int
+  version            Int              @default(1)
   // Retried create requests return the existing expense, rather than posting it twice.
-  clientRequestId   String
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  recurringBillId   String?
-  recurringBill     RecurringBill?   @relation(fields: [recurringBillId], references: [id], onDelete: Restrict)
-  cycleDate         DateTime?        @db.Date
-  receipt           ExpenseReceipt?
-  items             ExpenseItem[]
-  shares            ExpenseShare[]
+  clientRequestId    String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  recurringBillId    String?
+  recurringBill      RecurringBill?   @relation(fields: [recurringBillId], references: [id], onDelete: Restrict)
+  cycleDate          DateTime?        @db.Date
+  receipt            ExpenseReceipt?
+  items              ExpenseItem[]
+  shares             ExpenseShare[]
 
   @@unique([recurringBillId, cycleDate])
   @@unique([createdByUserId, clientRequestId])
@@ -212,7 +215,7 @@ model ExpenseItem {
 }
 
 model ExpenseShare {
-  budgetCategory String @default("other")
+  budgetCategory  String           @default("other")
   expenseId       String
   userId          String
   expense         Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade)
@@ -246,19 +249,22 @@ enum ExpensePaymentStatus {
 }
 
 model ExpensePayment {
-  id              String               @id @default(cuid())
-  expenseId       String
-  senderUserId    String
-  share           ExpenseShare         @relation(fields: [expenseId, senderUserId], references: [expenseId, userId], onDelete: Restrict)
-  amountCents     Int
-  method          String?
-  status          ExpensePaymentStatus @default(SENT)
-  clientRequestId String
-  sentAt          DateTime             @default(now())
-  resolvedAt      DateTime?
+  id                              String                         @id @default(cuid())
+  expenseId                       String
+  senderUserId                    String
+  share                           ExpenseShare                   @relation(fields: [expenseId, senderUserId], references: [expenseId, userId], onDelete: Restrict)
+  amountCents                     Int
+  method                          String?
+  status                          ExpensePaymentStatus           @default(SENT)
+  clientRequestId                 String
+  sentAt                          DateTime                       @default(now())
+  resolvedAt                      DateTime?
+  personalSettlementTransactionId String?
+  personalSettlementTransaction   PersonalSettlementTransaction? @relation(fields: [personalSettlementTransactionId], references: [id], onDelete: SetNull)
 
   @@unique([senderUserId, clientRequestId])
   @@index([expenseId])
+  @@index([personalSettlementTransactionId])
 }
 
 // User-scoped normalized OCR cache; images and full provider responses are not stored.
@@ -357,24 +363,51 @@ model BankAccount {
 }
 
 model BankTransaction {
-  linkedExpense    Expense?
-  reviewSplits     BankTransactionSplit[]
-  id                 String      @id @default(cuid())
-  accountId          String
-  account            BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  plaidTransactionId String      @unique
-  amountCents        Int
-  date               DateTime    @db.Date
-  name               String
-  merchant           String?
-  category           String?
-  pending            Boolean     @default(false)
-  categoryOverride   String?
-  excluded           Boolean     @default(false)
-  reviewNote         String?     @db.Text
-  reviewedAt         DateTime?
+  linkedExpense         Expense?
+  settlementTransaction PersonalSettlementTransaction?
+  reviewSplits          BankTransactionSplit[]
+  id                    String                         @id @default(cuid())
+  accountId             String
+  account               BankAccount                    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  plaidTransactionId    String                         @unique
+  amountCents           Int
+  date                  DateTime                       @db.Date
+  name                  String
+  merchant              String?
+  category              String?
+  pending               Boolean                        @default(false)
+  categoryOverride      String?
+  excluded              Boolean                        @default(false)
+  reviewNote            String?                        @db.Text
+  reviewedAt            DateTime?
+  needsReview           Boolean                        @default(false)
+  autoExcludedReason    String?
 
   @@index([accountId, date])
+}
+
+// One sender-side record for a repayment reported through a group settlement. When a matching
+// bank transfer exists it is linked; otherwise the record itself is shown in the personal ledger.
+model PersonalSettlementTransaction {
+  id                String           @id @default(cuid())
+  userId            String
+  sender            User             @relation("SettlementSender", fields: [userId], references: [id], onDelete: Cascade)
+  recipientUserId   String
+  recipient         User             @relation("SettlementRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+  groupId           String
+  group             Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  amountCents       Int
+  method            String
+  sentAt            DateTime         @default(now())
+  requestKey        String
+  bankTransactionId String?          @unique
+  bankTransaction   BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  payments          ExpensePayment[]
+  createdAt         DateTime         @default(now())
+
+  @@unique([userId, requestKey])
+  @@index([userId, sentAt])
+  @@index([groupId])
 }
 
 model BankTransactionSplit {
@@ -402,8 +435,6 @@ model CategoryLimit {
   @@unique([userId, category])
 }
 
-// A named set of category limits saved from the What-if simulator. `limits` maps category keys to
-// monthly limits in cents. It never changes the real budget; applying a scenario writes CategoryLimit rows.
 // One row per user per scheduled Friday send. The unique key is what keeps a restart or a second API
 // instance from emailing the same person twice. Status is SENDING, SENT, SKIPPED (nothing to report) or FAILED.
 model WeeklyEmailSend {
@@ -420,6 +451,8 @@ model WeeklyEmailSend {
   @@index([sendDate, status])
 }
 
+// A named set of category limits saved from the What-if simulator. `limits` maps category keys to
+// monthly limits in cents. It never changes the real budget; applying a scenario writes CategoryLimit rows.
 model WhatIfScenario {
   id        String   @id @default(cuid())
   userId    String
@@ -471,7 +504,7 @@ model SettlementShare {
 }
 
 model SettlementNotice {
-  deletedAt DateTime?
+  deletedAt   DateTime?
   id          String          @id @default(cuid())
   batchId     String
   batch       SettlementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
@@ -488,27 +521,29 @@ model SettlementNotice {
 }
 
 model BudgetNotice {
-  deletedAt DateTime?
-  id String @id @default(cuid())
-  expenseId String
+  deletedAt   DateTime?
+  id          String    @id @default(cuid())
+  expenseId   String
   recipientId String
-  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  message String
-  createdAt DateTime @default(now())
-  readAt DateTime?
+  expense     Expense   @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  recipient   User      @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  message     String
+  createdAt   DateTime  @default(now())
+  readAt      DateTime?
+
   @@unique([expenseId, recipientId])
 }
 
 model CategoryBudgetNotice {
-  id String @id @default(cuid())
+  id          String    @id @default(cuid())
   recipientId String
-  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  month String
-  category String
-  message String
-  createdAt DateTime @default(now())
-  readAt DateTime?
-  deletedAt DateTime?
+  recipient   User      @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  month       String
+  category    String
+  message     String
+  createdAt   DateTime  @default(now())
+  readAt      DateTime?
+  deletedAt   DateTime?
+
   @@unique([recipientId, month, category])
 }

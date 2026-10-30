@@ -66,8 +66,8 @@ export default function HomeDashboard({ userName, onNavigate, onReviewTransactio
         <button type="button" onClick={() => onNavigate(todo.target)}>{todo.trailing}</button>
       </div>)}
       {unreviewed.length > 0 && <div className="home-todo-row">
-        <span>Review {unreviewed.length} {unreviewed.length === 1 ? 'transaction' : 'transactions'}</span>
-        <button type="button" onClick={onReviewTransactions}>Review ›</button>
+        <span>Categorize {unreviewed.length} {unreviewed.length === 1 ? 'transaction' : 'transactions'}</span>
+        <button type="button" onClick={onReviewTransactions}>Open ›</button>
       </div>}
     </section>}
 

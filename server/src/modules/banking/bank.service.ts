@@ -3,7 +3,8 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database.js';
 import { decryptToken, encryptToken } from './bank.crypto.js';
 import { BankingError, plaid, plaidErrorCode } from './plaid.client.js';
-import { CATEGORY_KEYS, categorize, type CategoryKey } from '../budgets/budget.categories.js';
+import { CATEGORY_KEYS, automaticExclusionReason, categorize, requiresCategoryReview, type CategoryKey } from '../budgets/budget.categories.js';
+import { automaticExpenseMatch, automaticSettlementMatch, merchantSimilarity } from './bank.matching.js';
 
 const REAUTH_CODES = new Set(['ITEM_LOGIN_REQUIRED', 'PENDING_EXPIRATION', 'PENDING_DISCONNECT']);
 const cents = (amount: number | null | undefined) => Math.round((amount ?? 0) * 100);
@@ -90,17 +91,7 @@ export async function syncAll(userId: string) {
 
 export type ExpenseMatchInput = { amountCents: number; date: string; merchant?: string };
 
-const normalizedWords = (value: string) => new Set(value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(word => word.length > 1));
-const merchantSimilarity = (query: string, candidate: string) => {
-  const wanted = normalizedWords(query), available = normalizedWords(candidate);
-  if (!wanted.size || !available.size) return 0;
-  let shared = 0;
-  for (const word of wanted) if (available.has(word)) shared++;
-  return shared / Math.max(wanted.size, available.size);
-};
-
-// Suggestions never link automatically. They expose only the signed-in user's available,
-// posted charges and rank amount first, then date proximity and merchant similarity.
+// Suggestions remain available as the manual fallback when an exact automatic match is ambiguous.
 export async function suggestExpenseMatches(userId: string, input: ExpenseMatchInput) {
   const expenseDate = new Date(`${input.date}T00:00:00.000Z`);
   const day = 86_400_000;
@@ -110,9 +101,12 @@ export async function suggestExpenseMatches(userId: string, input: ExpenseMatchI
   const rows = await prisma.bankTransaction.findMany({
     where: {
       pending: false,
+      excluded: false,
+      autoExcludedReason: null,
       amountCents: { gt: 0, gte: Math.max(1, input.amountCents - tolerance), lte: input.amountCents + tolerance },
       date: { gte: start, lte: end },
       linkedExpense: null,
+      settlementTransaction: null,
       account: { hidden: false, connection: { userId } },
     },
     include: { account: { include: { connection: { select: { institutionName: true } } } } },
@@ -154,11 +148,22 @@ const presentedCategory = (row: { categoryOverride: string | null; category: str
 const transactionReviewInclude = {
   account: { include: { connection: { select: { institutionName: true } } } },
   linkedExpense: { select: { id: true, title: true } },
+  settlementTransaction: { include: {
+    group: { select: { id: true, name: true } },
+    recipient: { select: { id: true, name: true } },
+    payments: { where: { status: { not: 'ISSUE' as const } }, include: { share: { select: { budgetCategory: true } } } },
+  } },
   reviewSplits: { orderBy: { position: 'asc' as const } },
 } satisfies Prisma.BankTransactionInclude;
 type TransactionReviewRow = Prisma.BankTransactionGetPayload<{ include: typeof transactionReviewInclude }>;
-const presentTransaction = (row: TransactionReviewRow) => ({
+const presentTransaction = (row: TransactionReviewRow) => {
+  const settlementCategories = [...new Set(row.settlementTransaction?.payments.map(payment => payment.share.budgetCategory) ?? [])];
+  const category = row.settlementTransaction
+    ? (settlementCategories.length === 1 && CATEGORY_KEYS.includes(settlementCategories[0] as CategoryKey) ? settlementCategories[0] as CategoryKey : 'other')
+    : presentedCategory(row);
+  return ({
   id: row.id,
+  source: 'bank' as const,
   accountId: row.accountId,
   accountName: row.account.nickname ?? row.account.name,
   institution: row.account.connection.institutionName,
@@ -168,22 +173,26 @@ const presentTransaction = (row: TransactionReviewRow) => ({
   amountCents: row.amountCents,
   pending: row.pending,
   providerCategory: row.category,
-  category: presentedCategory(row),
+  category,
   excluded: row.excluded,
   note: row.reviewNote,
-  reviewed: !!row.reviewedAt,
+  reviewed: !row.needsReview,
+  needsReview: row.needsReview,
   reviewedAt: row.reviewedAt?.getTime() ?? null,
   linkedExpense: row.linkedExpense,
+  groupPayment: row.settlementTransaction ? { id: row.settlementTransaction.id, groupId: row.settlementTransaction.group.id, groupName: row.settlementTransaction.group.name, recipientName: row.settlementTransaction.recipient.name, method: row.settlementTransaction.method } : null,
   splits: row.reviewSplits.map(split => ({ id: split.id, category: split.category as CategoryKey, amountCents: split.amountCents })),
-});
+  });
+};
 
 export async function listTransactions(userId: string, filters: { query?: string; status: TransactionReviewStatus }) {
   const query = filters.query?.trim();
   const rows = await prisma.bankTransaction.findMany({
     where: {
       account: { connection: { userId } },
-      ...(filters.status === 'unreviewed' ? { reviewedAt: null, excluded: false }
-        : filters.status === 'reviewed' ? { reviewedAt: { not: null }, excluded: false }
+      autoExcludedReason: null,
+      ...(filters.status === 'unreviewed' ? { needsReview: true, excluded: false }
+        : filters.status === 'reviewed' ? { needsReview: false, excluded: false }
           : filters.status === 'excluded' ? { excluded: true } : {}),
       ...(query ? { OR: [
         { name: { contains: query, mode: 'insensitive' } },
@@ -197,7 +206,32 @@ export async function listTransactions(userId: string, filters: { query?: string
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
     take: 200,
   });
-  return rows.map(presentTransaction);
+  const synthetic = await prisma.personalSettlementTransaction.findMany({
+    where: {
+      userId, bankTransactionId: null, payments: { some: { status: { not: 'ISSUE' } } },
+      ...(query ? { OR: [
+        { method: { contains: query, mode: 'insensitive' } },
+        { group: { name: { contains: query, mode: 'insensitive' } } },
+        { recipient: { name: { contains: query, mode: 'insensitive' } } },
+      ] } : {}),
+      ...(filters.status === 'unreviewed' || filters.status === 'excluded' ? { id: '__none__' } : {}),
+    },
+    include: { group: { select: { id: true, name: true } }, recipient: { select: { name: true } }, payments: { where: { status: { not: 'ISSUE' } }, include: { share: { select: { budgetCategory: true } } } } },
+    orderBy: [{ sentAt: 'desc' }, { id: 'desc' }], take: 200,
+  });
+  const syntheticRows = synthetic.map(row => {
+    const categories = [...new Set(row.payments.map(payment => payment.share.budgetCategory))];
+    const category = categories.length === 1 && CATEGORY_KEYS.includes(categories[0] as CategoryKey) ? categories[0] as CategoryKey : 'other';
+    const activeAmountCents = row.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
+    return {
+      id: `settlement:${row.id}`, source: 'group_payment' as const, accountId: '', accountName: row.method, institution: 'Group payment',
+      merchant: `${row.group.name} repayment`, name: `Paid ${row.recipient.name}`, date: row.sentAt.toISOString().slice(0, 10), amountCents: activeAmountCents,
+      pending: false, providerCategory: null, category, excluded: false, note: `Sent via ${row.method} to ${row.recipient.name}`,
+      reviewed: true, needsReview: false, reviewedAt: row.sentAt.getTime(), linkedExpense: null,
+      groupPayment: { id: row.id, groupId: row.group.id, groupName: row.group.name, recipientName: row.recipient.name, method: row.method }, splits: [],
+    };
+  });
+  return [...rows.map(presentTransaction), ...syntheticRows].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).slice(0, 200);
 }
 
 export async function reviewTransaction(userId: string, id: string, patch: TransactionReviewPatch) {
@@ -217,6 +251,7 @@ export async function reviewTransaction(userId: string, id: string, patch: Trans
         excluded: patch.excluded,
         reviewNote: patch.note,
         reviewedAt: patch.reviewed ? new Date() : null,
+        needsReview: !patch.reviewed,
         ...(patch.splits.length ? { reviewSplits: { create: patch.splits.map((split, position) => ({ ...split, position })) } } : {}),
       },
     });
@@ -249,29 +284,40 @@ export async function syncConnection(connectionId: string) {
     }
     const { data: fresh } = await plaid().accountsGet({ access_token: accessToken });
     const accountIds = new Map(connection.accounts.map(account => [account.plaidAccountId, account.id]));
-    const toRow = (tx: Transaction) => ({
-      amountCents: cents(tx.amount), date: new Date(`${tx.date}T00:00:00.000Z`), name: tx.name, merchant: tx.merchant_name ?? null,
-      category: tx.personal_finance_category?.primary ?? null, pending: tx.pending,
-    });
+    const toRow = (plaidTransaction: Transaction) => {
+      const base = {
+        amountCents: cents(plaidTransaction.amount), date: new Date(`${plaidTransaction.date}T00:00:00.000Z`), name: plaidTransaction.name,
+        merchant: plaidTransaction.merchant_name ?? null, category: plaidTransaction.personal_finance_category?.primary ?? null, pending: plaidTransaction.pending,
+      };
+      return { ...base, needsReview: requiresCategoryReview(base), autoExcludedReason: automaticExclusionReason(base) };
+    };
     await prisma.$transaction(async tx => {
       for (const account of fresh.accounts) await tx.bankAccount.updateMany({ where: { plaidAccountId: account.account_id, connectionId }, data: { balanceCents: signedBalance(account) } });
       for (const item of [...result.added, ...result.modified]) {
         const accountId = accountIds.get(item.account_id);
         if (!accountId) continue;
         const next = toRow(item);
-        const previous = await tx.bankTransaction.findUnique({ where: { plaidTransactionId: item.transaction_id }, select: { id: true, amountCents: true } });
+        const previous = await tx.bankTransaction.findUnique({ where: { plaidTransactionId: item.transaction_id }, select: { id: true, amountCents: true, reviewedAt: true, autoExcludedReason: true } });
         // A changed bank total must be reviewed again rather than silently excluded.
         await tx.expense.updateMany({ where: { bankTransaction: { plaidTransactionId: item.transaction_id, amountCents: { not: next.amountCents } } }, data: { bankTransactionId: null } });
         if (previous && previous.amountCents !== next.amountCents) {
           await tx.bankTransactionSplit.deleteMany({ where: { bankTransactionId: previous.id } });
-          await tx.bankTransaction.update({ where: { id: previous.id }, data: { reviewedAt: null } });
         }
-        await tx.bankTransaction.upsert({ where: { plaidTransactionId: item.transaction_id }, create: { ...next, accountId, plaidTransactionId: item.transaction_id }, update: next });
+        const autoExcluded = !!next.autoExcludedReason;
+        await tx.bankTransaction.upsert({
+          where: { plaidTransactionId: item.transaction_id },
+          create: { ...next, excluded: autoExcluded, reviewedAt: next.needsReview ? null : new Date(), accountId, plaidTransactionId: item.transaction_id },
+          update: {
+            ...next, reviewedAt: next.needsReview ? null : previous?.reviewedAt ?? new Date(),
+            ...(autoExcluded ? { excluded: true } : previous?.autoExcludedReason ? { excluded: false } : {}),
+          },
+        });
       }
       const removedIds = result.removed.map(item => item.transaction_id).filter((id): id is string => !!id);
       await tx.bankTransaction.deleteMany({ where: { plaidTransactionId: { in: removedIds }, account: { connectionId } } });
       await tx.bankConnection.update({ where: { id: connectionId }, data: { syncCursor: result.cursor, lastSyncedAt: new Date(), status: 'ACTIVE', statusDetail: null } });
     });
+    await reconcileAutomaticMatches(connection.userId);
     return result.added.length;
   } catch (error) {
     const code = plaidErrorCode(error);
@@ -280,4 +326,27 @@ export async function syncConnection(connectionId: string) {
     }
     throw error;
   }
+}
+
+async function reconcileAutomaticMatches(userId: string) {
+  await prisma.$transaction(async tx => {
+    const expenses = await tx.expense.findMany({
+      where: { paidByUserId: userId, bankTransactionId: null },
+      select: { id: true, totalCents: true, expenseDate: true, title: true }, orderBy: { expenseDate: 'desc' }, take: 100,
+    });
+    for (const expense of expenses) {
+      const match = await automaticExpenseMatch(tx, userId, { amountCents: expense.totalCents, date: expense.expenseDate, merchant: expense.title });
+      if (!match) continue;
+      await tx.expense.update({ where: { id: expense.id }, data: { bankTransactionId: match, budgetLinkReviewed: true } });
+      await tx.budgetNotice.updateMany({ where: { expenseId: expense.id, recipientId: userId, readAt: null, deletedAt: null }, data: { readAt: new Date() } });
+    }
+    const settlements = await tx.personalSettlementTransaction.findMany({
+      where: { userId, bankTransactionId: null, payments: { some: { status: { not: 'ISSUE' } } }, sentAt: { gte: new Date(Date.now() - 60 * 86_400_000) } },
+      include: { recipient: { select: { name: true } } }, orderBy: { sentAt: 'desc' }, take: 100,
+    });
+    for (const settlement of settlements) {
+      const match = await automaticSettlementMatch(tx, userId, { amountCents: settlement.amountCents, date: settlement.sentAt, method: settlement.method, recipientName: settlement.recipient.name });
+      if (match) await tx.personalSettlementTransaction.update({ where: { id: settlement.id }, data: { bankTransactionId: match } });
+    }
+  });
 }
