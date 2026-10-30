@@ -1,6 +1,7 @@
 import { settlementsRouter } from './modules/settlements/settlement.routes.js';
 import { bankingRouter } from './modules/banking/bank.routes.js';
 import { budgetsRouter } from './modules/budgets/budget.routes.js';
+import { digestRouter } from './modules/digest/digest.routes.js';
 import { BankingError } from './modules/banking/plaid.client.js';
 import { recurringRouter } from './modules/recurring/recurring.routes.js';
 import { receiptsRouter } from './modules/receipts/receipt.routes.js';
@@ -38,6 +39,8 @@ app.use('/api/friends', friendsRouter);
 app.use('/api/groups', groupsRouter);
 app.use('/api/banking', bankingRouter);
 app.use('/api/budgets', budgetsRouter);
+// Local preview of the weekly email; never exposed in production.
+if (env.NODE_ENV !== 'production') app.use('/api/digest', digestRouter);
 app.use('/api', settlementsRouter);
 app.use('/api', expensesRouter);
 app.use('/api', recurringRouter);
