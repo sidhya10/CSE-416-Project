@@ -58,6 +58,7 @@ export function fromApiExpense(expense: ApiExpense, currentUserId: string): Prev
   };
 }
 export const expensesApi = {
+  delete: (id: string) => apiRequest(`/expenses/${id}`, { method: 'DELETE' }),
   list: (groupId: string) => apiRequest<{ expenses: ApiExpense[] }>(`/groups/${groupId}/expenses`),
   get: (id: string) => apiRequest<{ expense: ApiExpense }>(`/expenses/${id}`),
   create: (groupId: string, split: PreviewSplit, userId: string, clientRequestId: string) => apiRequest<{ expense: ApiExpense }>(`/groups/${groupId}/expenses`, { method: 'POST', body: JSON.stringify({ clientRequestId, expense: toExpenseInput(split, userId) }) }),

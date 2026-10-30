@@ -91,6 +91,9 @@ it('reports how money was sent atomically across expenses, confirms only as reci
   const batchId = batch.id as string;
   await outsider!.post(`/api/settlements/${batchId}/payments`).send({ recipientId: ids[0], amountCents: 3000, method: 'Venmo', clientRequestId: randomUUID() }).expect(404);
   const payload = { recipientId: ids[0], amountCents: 3000, method: 'Venmo', clientRequestId: randomUUID() };
+  const spendingTotal = (categories: { spentCents: number }[]) => categories.reduce((sum, category) => sum + category.spentCents, 0);
+  const beforePayment = await member!.get('/api/budgets/personal').expect(200);
+  const spendingBefore = spendingTotal(beforePayment.body.categories);
   const sent = await member!.post(`/api/settlements/${batchId}/payments`).send(payload).expect(200);
   const repeat = await member!.post(`/api/settlements/${batchId}/payments`).send(payload).expect(200);
   const pair = repeat.body.batch.pairs.find((p: { senderId: string }) => p.senderId === ids[1]);
@@ -103,7 +106,10 @@ it('reports how money was sent atomically across expenses, confirms only as reci
   const personalTransactions = (await member!.get('/api/banking/transactions?status=all').expect(200)).body.transactions;
   expect(personalTransactions).toContainEqual(expect.objectContaining({ source: 'group_payment', amountCents: 3000, merchant: 'Current period repayment', groupPayment: expect.objectContaining({ method: 'Venmo', groupId: id }) }));
   const personalBudget = await member!.get('/api/budgets/personal').expect(200);
-  expect(personalBudget.body.categories.reduce((sum: number, category: { spentCents: number }) => sum + category.spentCents, 0)).toBe(3000);
+  // Account-wide totals also include shares from earlier fixtures. Repayment must not add spending.
+  expect(spendingTotal(personalBudget.body.categories)).toBe(spendingBefore);
+  const repaymentRows = (Object.values(personalBudget.body.transactions) as { id: string; amountCents: number }[][]).flat().filter(row => row.id.startsWith(`settlement-${personalPayment.id}-`));
+  expect(repaymentRows.reduce((sum, row) => sum + row.amountCents, 0)).toBe(3000);
   await member!.post(`/api/settlements/${batchId}/payments`).send({ ...payload, clientRequestId: randomUUID() }).expect(409);
   const sentNotices = await prisma.settlementNotice.findMany({ where: { batchId, kind: 'PAYMENT_SENT' } });
   expect(sentNotices).toHaveLength(1);
@@ -115,6 +121,8 @@ it('reports how money was sent atomically across expenses, confirms only as reci
   await member!.post(`/api/settlements/${batchId}/confirm`).send(confirm).expect(403);
   await owner!.post(`/api/settlements/${batchId}/confirm`).send(confirm).expect(200);
   await owner!.post(`/api/settlements/${batchId}/confirm`).send(confirm).expect(200);
+  const afterConfirmation = await member!.get('/api/budgets/personal').expect(200);
+  expect(spendingTotal(afterConfirmation.body.categories)).toBe(spendingBefore);
   const inbox = await member!.get('/api/settlements').expect(200);
   const notice = inbox.body.notices.find((n: { batchId: string }) => n.batchId === batchId);
   expect(notice.message).toContain('confirmed receiving $30.00');

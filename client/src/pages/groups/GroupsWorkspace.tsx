@@ -563,6 +563,16 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     const split = updatePayment(viewedExpense.split, 'you', memberId, action);
     setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).map(expense => expense === viewedExpense.split ? split : expense) }));
     setViewedExpense({ ...viewedExpense, split });
+  }} onDelete={async () => {
+    const split = viewedExpense.split;
+    if (!split?.expenseId) return;
+    await expensesApi.delete(split.expenseId);
+    ++refreshSequence.current;
+    setPreviewSplits(previous => ({ ...previous, [active.id]: (previous[active.id] ?? []).filter(item => item.expenseId !== split.expenseId) }));
+    setViewedExpense(null); setBudgetSetupTarget(null); go('detail');
+    setMessage('Expense deleted.');
+    window.dispatchEvent(new Event('cse416:settlements'));
+    await refreshGroups();
   }} onEdit={() => go('edit-expense')} expense={viewedExpense} groupName={active.name} members={expenseMembers} onBack={() => { setBudgetSetupTarget(null); go('detail'); }} />;
 
   const displayedGroups = selectGroups(groups, screen === 'archive' ? { ...defaultFilters, query: '' } : { ...filters, query }, screen === 'archive');

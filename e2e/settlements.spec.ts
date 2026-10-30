@@ -56,7 +56,7 @@ test('any member splits only the current period, reports how they paid, and rece
     await memberPage.getByRole('button', { name: 'Home', exact: true }).click();
     await memberPage.getByRole('button', { name: /^Notifications/ }).click();
     await expect(memberPage.getByText('Alex confirmed receiving $20.00 for Weekend costs.')).toBeVisible();
-    await memberPage.getByRole('button', { name: 'Back to Home' }).click();
+    await memberPage.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Home', exact: true }).click();
     await memberPage.getByRole('button', { name: 'Groups', exact: true }).click();
     await otherPage.goto('/');
     await expect(otherPage.getByRole('region', { name: 'Your to-dos' })).toBeVisible();
@@ -65,7 +65,7 @@ test('any member splits only the current period, reports how they paid, and rece
     await otherPage.getByRole('button', { name: 'Home', exact: true }).click();
     await otherPage.getByRole('button', { name: /^Notifications/ }).click();
     await expect(otherPage.getByText('Alex reminded you to send $30.00 for Weekend costs.')).toBeVisible();
-    await otherPage.getByRole('button', { name: 'Back to Home' }).click();
+    await otherPage.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Home', exact: true }).click();
     await otherPage.getByRole('button', { name: 'Groups', exact: true }).click();
     await otherPage.getByRole('button', { name: /Send Alex \$30.00/ }).click();
     await otherPage.getByRole('dialog').getByLabel('How did you send it?').selectOption('Cash');

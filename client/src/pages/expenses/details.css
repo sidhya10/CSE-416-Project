@@ -40,3 +40,5 @@
 
 .details-budget-spotlight .expense-budget-link, .details-budget-spotlight .details-budget-toggle { background:var(--soft-green); }
 .details-budget-hint { margin:0; padding:0 6px; color:var(--accent); font-size:13px; line-height:1.5; }
+
+.expense-footer .details-delete { color:var(--danger); border-color:var(--danger); margin-top:10px; }
