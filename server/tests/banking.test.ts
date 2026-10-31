@@ -142,6 +142,17 @@ describe('bank connections', () => {
       accountId: account.id, plaidTransactionId: `match-near-${run}`, amountCents: 2350,
       date: new Date('2026-10-12T00:00:00.000Z'), name: 'Restaurant', merchant: 'Other Cafe', pending: false,
     } });
+    const older = await prisma.bankTransaction.create({ data: {
+      accountId: account.id, plaidTransactionId: `match-old-${run}`, amountCents: 2301,
+      date: new Date('2025-01-01T00:00:00.000Z'), name: 'Historic Bakery', merchant: 'Old Bakery', pending: false,
+    } });
+    const amountOnly = await owner.get('/api/banking/expense-matches').query({ amountCents: 2301 }).expect(200);
+    expect(amountOnly.body.suggestions.map((row: { id: string }) => row.id)).toContain(older.id);
+    expect(amountOnly.body.suggestions.find((row: { id: string }) => row.id === older.id).reasons).toEqual(['Exact amount']);
+    const searched = await owner.get('/api/banking/expense-matches').query({ amountCents: 2301, query: 'historic' }).expect(200);
+    expect(searched.body.suggestions.map((row: { id: string }) => row.id)).toEqual([older.id]);
+    await owner.get('/api/banking/expense-matches').query({ amountCents: 2301, date: '2026-10-10', query: 'bakery' }).expect(200)
+      .expect(response => expect(response.body.suggestions).toEqual([]));
     const suggested = await owner.get('/api/banking/expense-matches').query({ amountCents: 2301, date: '2026-10-10', merchant: 'Dinner at Myers Chang' }).expect(200);
     expect(suggested.body.suggestions[0]).toMatchObject({ id: exact.id, amountCents: 2301 });
     expect(suggested.body.suggestions[0].reasons).toEqual(expect.arrayContaining(['Exact amount', 'Same date', 'Similar merchant']));

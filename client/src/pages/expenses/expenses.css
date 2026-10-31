@@ -130,3 +130,9 @@
 .bank-link-complete h2 { color:var(--accent); font-size:18px; }
 .bank-link-summary { display:grid; gap:4px; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
 .bank-link-summary span { color:var(--muted); font-size:13px; }
+
+.expense-bank-search { width:100%; box-sizing:border-box; padding:12px; margin:8px 0; border:1px solid var(--border); border-radius:12px; background:var(--surface); color:var(--text); font:inherit; font-size:14px; }
+
+.expense-bank-empty { padding:20px 12px; margin:12px 0; border-radius:12px; background:var(--page); text-align:center; }
+.expense-bank-empty strong { font-size:14px; color:var(--text); }
+.expense-bank-empty p { margin:8px 0 0; font-size:13px; line-height:1.5; color:var(--muted); }

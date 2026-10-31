@@ -48,7 +48,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [splitting, setSplitting] = useState(false);
   const [splitMode, setSplitMode] = useState<SplitMode>(initialSplit?.mode ?? 'equal');
   const [assignments, setAssignments] = useState<SplitAssignments>(initialSplit?.assignments ?? {});
-  const [date, setDate] = useState(() => initialSplit?.date ?? (() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; })());
+  const [date, setDate] = useState(initialSplit?.date ?? '');
   const [budgetCategory, setBudgetCategory] = useState(initialSplit?.budgetCategory ?? 'other');
   const [name, setName] = useState(initialSplit?.name ?? (guest ? 'Quick split' : ''));
   const [items, setItems] = useState<Item[]>(initialSplit?.items.map(item => ({ id: item.id, name: item.name, amount: ((item.unitCents ?? item.cents) / 100).toFixed(2), quantity: String(item.quantity ?? 1) })) ?? [{ id: 0, name: '', amount: '', quantity: '1' }]);
@@ -64,6 +64,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [scanning, setScanning] = useState(false);
   const [parsedReceipt, setParsedReceipt] = useState<ParsedReceipt>();
   const [localReceiptUrl, setLocalReceiptUrl] = useState('');
+  const [bankSearch, setBankSearch] = useState('');
   const [bankSuggestions, setBankSuggestions] = useState<ExpenseMatchSuggestion[]>([]);
   const [selectedBankTransactionId, setSelectedBankTransactionId] = useState<string | null>(initialSplit?.bankTransactionId ?? null);
   const [matchingBank, setMatchingBank] = useState(false);
@@ -80,7 +81,10 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const subtotal = items.reduce((sum, item) => sum + (cents(item.amount) ?? 0) * (quantityValue(item.quantity) ?? 0), 0);
   const total = subtotal + Object.values(fees).reduce((sum, value) => sum + (cents(value) ?? 0), 0);
   useEffect(() => {
-    if (guest || initialSplit || payer !== 'you' || !name.trim() || total <= 0) {
+    if (!initialSplit) setSelectedBankTransactionId(null);
+  }, [date, total, payer, initialSplit]);
+  useEffect(() => {
+    if (guest || initialSplit || payer !== 'you' || total <= 0) {
       setBankSuggestions([]);
       if (payer !== 'you') setSelectedBankTransactionId(null);
       setMatchingBank(false);
@@ -89,9 +93,10 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setMatchingBank(true);
-      void bankingApi.expenseMatches(total, date, name, controller.signal).then(result => {
+      void bankingApi.expenseMatches(total, date, name, controller.signal, bankSearch).then(result => {
+        if (controller.signal.aborted) return;
         setBankSuggestions(result.suggestions);
-        setSelectedBankTransactionId(previous => previous && result.suggestions.some(item => item.id === previous) ? previous : null);
+        setSelectedBankTransactionId(previous => previous && (bankSearch.trim() || result.suggestions.some(item => item.id === previous)) ? previous : null);
       }).catch(() => {
         if (!controller.signal.aborted) setBankSuggestions([]);
       }).finally(() => {
@@ -99,7 +104,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
       });
     }, 350);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [date, guest, initialSplit, name, payer, total]);
+  }, [bankSearch, date, guest, initialSplit, name, payer, total]);
   const displayName = (id: string) => id === 'you' ? 'you' : members.find(member => member.id === id)?.name.split(' ')[0] ?? 'group member';
   const updateItem = (id: number, patch: Partial<Item>) => setItems(previous => previous.map(item => item.id === id ? { ...item, ...patch } : item));
   const removeItem = (id: number) => {
@@ -208,7 +213,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           <p>{groupName} · Created by {initialSplit?.creatorId && initialSplit.creatorId !== 'you' ? initialSplit.creatorName : 'you'}</p></>}
           <button className="expense-outline" type="button" onClick={() => { setChoice(payer); setChoosing(true); }}>Paid by {displayName(payer)} · Change</button>
           <label className="expense-date">Expense date <span>(optional)</span><input type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
-          <small className="expense-date-help">A date improves automatic bank-transaction matching. Today is used by default.</small>
+          <small className="expense-date-help">Leave blank to match by amount across all dates. Add a date to narrow suggestions to nearby charges. Saved expenses use today when no date is entered.</small>
         </section>
         {!guest && <section className="expense-category">
           <label htmlFor="expense-category">Budget category <span>(optional)</span></label>
@@ -216,19 +221,6 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
             {['dining', 'groceries', 'transit', 'shopping', 'other'].map(category => <option key={category} value={category}>{category[0]!.toUpperCase() + category.slice(1)}</option>)}
           </select>
           <small>Applies only to your share. Defaults to Other.</small>
-        </section>}
-        {!guest && !initialSplit && payer === 'you' && total > 0 && name.trim() && <section className="expense-bank-match" aria-label="Suggested bank transactions">
-          <div className="expense-section-title"><h2>Match your bank charge</h2>{matchingBank && <span>Checking…</span>}</div>
-          <p>Optional. Confirming a match replaces the full bank charge with only your share in your personal budget.</p>
-          {!matchingBank && bankSuggestions.length === 0 && <small>No close posted charges found. You can sync your bank or link one after saving.</small>}
-          {bankSuggestions.map(suggestion => <button type="button" key={suggestion.id}
-            className={`expense-bank-suggestion ${selectedBankTransactionId === suggestion.id ? 'selected' : ''}`}
-            aria-pressed={selectedBankTransactionId === suggestion.id}
-            onClick={() => setSelectedBankTransactionId(previous => previous === suggestion.id ? null : suggestion.id)}>
-            <span><strong>{suggestion.merchant}</strong><small>{suggestion.institution} · {suggestion.accountName} · {suggestion.date}</small><small>{suggestion.reasons.join(' · ')}</small></span>
-            <strong>{dollars(suggestion.amountCents)}{selectedBankTransactionId === suggestion.id ? ' ✓' : ''}</strong>
-          </button>)}
-          {selectedBankTransactionId && <button type="button" className="expense-bank-clear" onClick={() => setSelectedBankTransactionId(null)}>Use no bank match</button>}
         </section>}
         <section className="expense-receipt" aria-label="Receipt"><div>
           <button className="expense-outline" type="button" onClick={() => camera.current?.click()}>Take photo</button>
@@ -270,6 +262,21 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           <button className="expense-add" type="button" onClick={() => { const id = nextId.current++; setItems(previous => [...previous, { id, name: '', amount: '', quantity: '1' }]); }}>+ Add item</button>
         </section>
         <section className="expense-fees"><h2>Tax, tip &amp; fees</h2><div>{(Object.keys(fees) as (keyof typeof fees)[]).map(key => <label key={key}>{key}<AmountInput label={key} value={fees[key]} onChange={value => setFees(previous => ({ ...previous, [key]: value }))} /></label>)}</div></section>
+        {!guest && !initialSplit && payer === 'you' && <section className="expense-bank-match" aria-label="Suggested bank transactions">
+          <h2>Match your bank charge</h2>
+          {matchingBank && <p>Checking…</p>}
+          {total > 0 && <><p>Optional. Confirming a match replaces the full bank charge with only your share in your personal budget.</p>
+          <input className="expense-bank-search" type="search" maxLength={200} aria-label="Search suggested transactions" placeholder="Search merchant or transaction name" value={bankSearch} onChange={event => setBankSearch(event.target.value)} /></>}
+          {!matchingBank && bankSuggestions.length === 0 && <div className="expense-bank-empty"><strong>No matching transactions found</strong><p>{total <= 0 ? 'Add an item amount to find bank transactions based on your expense total.' : 'No transactions match the information entered. Try changing your search or date, or sync your bank.'}</p></div>}
+          {bankSuggestions.map(suggestion => <button type="button" key={suggestion.id}
+            className={`expense-bank-suggestion ${selectedBankTransactionId === suggestion.id ? 'selected' : ''}`}
+            aria-pressed={selectedBankTransactionId === suggestion.id}
+            onClick={() => setSelectedBankTransactionId(previous => previous === suggestion.id ? null : suggestion.id)}>
+            <span><strong>{suggestion.merchant}</strong><small>{suggestion.institution} · {suggestion.accountName} · {suggestion.date}</small><small>{suggestion.reasons.join(' · ')}</small></span>
+            <strong>{dollars(suggestion.amountCents)}{selectedBankTransactionId === suggestion.id ? ' ✓' : ''}</strong>
+          </button>)}
+          {selectedBankTransactionId && <button type="button" className="expense-bank-clear" onClick={() => setSelectedBankTransactionId(null)}>Use no bank match</button>}
+        </section>}
         {message && <p className="form-notice" role="status">{message}</p>}
       </div>
       <footer className="expense-footer"><div className="expense-total"><strong>Total</strong><strong aria-live="polite">{dollars(total)}</strong></div><button className="primary-button" type="button" disabled={scanning || !!parsedReceipt} onClick={continueToSplit}>{initialSplit ? 'Review changes' : 'Continue to split'}</button></footer>

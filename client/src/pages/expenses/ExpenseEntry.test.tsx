@@ -31,6 +31,17 @@ function openExpense(group = 'Weekend Trip') {
 const fill = (label: string, value: string) => fireEvent.change(screen.getByRole('textbox', { name: label }), { target: { value } });
 
 describe('Expense entry flow', () => {
+  it('shows inline bank matching after items and fees', () => {
+    render(<ExpenseEntry groupName="Dinner group" members={[{ id: 'you', name: 'You' }]} onBack={vi.fn()} onConfirm={vi.fn()} />);
+    const suggestions = screen.getByRole('region', { name: 'Suggested bank transactions' });
+    expect(suggestions).toBeVisible();
+    expect(screen.getByText('Tax, tip & fees').compareDocumentPosition(suggestions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(screen.getByText('No matching transactions found')).toBeVisible();
+    expect(screen.getByText('Add an item amount to find bank transactions based on your expense total.')).toBeVisible();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('suggests a personal bank charge and carries an explicitly selected match into the split', async () => {
     vi.mocked(bankingApi.expenseMatches).mockResolvedValue({ suggestions: [{
       id: 'bank-1', merchant: 'Myers + Chang', name: 'MYERS CHANG', amountCents: 2301, date: '2026-10-29',
@@ -38,12 +49,19 @@ describe('Expense entry flow', () => {
     }] });
     const confirm = vi.fn();
     render(<ExpenseEntry groupName="Dinner group" members={[{ id: 'you', name: 'You' }, { id: 'alex', name: 'Alex' }]} onBack={vi.fn()} onConfirm={confirm} />);
-    fill('EXPENSE NAME', 'Dinner at Myers Chang');
     fill('Item 1 name', 'Dinner');
     fill('Item 1 amount', '23.01');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     const suggestion = await screen.findByRole('button', { name: /Myers \+ Chang/ });
+    expect(bankingApi.expenseMatches).toHaveBeenLastCalledWith(2301, '', '', expect.any(AbortSignal), '');
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search suggested transactions' }), { target: { value: 'Myers' } });
+    await waitFor(() => expect(bankingApi.expenseMatches).toHaveBeenLastCalledWith(2301, '', '', expect.any(AbortSignal), 'Myers'));
+    fireEvent.change(screen.getByLabelText(/Expense date/), { target: { value: '2026-10-29' } });
+    await waitFor(() => expect(bankingApi.expenseMatches).toHaveBeenLastCalledWith(2301, '2026-10-29', '', expect.any(AbortSignal), 'Myers'));
+    fill('EXPENSE NAME', 'Dinner at Myers Chang');
     fireEvent.click(suggestion);
     expect(suggestion).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $23.01' }));
     await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ bankTransactionId: 'bank-1' })));

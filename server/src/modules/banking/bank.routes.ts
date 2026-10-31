@@ -17,7 +17,8 @@ const transactionQuery = z.object({
 });
 const expenseMatchQuery = z.object({
   amountCents: z.coerce.number().int().positive().max(2_000_000_000),
-  date: z.iso.date(),
+  date: z.iso.date().optional(),
+  query: z.string().trim().max(200).optional(),
   merchant: z.string().trim().max(500).optional(),
 });
 const reviewBody = z.object({

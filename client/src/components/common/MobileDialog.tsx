@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
-export default function MobileDialog({ title, busy, onClose, children }: { title: string; busy: boolean; onClose: () => void; children: ReactNode }) {
+export default function MobileDialog({ title, busy, onClose, children, closeLabel = 'Close payment popup' }: { closeLabel?: string; title: string; busy: boolean; onClose: () => void; children: ReactNode }) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose); close.current = onClose;
@@ -19,9 +19,9 @@ export default function MobileDialog({ title, busy, onClose, children }: { title
     };
     document.addEventListener('keydown', keydown);
     const overflow = document.body.style.overflow; document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = overflow; previous?.focus(); };
+    return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = overflow; previous?.focus({ preventScroll: true }); };
   }, []);
   return <div className="settlement-overlay"><div ref={panel} tabIndex={-1} className="settlement-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-busy={busy}>
-    <header><h2 id={titleId}>{title}</h2><button type="button" aria-label="Close payment popup" disabled={busy} onClick={onClose}>×</button></header>{children}
+    <header><h2 id={titleId}>{title}</h2><button type="button" aria-label={closeLabel} disabled={busy} onClick={onClose}>×</button></header>{children}
   </div></div>;
 }
