@@ -32,8 +32,10 @@ export const bankingApi = {
   update: (id: string, patch: { nickname?: string | null; hidden?: boolean }) => apiRequest<Accounts>(`/banking/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   disconnect: (connectionId: string) => apiRequest<void>(`/banking/connections/${connectionId}`, { method: 'DELETE' }),
   sync: () => apiRequest<Accounts & { added: number }>('/banking/sync', { method: 'POST' }),
-  expenseMatches: (amountCents: number, date: string, merchant: string, signal?: AbortSignal) => {
-    const params = new URLSearchParams({ amountCents: String(amountCents), date });
+  expenseMatches: (amountCents: number, date: string, merchant: string, signal?: AbortSignal, query = '') => {
+    const params = new URLSearchParams({ amountCents: String(amountCents) });
+    if (date) params.set('date', date);
+    if (query.trim()) params.set('query', query.trim());
     if (merchant.trim()) params.set('merchant', merchant.trim());
     return apiRequest<{ suggestions: ExpenseMatchSuggestion[] }>(`/banking/expense-matches?${params}`, { signal });
   },

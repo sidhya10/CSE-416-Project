@@ -26,8 +26,12 @@ describe('Split saved confirmations', () => {
     expect(screen.getByText('$12.25 in items + $5.83 in fees')).toBeInTheDocument();
   });
   it.each(['equal', 'items'] as const)('shows money owed to the payer, excluding their share in %s mode', mode => {
-    const split = fixture(mode, 'you');
-    render(<SplitSaved split={split} members={members} onBack={() => {}} />);
+    const split = { ...fixture(mode, 'you'), expenseId: 'saved-expense' };
+    const back = vi.fn();
+    render(<SplitSaved split={split} members={members} onBack={back} />);
+    expect(screen.queryByRole('button', { name: 'Proceed to summary' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Back to group' })[1]!);
+    expect(back).toHaveBeenCalledOnce();
     expect(screen.getByRole('heading', { name: 'The group owes you' })).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Your split outcome' })).getByText(mode === 'equal' ? '$58.12' : '$59.42')).toBeInTheDocument();
     expect(screen.getByText('Your share is already covered. You owe nothing.')).toBeInTheDocument();
