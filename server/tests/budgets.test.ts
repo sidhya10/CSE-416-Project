@@ -291,7 +291,7 @@ it('links only the payer’s bank charge even when the receipt amount differs an
   const account = await prisma.bankAccount.findFirstOrThrow({ where: { connection: { userId: ownerId }, hidden: false } });
   await owner.put(`/api/expenses/${id}/budget-link`).send({ category: 'dining', transactionId: null }).expect(204);
   const before = byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents;
-  expect((await member.get('/api/budgets/personal')).body.transactions.other).toContainEqual(expect.objectContaining({ id: `share-${id}`, amountCents: 12000 }));
+  expect((await member.get('/api/budgets/personal')).body.transactions.dining).toContainEqual(expect.objectContaining({ id: `share-${id}`, amountCents: 12000 }));
   const bank = await prisma.bankTransaction.create({ data: { accountId: account.id, plaidTransactionId: `cheesecake-${run}`, amountCents: 25000, date: new Date(todayIso), name: 'Cheesecake', category: 'FOOD_AND_DRINK' } });
   expect(byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents).toBe(before + 25000);
   expect((await owner.get(`/api/expenses/${id}/budget-link`)).body.candidates.map((t: { id: string }) => t.id)).toContain(bank.id);
@@ -312,8 +312,8 @@ it('links only the payer’s bank charge even when the receipt amount differs an
   expect(byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents).toBe(before + 25000);
 });
 
-it('keeps each participant category independent, defaulting to Other', async () => {
-  for (const category of ['groceries', undefined]) {
+it('defaults every participant to the creator category while keeping later changes personal', async () => {
+  for (const category of ['shopping', 'groceries', undefined]) {
     const result = await member.post(`/api/groups/${groupId}/expenses`).send({ clientRequestId: randomUUID(), expense: {
       title: 'Shared groceries', expenseDate: todayIso, paidByUserId: ownerId, splitMode: 'EQUAL', participantIds: [ownerId, memberId],
       budgetCategory: category, items: [{ name: 'Food', unitPriceCents: 2000, quantity: 1 }],
@@ -321,7 +321,10 @@ it('keeps each participant category independent, defaulting to Other', async () 
     expect(result.body.expense.budgetCategory).toBe(category ?? 'other');
     for (const agent of [owner, member]) {
       const budget = await agent.get('/api/budgets/personal').expect(200);
-      expect(budget.body.transactions[agent === member ? category ?? 'other' : 'other']).toContainEqual(expect.objectContaining({ id: `share-${result.body.expense.id}`, amountCents: 1000 }));
+      expect(budget.body.transactions[category ?? 'other']).toContainEqual(expect.objectContaining({ id: `share-${result.body.expense.id}`, amountCents: 1000 }));
+    }
+    for (const agent of [owner, member]) {
+      expect((await agent.get(`/api/expenses/${result.body.expense.id}/budget-link`).expect(200)).body.category).toBe(category ?? 'other');
     }
     await owner.put(`/api/expenses/${result.body.expense.id}/budget-category`).send({ category: 'transit' }).expect(204);
     expect((await member.get(`/api/expenses/${result.body.expense.id}/budget-link`)).body.category).toBe(category ?? 'other');

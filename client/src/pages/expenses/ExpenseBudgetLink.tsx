@@ -13,20 +13,21 @@ export default function ExpenseBudgetLink({ expenseId, onSaved }: { expenseId: s
   useEffect(() => { let active = true; void apiRequest<Link>(`/expenses/${expenseId}/budget-link`).then(value => { if (active) setData(value); }).catch(() => { if (active) setError('Could not load budget linking. Reopen this expense to retry.'); }); return () => { active = false; }; }, [expenseId]);
   const matches = (data?.candidates ?? []).filter(t => `${t.merchant ?? ''} ${t.name} ${t.date.slice(0, 10)} ${formatCents(t.amountCents)} ${(t.amountCents / 100).toFixed(2)}`.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => Number(b.amountCents === data?.expenseTotalCents) - Number(a.amountCents === data?.expenseTotalCents));
   const viewBudget = () => window.dispatchEvent(new CustomEvent('cse416:open-budget-expense', { detail: { category: data?.category, expenseId } }));
-  const categoryControl = data && <>
+  const hasZeroShare = data?.ownShareCents === 0;
+  const categoryControl = hasZeroShare ? <p>Your share is $0.00, so this expense does not affect your personal budget. No category is needed.</p> : data && <>
     <label>Your budget category<select value={data.category} disabled={busy} onChange={async event => {
       const category = event.target.value; setBusy(true); setError(''); setSaved(false);
       try { await apiRequest(`/expenses/${expenseId}/budget-category`, { method: 'PUT', body: JSON.stringify({ category }) }); setData({ ...data, category }); window.dispatchEvent(new Event('cse416:settlements')); }
       catch { setError('Could not save your category. Please try again.'); } finally { setBusy(false); }
     }}>{['dining', 'groceries', 'transit', 'shopping', 'other'].map(category => <option key={category} value={category}>{category[0]!.toUpperCase() + category.slice(1)}</option>)}</select></label>
-    <p>This changes only your budget. Defaults to Other.</p>
+    <p>This changes only your budget.</p>
     {error && <p role="alert">{error}</p>}
   </>;
   if (data && !data.canLink) return <section className="expense-budget-link">
     <h2>Your personal budget</h2>
-    <p>Your share{data.ownShareCents !== undefined ? ` of ${formatCents(data.ownShareCents)}` : ''} counts in your budget.</p>
+    {!hasZeroShare && <p>Your share{data.ownShareCents !== undefined ? ` of ${formatCents(data.ownShareCents)}` : ''} counts in your budget.</p>}
     {categoryControl}
-    <button type="button" className="expense-outline" disabled={busy} onClick={viewBudget}>View in budget</button>
+    {!hasZeroShare && <button type="button" className="expense-outline" disabled={busy} onClick={viewBudget}>View in budget</button>}
   </section>;
   if (data?.reviewed && !data.transactionId && !editingLink) {
     return <section className="expense-budget-link bank-link-complete">
@@ -34,7 +35,7 @@ export default function ExpenseBudgetLink({ expenseId, onSaved }: { expenseId: s
       <div className="bank-link-summary"><strong>No bank transaction linked</strong></div>
       <p>{data.ownShareCents !== undefined ? `Your budget counts your ${formatCents(data.ownShareCents)} share.` : 'Your budget counts your share.'} You can link a bank charge later if one appears.</p>
       {categoryControl}
-      <button type="button" className="expense-outline" disabled={busy} onClick={viewBudget}>View in budget</button>
+      {!hasZeroShare && <button type="button" className="expense-outline" disabled={busy} onClick={viewBudget}>View in budget</button>}
       <button type="button" className="expense-outline" onClick={() => { setEditingLink(true); setChoosingTransaction(true); setSaved(false); }}>Link a transaction</button>
       {saved && <p role="status">Budget choice saved.</p>}
     </section>;
@@ -48,7 +49,7 @@ export default function ExpenseBudgetLink({ expenseId, onSaved }: { expenseId: s
       </div>
       <p>{data.ownShareCents !== undefined ? `Your budget counts your ${formatCents(data.ownShareCents)} share.` : 'Your budget counts your share.'} The linked bank charge is excluded to avoid double counting.</p>
       {categoryControl}
-      <button type="button" className="expense-outline" disabled={busy} onClick={viewBudget}>View in budget</button>
+      {!hasZeroShare && <button type="button" className="expense-outline" disabled={busy} onClick={viewBudget}>View in budget</button>}
       <button type="button" className="expense-outline" onClick={() => { setEditingLink(true); setChoosingTransaction(true); setSaved(false); }}>Change link</button>
       {saved && <p role="status">Bank link saved.</p>}
     </section>;

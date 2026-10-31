@@ -220,7 +220,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           <select id="expense-category" value={budgetCategory} onChange={event => setBudgetCategory(event.target.value)}>
             {['dining', 'groceries', 'transit', 'shopping', 'other'].map(category => <option key={category} value={category}>{category[0]!.toUpperCase() + category.slice(1)}</option>)}
           </select>
-          <small>Applies only to your share. Defaults to Other.</small>
+          <small>{initialSplit ? 'Applies only to your share.' : 'Sets the default for everyone’s share. Each person can change their own category later.'}</small>
         </section>}
         <section className="expense-receipt" aria-label="Receipt"><div>
           <button className="expense-outline" type="button" onClick={() => camera.current?.click()}>Take photo</button>
@@ -268,6 +268,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           {total > 0 && <><p>Optional. Confirming a match replaces the full bank charge with only your share in your personal budget.</p>
           <input className="expense-bank-search" type="search" maxLength={200} aria-label="Search suggested transactions" placeholder="Search merchant or transaction name" value={bankSearch} onChange={event => setBankSearch(event.target.value)} /></>}
           {!matchingBank && bankSuggestions.length === 0 && <div className="expense-bank-empty"><strong>No matching transactions found</strong><p>{total <= 0 ? 'Add an item amount to find bank transactions based on your expense total.' : 'No transactions match the information entered. Try changing your search or date, or sync your bank.'}</p></div>}
+          {bankSuggestions.length > 0 && <div className="expense-bank-results" role="region" aria-label="Matching bank charges" tabIndex={0}>
           {bankSuggestions.map(suggestion => <button type="button" key={suggestion.id}
             className={`expense-bank-suggestion ${selectedBankTransactionId === suggestion.id ? 'selected' : ''}`}
             aria-pressed={selectedBankTransactionId === suggestion.id}
@@ -275,6 +276,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
             <span><strong>{suggestion.merchant}</strong><small>{suggestion.institution} · {suggestion.accountName} · {suggestion.date}</small><small>{suggestion.reasons.join(' · ')}</small></span>
             <strong>{dollars(suggestion.amountCents)}{selectedBankTransactionId === suggestion.id ? ' ✓' : ''}</strong>
           </button>)}
+          </div>}
           {selectedBankTransactionId && <button type="button" className="expense-bank-clear" onClick={() => setSelectedBankTransactionId(null)}>Use no bank match</button>}
         </section>}
         {message && <p className="form-notice" role="status">{message}</p>}

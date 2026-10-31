@@ -97,3 +97,12 @@ it.each([false, true])('lets a payer change their category after completing budg
   expect(apiRequest).toHaveBeenLastCalledWith('/expenses/expense/budget-category', { method: 'PUT', body: JSON.stringify({ category: 'dining' }) });
   expect(screen.queryByText('Your category is saved.')).not.toBeInTheDocument();
 });
+
+it.each([false, true])('hides category and budget navigation for a zero share (payer: %s)', async canLink => {
+  vi.mocked(apiRequest).mockResolvedValue({ ownShareCents: 0, category: 'transit', linked: false, transactionId: null, canLink, candidates: [] });
+  render(<ExpenseBudgetLink expenseId="expense" />);
+  expect(await screen.findByText(/this expense does not affect your personal budget/)).toBeVisible();
+  expect(screen.queryByLabelText('Your budget category')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'View in budget' })).not.toBeInTheDocument();
+  if (canLink) expect(screen.getByRole('button', { name: 'Link transaction' })).toBeVisible();
+});
