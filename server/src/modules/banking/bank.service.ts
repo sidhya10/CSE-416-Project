@@ -26,29 +26,151 @@ export async function createLinkToken(userId: string, connectionId?: string) {
   return data.link_token;
 }
 
-async function institutionNameFor(accessToken: string) {
+async function institutionFor(accessToken: string) {
   try {
     const { data: item } = await plaid().itemGet({ access_token: accessToken });
-    if (!item.item.institution_id) return 'Bank';
+    if (!item.item.institution_id) return { id: null, name: 'Bank' };
     const { data } = await plaid().institutionsGetById({ institution_id: item.item.institution_id, country_codes: [CountryCode.Us] });
-    return data.institution.name;
-  } catch { return 'Bank'; }
+    return { id: item.item.institution_id, name: data.institution.name };
+  } catch { return { id: null, name: 'Bank' }; }
+}
+
+const normalized = (value: string | null | undefined) => (value ?? '').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+type StoredAccountIdentity = { id: string; plaidAccountId: string; persistentAccountId: string | null; name: string; mask: string; type: string | null; subtype: string | null };
+type PlaidAccountIdentity = Pick<AccountBase, 'account_id' | 'persistent_account_id' | 'name' | 'mask' | 'type' | 'subtype'>;
+
+const sameAccount = (stored: StoredAccountIdentity, incoming: PlaidAccountIdentity) => {
+  if (stored.persistentAccountId && incoming.persistent_account_id) return stored.persistentAccountId === incoming.persistent_account_id;
+  if (!stored.mask || !incoming.mask || stored.mask !== incoming.mask || normalized(stored.name) !== normalized(incoming.name)) return false;
+  if (stored.type && incoming.type && stored.type !== incoming.type) return false;
+  return !stored.subtype || !incoming.subtype || stored.subtype === incoming.subtype;
+};
+
+const accountPairs = (stored: StoredAccountIdentity[], incoming: PlaidAccountIdentity[]) => {
+  if (stored.length !== incoming.length) return null;
+  const remaining = [...stored];
+  const pairs: Array<{ stored: StoredAccountIdentity; incoming: PlaidAccountIdentity }> = [];
+  for (const account of incoming) {
+    const index = remaining.findIndex(candidate => sameAccount(candidate, account));
+    if (index < 0) return null;
+    pairs.push({ stored: remaining[index]!, incoming: account });
+    remaining.splice(index, 1);
+  }
+  return pairs;
+};
+
+const transactionFingerprint = (row: { date: Date; amountCents: number; name: string; merchant: string | null; pending: boolean }) =>
+  [row.date.toISOString().slice(0, 10), row.amountCents, normalized(row.name), normalized(row.merchant), row.pending ? 'pending' : 'posted'].join('|');
+
+async function mergeDuplicateAccount(tx: Prisma.TransactionClient, canonicalAccountId: string, duplicateAccountId: string) {
+  const include = { linkedExpense: { select: { id: true } }, settlementTransaction: { select: { id: true } }, reviewSplits: { select: { id: true } } } as const;
+  const [canonicalRows, duplicateRows] = await Promise.all([
+    tx.bankTransaction.findMany({ where: { accountId: canonicalAccountId }, include, orderBy: { id: 'asc' } }),
+    tx.bankTransaction.findMany({ where: { accountId: duplicateAccountId }, include, orderBy: { id: 'asc' } }),
+  ]);
+  const buckets = new Map<string, typeof canonicalRows>();
+  for (const row of canonicalRows) {
+    const key = transactionFingerprint(row);
+    buckets.set(key, [...(buckets.get(key) ?? []), row]);
+  }
+  for (const duplicate of duplicateRows) {
+    const candidates = buckets.get(transactionFingerprint(duplicate)) ?? [];
+    const canonical = candidates.shift();
+    if (!canonical) {
+      await tx.bankTransaction.update({ where: { id: duplicate.id }, data: { accountId: canonicalAccountId } });
+      continue;
+    }
+    const conflictingExpense = canonical.linkedExpense && duplicate.linkedExpense && canonical.linkedExpense.id !== duplicate.linkedExpense.id;
+    const conflictingSettlement = canonical.settlementTransaction && duplicate.settlementTransaction && canonical.settlementTransaction.id !== duplicate.settlementTransaction.id;
+    if (conflictingExpense || conflictingSettlement) {
+      await tx.bankTransaction.update({ where: { id: duplicate.id }, data: { accountId: canonicalAccountId } });
+      continue;
+    }
+    const score = (row: typeof canonical) => (row.linkedExpense ? 100 : 0) + (row.settlementTransaction ? 100 : 0)
+      + row.reviewSplits.length * 10 + (row.categoryOverride ? 5 : 0) + (row.reviewNote ? 3 : 0)
+      + (row.reviewedAt ? 1 : 0) + (row.excluded && !row.autoExcludedReason ? 2 : 0);
+    const keeper = score(duplicate) > score(canonical) ? duplicate : canonical;
+    const loser = keeper.id === canonical.id ? duplicate : canonical;
+    if (!keeper.linkedExpense && loser.linkedExpense) await tx.expense.update({ where: { id: loser.linkedExpense.id }, data: { bankTransactionId: keeper.id } });
+    if (!keeper.settlementTransaction && loser.settlementTransaction) await tx.personalSettlementTransaction.update({ where: { id: loser.settlementTransaction.id }, data: { bankTransactionId: keeper.id } });
+    if (!keeper.reviewSplits.length && loser.reviewSplits.length) {
+      await tx.bankTransactionSplit.updateMany({ where: { bankTransactionId: loser.id }, data: { bankTransactionId: keeper.id } });
+    }
+    await tx.bankTransaction.delete({ where: { id: loser.id } });
+    await tx.bankTransaction.update({ where: { id: keeper.id }, data: {
+      accountId: canonicalAccountId, plaidTransactionId: duplicate.plaidTransactionId,
+      amountCents: duplicate.amountCents, date: duplicate.date, name: duplicate.name, merchant: duplicate.merchant,
+      category: duplicate.category, pending: duplicate.pending, needsReview: keeper.needsReview,
+      autoExcludedReason: duplicate.autoExcludedReason,
+    } });
+  }
+}
+
+async function consolidateDuplicateConnections(userId: string) {
+  const connections = await prisma.bankConnection.findMany({ where: { userId }, include: { accounts: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+  const removedTokens: string[] = [];
+  for (let index = 0; index < connections.length; index += 1) {
+    const canonical = connections[index]!;
+    if (!connections.includes(canonical)) continue;
+    for (let duplicateIndex = index + 1; duplicateIndex < connections.length; duplicateIndex += 1) {
+      const duplicate = connections[duplicateIndex]!;
+      if (!connections.includes(duplicate)) continue;
+      const sameInstitution = canonical.plaidInstitutionId && duplicate.plaidInstitutionId
+        ? canonical.plaidInstitutionId === duplicate.plaidInstitutionId
+        : normalized(canonical.institutionName) === normalized(duplicate.institutionName);
+      if (!sameInstitution) continue;
+      const pairs = accountPairs(canonical.accounts, duplicate.accounts.map(account => ({
+        account_id: account.plaidAccountId, persistent_account_id: account.persistentAccountId ?? undefined,
+        name: account.name, mask: account.mask, type: account.type as AccountBase['type'], subtype: account.subtype as AccountBase['subtype'],
+      })));
+      if (!pairs) continue;
+      await prisma.$transaction(async tx => {
+        for (const pair of pairs) await mergeDuplicateAccount(tx, pair.stored.id, duplicate.accounts.find(account => account.plaidAccountId === pair.incoming.account_id)!.id);
+        await tx.bankConnection.delete({ where: { id: duplicate.id } });
+        for (const pair of pairs) await tx.bankAccount.update({ where: { id: pair.stored.id }, data: {
+          plaidAccountId: pair.incoming.account_id, persistentAccountId: pair.incoming.persistent_account_id ?? null,
+          name: pair.incoming.name, mask: pair.incoming.mask ?? '', type: pair.incoming.type, subtype: pair.incoming.subtype ?? null,
+        } });
+        await tx.bankConnection.update({ where: { id: canonical.id }, data: {
+          plaidItemId: duplicate.plaidItemId, plaidInstitutionId: duplicate.plaidInstitutionId,
+          institutionName: duplicate.institutionName, accessTokenEnc: duplicate.accessTokenEnc,
+          syncCursor: duplicate.syncCursor, lastSyncedAt: duplicate.lastSyncedAt, status: duplicate.status, statusDetail: duplicate.statusDetail,
+        } });
+      });
+      removedTokens.push(canonical.accessTokenEnc);
+      canonical.plaidItemId = duplicate.plaidItemId;
+      canonical.plaidInstitutionId = duplicate.plaidInstitutionId;
+      canonical.accessTokenEnc = duplicate.accessTokenEnc;
+      canonical.syncCursor = duplicate.syncCursor;
+      canonical.lastSyncedAt = duplicate.lastSyncedAt;
+      canonical.status = duplicate.status;
+      canonical.statusDetail = duplicate.statusDetail;
+      canonical.accounts = pairs.map(pair => ({ ...pair.stored, plaidAccountId: pair.incoming.account_id,
+        persistentAccountId: pair.incoming.persistent_account_id ?? null, name: pair.incoming.name, mask: pair.incoming.mask ?? '',
+        type: pair.incoming.type, subtype: pair.incoming.subtype ?? null, connectionId: canonical.id, nickname: null, balanceCents: 0, hidden: false }));
+      connections.splice(duplicateIndex, 1);
+      duplicateIndex -= 1;
+    }
+  }
+  for (const token of removedTokens) await plaid().itemRemove({ access_token: decryptToken(token) }).catch(() => undefined);
 }
 
 export async function exchangePublicToken(userId: string, publicToken: string) {
   const { data } = await plaid().itemPublicTokenExchange({ public_token: publicToken });
-  const [{ data: accounts }, institutionName] = await Promise.all([
+  const [{ data: accounts }, institution] = await Promise.all([
     plaid().accountsGet({ access_token: data.access_token }),
-    institutionNameFor(data.access_token),
+    institutionFor(data.access_token),
   ]);
   const connection = await prisma.bankConnection.create({
     data: {
-      userId, plaidItemId: data.item_id, institutionName, accessTokenEnc: encryptToken(data.access_token),
-      accounts: { create: accounts.accounts.map(account => ({ plaidAccountId: account.account_id, name: account.name, mask: account.mask ?? '', balanceCents: signedBalance(account) })) },
+      userId, plaidItemId: data.item_id, plaidInstitutionId: institution.id, institutionName: institution.name, accessTokenEnc: encryptToken(data.access_token),
+      accounts: { create: accounts.accounts.map(account => ({ plaidAccountId: account.account_id, persistentAccountId: account.persistent_account_id ?? null,
+        name: account.name, type: account.type, subtype: account.subtype ?? null, mask: account.mask ?? '', balanceCents: signedBalance(account) })) },
     },
   });
   // A failed first pull must not lose the link; the user can retry with "Sync now".
   await syncConnection(connection.id).catch(() => undefined);
+  await consolidateDuplicateConnections(userId);
   return connection.id;
 }
 
@@ -83,6 +205,7 @@ export async function markReauthenticated(userId: string, connectionId: string) 
 }
 
 export async function syncAll(userId: string) {
+  await consolidateDuplicateConnections(userId);
   const connections = await prisma.bankConnection.findMany({ where: { userId, status: 'ACTIVE' }, select: { id: true } });
   let added = 0;
   for (const { id } of connections) added += await syncConnection(id).catch(() => 0);
