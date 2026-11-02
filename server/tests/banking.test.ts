@@ -88,6 +88,41 @@ describe('bank connections', () => {
     await other.post('/api/banking/link-token').send({ connectionId: stored.id }).expect(404);
   });
 
+  it('merges a re-added bank account without duplicating its transaction history', async () => {
+    const relinked = request.agent(app);
+    const registered = await relinked.post('/api/auth/register').send({
+      name: 'Relinked Bank', email: `relinked-${run}@example.com`, username: `relinked_${run}`,
+      phone: `+1310${String(Date.now()).slice(-7)}`, password: 'password1',
+    }).expect(201);
+    userIds.push(registered.body.user.id);
+
+    let generation = 'old';
+    const relinkAccounts = () => ({ accounts: [
+      { account_id: `checking-${generation}-${run}`, persistent_account_id: `persistent-checking-${run}`, name: 'Checking', mask: '4242', type: 'depository', subtype: 'checking', balances: { current: 100 } },
+      { account_id: `card-${generation}-${run}`, name: 'Credit Card', mask: '1111', type: 'credit', subtype: 'credit card', balances: { current: 25 } },
+    ] });
+    plaidMock.accountsGet.mockImplementation(async () => ({ data: relinkAccounts() }));
+    plaidMock.itemPublicTokenExchange.mockImplementation(async () => ({ data: { access_token: `access-${generation}`, item_id: `item-${generation}-${run}` } }));
+    plaidMock.transactionsSync.mockImplementation(async () => ({ data: {
+      // Two real, identical coffee charges must stay two charges after the duplicate Item is merged.
+      added: ['one', 'two'].map(id => ({ ...tx(`${generation}-${id}`, 4.5), account_id: `checking-${generation}-${run}` })),
+      modified: [], removed: [], next_cursor: `cursor-${generation}`, has_more: false,
+    } }));
+
+    await relinked.post('/api/banking/exchange').send({ publicToken: 'first-link' }).expect(201);
+    generation = 'new';
+    await relinked.post('/api/banking/exchange').send({ publicToken: 'second-link' }).expect(201);
+
+    const connections = await prisma.bankConnection.findMany({ where: { userId: registered.body.user.id }, include: { accounts: true } });
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({ plaidItemId: `item-new-${run}`, syncCursor: `cursor-new` });
+    expect(connections[0]!.accounts).toHaveLength(2);
+    const rows = await prisma.bankTransaction.findMany({ where: { account: { connection: { userId: registered.body.user.id } } }, orderBy: { id: 'asc' } });
+    expect(rows).toHaveLength(2);
+    expect(rows.every(row => row.plaidTransactionId.startsWith('new-'))).toBe(true);
+    expect(plaidMock.itemRemove).toHaveBeenCalledWith({ access_token: 'access-old' });
+  });
+
   it('syncs incrementally with modified and removed transactions, and renames and hides accounts', async () => {
     const connection = await prisma.bankConnection.findFirstOrThrow({ where: { userId: userIds[0] }, include: { accounts: true } });
     plaidMock.transactionsSync
