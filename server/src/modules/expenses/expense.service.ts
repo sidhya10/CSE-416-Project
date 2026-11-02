@@ -107,7 +107,7 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
     } });
     await tx.group.update({ where: { id: groupId }, data: { lastActivityAt: new Date() } });
     await writeItemsAndShares(tx, expense.id, input);
-    if (input.budgetCategory) await tx.expenseShare.updateMany({ where: { expenseId: expense.id, userId }, data: { budgetCategory: input.budgetCategory } });
+    if (input.budgetCategory) await tx.expenseShare.updateMany({ where: { expenseId: expense.id }, data: { budgetCategory: input.budgetCategory } });
     await writeReceipt(tx, expense.id, input);
     if (!bankTransactionId) await notifyBudgetPayer(tx, expense.id, input);
     return readExpense(tx, expense.id, userId);

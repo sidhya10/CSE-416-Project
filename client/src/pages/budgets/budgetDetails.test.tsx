@@ -120,7 +120,7 @@ describe('personal budget from the API', () => {
   it('warns about categories over their limit', async () => {
     stubApi({}, { personal: personalFixture({ dining: { spentCents: 40000 } }) });
     render(<CategoryBudgets onOpenSimulator={() => {}} />);
-    expect(await screen.findByText('Over budget this month: Dining.')).toBeInTheDocument();
+    expect(await screen.findByText('Over budget for this month: Dining.')).toBeInTheDocument();
   });
   it('prompts to connect a bank when there is no connection', async () => {
     stubApi({}, { personal: { ...personalFixture(), hasBankConnection: false, lastSyncedAt: null } });
@@ -136,13 +136,13 @@ describe('personal budget from the API', () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(<CategoryBudgets onOpenSimulator={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Export this month (CSV)' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Export selected month (CSV)' }));
     await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
     expect(calls.some(call => call.url.endsWith('/budgets/personal/export.csv'))).toBe(true);
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:csv');
     fail = true;
-    fireEvent.click(screen.getByRole('button', { name: 'Export this month (CSV)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Export selected month (CSV)' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Export broke');
     expect(click).toHaveBeenCalledTimes(1);
     click.mockRestore();
@@ -272,4 +272,20 @@ describe('group budgets from the API', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Group' }));
     expect(await screen.findByText(/not in any active groups/)).toBeInTheDocument();
   });
+});
+
+it('loads a selected past month and makes historical limits read-only', async () => {
+  const date = new Date(); date.setUTCDate(1); date.setUTCMonth(date.getUTCMonth() - 1);
+  const month = date.toISOString().slice(0, 7);
+  const calls = stubApi({ [`GET /budgets/personal?month=${month}`]: () => json({ ...personalFixture(), month, daysLeft: 0 }) });
+  render(<CategoryBudgets onOpenSimulator={() => {}} />);
+  await screen.findByRole('button', { name: 'Edit limits' });
+  fireEvent.change(screen.getByLabelText('Budget month'), { target: { value: month } });
+  await waitFor(() => expect(calls.some(call => call.url.includes(`month=${month}`))).toBe(true));
+  expect(await screen.findByText(/Historical limits were not saved/)).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Edit limits' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'View insights ›' }));
+  expect(screen.getByRole('region', { name: 'Total spent' })).toBeVisible();
+  expect(screen.queryByText(/projected/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/at this pace|spent so far|On pace to go over/)).not.toBeInTheDocument();
 });
