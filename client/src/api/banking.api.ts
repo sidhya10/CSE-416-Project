@@ -11,7 +11,7 @@ export type ApiBankTransaction = {
   id: string; accountId: string; accountName: string; institution: string; merchant: string; name: string;
   date: string; amountCents: number; pending: boolean; providerCategory: string | null;
   source?: 'bank' | 'group_payment'; category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean; needsReview?: boolean; reviewedAt: number | null;
-  linkedExpense: { id: string; title: string } | null;
+  linkedExpense: { id: string; title: string; groupName: string; personalBudgetCents: number | null } | null;
   groupPayment?: { id: string; groupId: string; groupName: string; recipientName: string; method: string } | null;
   splits: { id: string; category: BankBudgetCategory; amountCents: number }[];
 };

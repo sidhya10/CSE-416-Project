@@ -304,6 +304,11 @@ it('links only the payer’s bank charge even when the receipt amount differs an
   const linkedRows = (await owner.get('/api/budgets/personal')).body.transactions.dining;
   expect(linkedRows.some((row: { id: string }) => row.id === bank.id)).toBe(false);
   expect(linkedRows).toContainEqual(expect.objectContaining({ id: `share-${id}`, amountCents: 12000, linkedBank: expect.objectContaining({ amountCents: 25000 }) }));
+  const transactionList = (await owner.get('/api/banking/transactions').query({ status: 'all', month: todayIso.slice(0, 7) }).expect(200)).body.transactions;
+  expect(transactionList).toContainEqual(expect.objectContaining({
+    id: bank.id, amountCents: 25000,
+    linkedExpense: { id, title: 'Cheesecake', groupName: 'Budget test group', personalBudgetCents: 12000 },
+  }));
   expect(byKey((await owner.get('/api/budgets/personal')).body.categories).dining.spentCents).toBe(before);
   await owner.put(`/api/expenses/${id}/budget-link`).send(body).expect(204);
   expect((await owner.get(`/api/expenses/${id}/budget-link`)).body.category).toBe('dining');

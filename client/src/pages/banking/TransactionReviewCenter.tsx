@@ -52,7 +52,7 @@ function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBank
     <div className="bank-dialog transaction-review-dialog" role="dialog" aria-modal="true" aria-labelledby="review-transaction-title">
       <header><div><h2 id="review-transaction-title">Review transaction</h2><p>{transaction.merchant} · {formatCents(transaction.amountCents)}</p></div>
         <button type="button" aria-label="Close" disabled={saving} onClick={onCancel}>×</button></header>
-      {transaction.linkedExpense && <p className="bank-linked-notice">Linked to “{transaction.linkedExpense.title}.” Its full bank charge is already replaced by your group share in the budget.</p>}
+      {transaction.linkedExpense && <p className="bank-linked-notice">Linked to “{transaction.linkedExpense.title}” in {transaction.linkedExpense.groupName}. Your personal budget counts <strong>{formatCents(transaction.linkedExpense.personalBudgetCents ?? 0)}</strong> instead of the original {formatCents(transaction.amountCents)} bank charge.</p>}
       <label className="review-check"><input type="checkbox" checked={excluded} disabled={saving || !!transaction.linkedExpense} onChange={event => { setExcluded(event.target.checked); if (event.target.checked) setSplit(false); }} />
         <span><strong>Exclude from budget</strong><small>Use for transfers, reimbursements, and duplicate charges.</small></span></label>
       <label>CATEGORY<select value={category} disabled={saving || split || excluded || transaction.amountCents <= 0 || !!transaction.linkedExpense} onChange={event => setCategory(event.target.value as BankBudgetCategory)}>
@@ -161,11 +161,15 @@ export default function TransactionReviewCenter({ onBack, onUnreviewedDelta, ini
     {!loading && !error && transactions.length === 0 && <section className="review-empty"><strong>{filter === 'unreviewed' ? 'Everything is categorized' : 'No matching transactions'}</strong><p>{filter === 'unreviewed' ? 'Only transactions the app could not categorize automatically appear here.' : 'Try another filter or search.'}</p></section>}
     {error && <p className="form-notice" role="alert">{error}</p>}
     <div className="review-list">
-      {transactions.map(transaction => <button type="button" className="review-card" key={transaction.id} aria-disabled={transaction.source === 'group_payment'} onClick={() => { if (transaction.source !== 'group_payment') setSelected(transaction); }}>
+      {transactions.map(transaction => <button type="button" className={transaction.linkedExpense ? 'review-card linked-group-expense' : 'review-card'} key={transaction.id} aria-disabled={transaction.source === 'group_payment'} onClick={() => { if (transaction.source !== 'group_payment') setSelected(transaction); }}>
         <span className="review-card-main"><strong>{transaction.merchant}</strong><small>{transaction.institution} · {transaction.accountName} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</small>
-          <span className="review-badges">{transaction.pending && <em>Pending</em>}{transaction.linkedExpense && <em>Linked expense</em>}{transaction.groupPayment && <em>{transaction.groupPayment.method} · {transaction.groupPayment.groupName}</em>}{transaction.excluded ? <em>Excluded</em> : transaction.splits.length ? <em>{transaction.splits.length} category split</em> : <em>{labelFor(transaction.category)}</em>}{transaction.needsReview && <em>Needs category</em>}</span>
+          {transaction.linkedExpense && <small className="review-linked-context">Linked to {transaction.linkedExpense.title} · {transaction.linkedExpense.groupName}</small>}
+          <span className="review-badges">{transaction.pending && <em>Pending</em>}{transaction.linkedExpense && <em className="linked">Group expense</em>}{transaction.groupPayment && <em>{transaction.groupPayment.method} · {transaction.groupPayment.groupName}</em>}{transaction.excluded ? <em>Excluded</em> : transaction.splits.length ? <em>{transaction.splits.length} category split</em> : <em>{labelFor(transaction.category)}</em>}{transaction.needsReview && <em>Needs category</em>}</span>
           {transaction.note && <small className="review-note">{transaction.note}</small>}</span>
-        <span className={transaction.amountCents < 0 ? 'review-amount income' : 'review-amount'}>{formatCents(transaction.amountCents)}</span>
+        {transaction.linkedExpense ? <span className="review-linked-amounts">
+          <span className="review-budget-amount"><strong>{formatCents(transaction.linkedExpense.personalBudgetCents ?? 0)}</strong><small>Personal budget</small></span>
+          <span className="review-original-amount"><strong>{formatCents(transaction.amountCents)}</strong><small>Original charge</small></span>
+        </span> : <span className={transaction.amountCents < 0 ? 'review-amount income' : 'review-amount'}>{formatCents(transaction.amountCents)}</span>}
       </button>)}
     </div>
     {selected && <ReviewEditor transaction={selected} onCancel={() => setSelected(null)} onSaved={saved} />}

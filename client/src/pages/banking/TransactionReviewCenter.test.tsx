@@ -46,6 +46,22 @@ it('opens with the requested budget month and filters from the popup', async () 
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('month=2026-09'), expect.anything()));
 });
 
+it('highlights a linked group expense and distinguishes its budget share from the original charge', async () => {
+  const linked = { ...transaction, amountCents: 25000, linkedExpense: {
+    id: 'expense-1', title: 'Cheesecake dinner', groupName: 'Boston trip', personalBudgetCents: 12000,
+  } };
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ transactions: [linked] }), { status: 200 })));
+  render(<TransactionReviewCenter initialMonth="2026-10" onBack={() => {}} />);
+
+  const card = await screen.findByRole('button', { name: /Corner Cafe/ });
+  expect(card).toHaveClass('linked-group-expense');
+  expect(card).toHaveTextContent('Linked to Cheesecake dinner · Boston trip');
+  expect(card).toHaveTextContent('$120.00Personal budget');
+  expect(card).toHaveTextContent('$250.00Original charge');
+  fireEvent.click(card);
+  expect(screen.getByText(/Your personal budget counts/)).toHaveTextContent('$120.00 instead of the original $250.00 bank charge');
+});
+
 it('requires split amounts to equal the charge before saving', async () => {
   const fetchMock = vi.fn(async () => new Response(JSON.stringify({ transactions: [transaction] }), { status: 200 }));
   vi.stubGlobal('fetch', fetchMock);
