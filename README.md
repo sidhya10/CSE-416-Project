@@ -2,7 +2,7 @@
 
 **Team:** Eva · Vivian · Nicole · Sidhya  
 **Course:** CSE 416 · Software Engineering  
-**Implementation status:** October 29, 2026
+**Implementation status:** November 2, 2026 · Milestone 4
 
 ## Project Overview
 
@@ -11,6 +11,39 @@ This project is a mobile-responsive web application for young adults who manage 
 The product's central workflow is now implemented: every participant's share of a group expense is counted once in their personal budget. The app first tries to match a payer's split to one unambiguous posted bank charge using its amount, expense date, and merchant. If no safe automatic match exists, the payer can search the existing ranked suggestions and choose one manually. When linked, the full bank charge is excluded from the payer's spending total and replaced by the payer's own share.
 
 The app records that payments were sent and received, but it does not move money. It currently supports USD only.
+
+## Milestone 4 Update
+
+Milestone 4 includes the team's committed semester feature set after the explicit scope cuts documented below; no required product half remains only on a feature branch. Since October 21, 2026, the team has delivered the following integrated changes:
+
+### Accounts, privacy, and friend discovery
+
+- Added required phone numbers, identifier-aware login by username, email, or phone, password changes, forgot-password flows, hashed one-time recovery codes, and optional email reset links.
+- Enforced exact email matching when linking Google to an existing account and added clear on-screen mismatch feedback.
+- Changed friend discovery so no database users appear until a search is submitted, added friend removal, and added privacy-first matching from explicitly selected web or native iPhone contacts.
+
+### Group expenses and settlement workflow
+
+- Added guest receipt splitting without an account, persistent group-expense notifications, consolidated payment tasks, recurring expense improvements, and settlement periods that prevent old expenses from being charged again.
+- Added optional expense dates, per-person private budget categories, safe deletion of expenses before money is exchanged, and payment-method recording with creditor confirmation.
+- Connected group expenses to personal budgets: payer charges can match automatically or through a searchable private transaction picker, while non-payer repayments use a matching bank transfer or one generated personal transaction.
+
+### Personal budgets and bank activity
+
+- Added a transaction review center, login-time Plaid synchronization, automatic credit-card-payment exclusion, category overrides, notes, exclusions, and transaction splits.
+- Added conservative automatic expense-to-bank and repayment matching while preserving manual review for ambiguous results.
+- Persisted What-if scenarios, added selected-month CSV export, and added a 25-month budget selector for viewing current and previous monthly spending.
+- Updated Home with a three-month spending/income comparison, exact-value tooltips, and complete year-by-year history with all 12 months available in horizontally scrollable charts.
+
+### Mobile, deployment, and quality
+
+- Migrated the production API and database to Render and Neon while retaining Vercel for the web client and same-origin `/api` forwarding.
+- Added a Capacitor iOS project, native contact selection, safe-area-aware mobile layouts, fixed bottom navigation, compact guest mode, and non-scrolling login and registration screens.
+- Expanded Prisma migrations, backend integration tests, frontend tests, Postman checks, Playwright flows, and GitHub Actions coverage for the new financial rules.
+
+### Scope and trade-offs
+
+The team refused to cut the product's defining guarantees: every group share must reach the personal budget exactly once, splits must balance to the cent, bank data and group membership remain private, and only the creditor can confirm that a debt cleared. We deferred features that do not block that end-to-end workflow—including real-money movement, multi-currency support, cross-group debt netting, offline writes, and native production OAuth—so Milestone 4 could ship as one integrated and testable product rather than parallel partial implementations.
 
 ## Current Implementation
 
@@ -32,7 +65,7 @@ The app records that payments were sent and received, but it does not move money
 
 - Search registered users by name, username, email, or phone number. No accounts are displayed before the user searches.
 - Add or remove friends and persist friendships in PostgreSQL.
-- On browsers that support the Contact Picker API, explicitly select contacts and privately match their email addresses or phone numbers to registered users. Selected contact details are checked but not stored.
+- On supported browsers or in the Capacitor iPhone shell, explicitly select contacts and privately match their email addresses or phone numbers to registered users. Selected contact details are checked but not stored.
 - Create groups using members from the authenticated user's friend list.
 - Assign Owner, Admin, and Member roles.
 - Restrict group data and actions to authenticated group members.
@@ -65,6 +98,7 @@ All group types share group information, members, expenses, balances, settings, 
 - Persist expenses, items, shares, and receipt attachments in PostgreSQL.
 - Return retried expense-creation requests safely through client request IDs.
 - Block financial edits after payment history exists until a future adjustment workflow is available.
+- Delete an expense before any payment history exists; once money has been reported or confirmed, the ledger is preserved instead.
 - Assign each participant's share to a personal budget category. Categories are private to the participant's own budget.
 
 ### Receipt scanning
@@ -119,6 +153,7 @@ The application does not initiate ACH, card, Venmo, Cash App, or other real-mone
 - Categorize unresolved purchases, override categories, exclude non-spending charges, add notes, and split one purchase across categories.
 - Split one spending transaction across multiple budget categories, with server validation that the allocations equal the charge to the cent.
 - Automatically link a payer's split when there is one unambiguous exact-amount charge near the expense date. If the result is ambiguous, suggest up to five posted charges ranked by amount, date proximity, and merchant similarity for the payer to search and select privately.
+- Search all eligible posted charges by merchant, date, or amount when selecting or changing a group-expense link; exact receipt-total matches appear first.
 - Let the payer add, change, or remove the bank link after saving the expense.
 - Automatically remove a saved link if a later Plaid sync changes that charge's amount.
 
@@ -134,7 +169,10 @@ The application keeps Plaid's provider category as source data while storing the
 - For a linked expense, exclude the payer's full bank charge and count only that payer's share, preventing double counting. Other participants' shares count even when they do not have a corresponding bank charge.
 - After a non-payer reports sending their share, represent that spending with the matched Zelle/bank transfer or a generated group-payment transaction. This replaces the original share line rather than adding a second copy of the spending.
 - Display an over-budget item on the Home dashboard when a category exceeds its limit.
-- Show a four-month spending and income comparison on Home using the same linked-charge deduplication and group-share totals.
+- Show a three-month spending and income comparison on Home using the same linked-charge deduplication and group-share totals, with exact values on hover, focus, or selection.
+- Open complete spending and income history by calendar year, with 12 horizontally scrollable months per year.
+- Select the current month or any of the previous 24 months in Personal Budget. Past months are read-only and use current limits because historical limit snapshots were not stored.
+- Export the selected month's categorized transactions as CSV.
 - Display the most recently added group expense and a prominent to-do summary on Home; detailed payment cards are on Groups.
 
 ### Group budgets
@@ -155,7 +193,18 @@ The application keeps Plaid's provider category as source data while storing the
 
 Saved scenarios (up to eight per user) are stored in PostgreSQL on the user's account, so they persist across reloads, logins, and devices. Saving a scenario never changes the real budget; only applying it does. See [Budget backend](docs/budget-backend.md) for the scenario API.
 
-## Current Limitations and Planned Work
+## Next Milestone Priorities and Known Limitations
+
+The next milestone is primarily a hardening and release-readiness milestone. The team plans to prioritize:
+
+1. **End-to-end hardening:** exercise registration, bank sync, receipt scanning, splitting, settlement, and budget reconciliation with multiple realistic accounts; address edge cases, accessibility, loading/error states, and narrow-phone usability.
+2. **Payer fairness:** use existing group ledger totals to suggest who should pay the next shared expense when one person has been fronting substantially more than everyone else. This remains advisory and never changes the payer automatically.
+3. **Bank-sync resilience:** add scheduled or webhook-driven synchronization, improve ambiguous-match explanations, and test transfer reconciliation against more Plaid Sandbox scenarios.
+4. **iPhone beta readiness:** complete Apple signing and TestFlight upload, then validate camera, contacts, receipt selection, cookies, and safe-area behavior on physical iPhones. Native Google Sign-In and production Plaid OAuth remain separate follow-up integrations.
+5. **Notification readiness:** add weekly-email opt-out controls and a verified sending setup before enabling scheduled summaries for real users; evaluate Web Push only after the in-app and email flows are stable.
+6. **Demo and operations:** maintain repeatable demo accounts, verify coordinated Vercel and Render releases, monitor production errors, and keep README/API documentation synchronized with shipped behavior.
+
+If time remains after those priorities, persistent trip planning and invitation acceptance are the highest-value deferred workflow additions. Large new features will not take priority over correctness of the core reconciliation path.
 
 The following product concepts are planned or incomplete and should not be treated as implemented behavior:
 
@@ -173,9 +222,9 @@ The following product concepts are planned or incomplete and should not be treat
 - **Debt simplification:** Within-group and cross-group debt netting are not implemented.
 - **Multi-currency:** All current financial flows use USD.
 - **Receipt merging:** Multiple receipt photos or pages cannot be merged into one scan.
-- **Native mobile distribution:** A separate Capacitor iPhone shell is implemented and ready to archive in Xcode. It has not yet been signed or uploaded to TestFlight. The first beta should use password login and Plaid Sandbox; native Google Sign-In and production Plaid OAuth handling remain future mobile integrations.
+- **Native mobile distribution:** A separate Capacitor iPhone shell with native contact selection is implemented and ready to archive in Xcode. It has not yet been signed or uploaded to TestFlight. The first beta should use password login and Plaid Sandbox; native Google Sign-In and production Plaid OAuth handling remain future mobile integrations.
 
-Possible future features also include CSV export, exportable trip summaries, savings goals, budget rollover, and a curated credit-card benefits tool.
+Possible future features also include exportable trip summaries, savings goals, budget rollover, and a curated credit-card benefits tool.
 
 ## Technology Stack
 
