@@ -273,7 +273,10 @@ const presentedCategory = (row: { categoryOverride: string | null; category: str
 
 const transactionReviewInclude = {
   account: { include: { connection: { select: { institutionName: true } } } },
-  linkedExpense: { select: { id: true, title: true } },
+  linkedExpense: { select: {
+    id: true, title: true, group: { select: { name: true } },
+    shares: { select: { userId: true, totalCents: true } },
+  } },
   settlementTransaction: { include: {
     group: { select: { id: true, name: true } },
     recipient: { select: { id: true, name: true } },
@@ -282,8 +285,9 @@ const transactionReviewInclude = {
   reviewSplits: { orderBy: { position: 'asc' as const } },
 } satisfies Prisma.BankTransactionInclude;
 type TransactionReviewRow = Prisma.BankTransactionGetPayload<{ include: typeof transactionReviewInclude }>;
-const presentTransaction = (row: TransactionReviewRow) => {
+const presentTransaction = (row: TransactionReviewRow, userId: string) => {
   const settlementCategories = [...new Set(row.settlementTransaction?.payments.map(payment => payment.share.budgetCategory) ?? [])];
+  const personalBudgetCents = row.linkedExpense?.shares.find(share => share.userId === userId)?.totalCents ?? null;
   const category = row.settlementTransaction
     ? (settlementCategories.length === 1 && CATEGORY_KEYS.includes(settlementCategories[0] as CategoryKey) ? settlementCategories[0] as CategoryKey : 'other')
     : presentedCategory(row);
@@ -305,7 +309,9 @@ const presentTransaction = (row: TransactionReviewRow) => {
   reviewed: !row.needsReview,
   needsReview: row.needsReview,
   reviewedAt: row.reviewedAt?.getTime() ?? null,
-  linkedExpense: row.linkedExpense,
+  linkedExpense: row.linkedExpense ? {
+    id: row.linkedExpense.id, title: row.linkedExpense.title, groupName: row.linkedExpense.group.name, personalBudgetCents,
+  } : null,
   groupPayment: row.settlementTransaction ? { id: row.settlementTransaction.id, groupId: row.settlementTransaction.group.id, groupName: row.settlementTransaction.group.name, recipientName: row.settlementTransaction.recipient.name, method: row.settlementTransaction.method } : null,
   splits: row.reviewSplits.map(split => ({ id: split.id, category: split.category as CategoryKey, amountCents: split.amountCents })),
   });
@@ -362,7 +368,7 @@ export async function listTransactions(userId: string, filters: { query?: string
       groupPayment: { id: row.id, groupId: row.group.id, groupName: row.group.name, recipientName: row.recipient.name, method: row.method }, splits: [],
     };
   });
-  return [...rows.map(presentTransaction), ...syntheticRows].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).slice(0, 200);
+  return [...rows.map(row => presentTransaction(row, userId)), ...syntheticRows].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).slice(0, 200);
 }
 
 export async function reviewTransaction(userId: string, id: string, patch: TransactionReviewPatch) {
@@ -390,7 +396,7 @@ export async function reviewTransaction(userId: string, id: string, patch: Trans
     });
   });
   const saved = await prisma.bankTransaction.findFirstOrThrow({ where: { id, account: { connection: { userId } } }, include: transactionReviewInclude });
-  return presentTransaction(saved);
+  return presentTransaction(saved, userId);
 }
 
 async function pull(accessToken: string, startCursor: string | null) {
