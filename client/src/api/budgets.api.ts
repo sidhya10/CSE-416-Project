@@ -27,8 +27,8 @@ export type ApiSpendingIncomeHistory = {
 };
 
 export const budgetsApi = {
-  personal: () => apiRequest<ApiPersonalBudget>('/budgets/personal'),
-  exportCsv: () => apiDownload('/budgets/personal/export.csv'),
+  personal: (month?: string) => apiRequest<ApiPersonalBudget>(`/budgets/personal${month ? `?month=${encodeURIComponent(month)}` : ''}`),
+  exportCsv: (month?: string) => apiDownload(`/budgets/personal/export.csv${month ? `?month=${encodeURIComponent(month)}` : ''}`),
   saveLimits: (limits: Partial<Record<CategoryKey, number>>) =>
     apiRequest<ApiPersonalBudget>('/budgets/personal/limits', { method: 'PUT', body: JSON.stringify({ limits }) }),
   scenarios: () => apiRequest<{ scenarios: ApiScenario[] }>('/budgets/scenarios'),

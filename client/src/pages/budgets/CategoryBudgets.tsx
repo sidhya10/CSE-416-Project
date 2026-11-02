@@ -20,6 +20,14 @@ const loadUnreviewedTransactions = () => bankingApi.transactions('unreviewed');
 
 // `active` is false while the tab is hidden: nothing is fetched or polled until the user opens the budget.
 export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = () => {}, onReviewCountChange, active = true, expenseTarget, onClearExpenseTarget }: { onClearExpenseTarget?: () => void; expenseTarget?: { category: string; expenseId: string } | null; onOpenSimulator: () => void; onOpenTransactions?: () => void; onReviewCountChange?: (count: number) => void; active?: boolean }) {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const historical = !!selectedMonth && selectedMonth !== currentMonth;
+  const monthOptions = Array.from({ length: 25 }, (_, index) => {
+    const date = new Date(`${currentMonth}-01T00:00:00Z`);
+    date.setUTCMonth(date.getUTCMonth() - index);
+    return { value: date.toISOString().slice(0, 7), label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) };
+  });
   const [scope, setScope] = useState<BudgetScope>('personal');
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail>(null);
@@ -44,9 +52,9 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
 
   const loadPersonal = useCallback(async () => {
     const id = ++latest.current.personal;
-    try { const data = await budgetsApi.personal(); if (id === latest.current.personal) { setPersonal(data); setPersonalError(''); } }
+    try { const data = await budgetsApi.personal(selectedMonth || undefined); if (id === latest.current.personal) { setPersonal(data); setPersonalError(''); } }
     catch (error) { if (id === latest.current.personal) setPersonalError(errorMessage(error)); }
-  }, []);
+  }, [selectedMonth]);
   const loadGroups = useCallback(async () => {
     const id = ++latest.current.groups;
     try { const data = await budgetsApi.groups(); if (id === latest.current.groups) { setGroups(data.groups); setGroupsError(''); } }
@@ -78,7 +86,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
   const exportCsv = async () => {
     setExporting(true); setExportError('');
     try {
-      const { blob, filename } = await budgetsApi.exportCsv();
+      const { blob, filename } = await budgetsApi.exportCsv(selectedMonth || undefined);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url; link.download = filename;
@@ -104,7 +112,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
     const item = detail.kind === 'category' ? budgets.find(c => c.key === detail.key) : undefined;
     const showGroup = (detail.kind === 'owes' || detail.kind === 'groupPlan') ? activeGroup : undefined;
     return <main className="cb-screen">
-      {detail.kind === 'insights' && period && <SpendingInsights budgets={budgets} period={period} onBack={() => setDetail(null)} onSelectCategory={key => setDetail({ kind: 'category', key, from: 'insights' })} />}
+      {detail.kind === 'insights' && period && <SpendingInsights historical={historical} budgets={budgets} period={period} onBack={() => setDetail(null)} onSelectCategory={key => setDetail({ kind: 'category', key, from: 'insights' })} />}
       {item && period && personal && detail.kind === 'category' && <CategoryTransactions highlightId={expenseTarget ? `share-${expenseTarget.expenseId}` : undefined} item={item} period={period} transactions={toCategoryTransactions(personal.transactions[item.key])}
         onBack={() => { onClearExpenseTarget?.(); setDetail(detail.from === 'insights' ? { kind: 'insights' } : null); }} />}
       {detail.kind === 'limits' && personal && <EditLimits budgets={budgets} onCancel={() => setDetail(null)} onSave={saveLimits} />}
@@ -135,6 +143,11 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
       <button type="button" role="tab" aria-selected={scope === 'group'} className={scope === 'group' ? 'active' : ''} onClick={() => setScope('group')}>Group</button>
     </div>
 
+    {scope === 'personal' && <label className="cb-month-picker">Budget month
+      <select value={selectedMonth || currentMonth} onChange={event => { latest.current.personal++; setPersonal(null); setPersonalError(''); setExportError(''); setSelectedMonth(event.target.value); }}>
+        {monthOptions.map(month => <option key={month.value} value={month.value}>{month.label}</option>)}
+      </select>
+    </label>}
     {scope === 'group' ? (!groups ? (groupsError ? retry(groupsError) : <p className="cb-notice" role="status">Loading your groups…</p>)
       : !activeGroup ? <p className="cb-notice" role="status">You're not in any active groups yet. Create one from the Groups tab.</p> : <>
       <div className="cb-group-picker" role="tablist" aria-label="Select group">
@@ -175,14 +188,14 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
     </>) : (!personal || !period ? (personalError ? retry(personalError) : <p className="cb-notice" role="status">Loading your budget…</p>) : <>
       <section className="cb-hero" aria-label="Budget summary">
         <strong className="cb-hero-amount">{formatCents(spent)} spent</strong>
-        <p className="cb-hero-sub">{planned ? `of ${formatCents(planned)} planned` : 'No category limits set'} · {period.daysLeft} days left</p>
+        <p className="cb-hero-sub">{planned ? `of ${formatCents(planned)} planned` : 'No category limits set'} · {historical ? 'Month ended' : `${period.daysLeft} days left`}</p>
         <div className="cb-hero-bar" role="presentation"><div style={{ width: `${pct}%` }} /></div>
         <div className="cb-hero-meta">
           <span>{personal.lastSyncedAt ? `↻ Bank synced ${relativeTime(personal.lastSyncedAt)}` : '↻ No bank synced yet'}</span>
           <button type="button" onClick={() => setDetail({ kind: 'insights' })}>View insights ›</button>
         </div>
       </section>
-      {unreviewed.length > 0 && <section className="cb-review-card" aria-label="Transactions to categorize">
+      {!historical && unreviewed.length > 0 && <section className="cb-review-card" aria-label="Transactions to categorize">
         <div className="cb-review-head"><div><h2>Transactions to categorize</h2><small>{unreviewed.length} {unreviewed.length === 1 ? 'transaction could' : 'transactions could'} not be categorized automatically</small></div><span>{unreviewed.length}</span></div>
         {unreviewed.slice(0, 3).map(transaction => <div className="cb-review-row" key={transaction.id}>
           <span><strong>{transaction.merchant}</strong><small>{transaction.category ? transaction.category.charAt(0).toUpperCase() + transaction.category.slice(1) : 'Uncategorized'} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</small></span>
@@ -191,10 +204,11 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
         <button type="button" className="cb-review-all" onClick={onOpenTransactions}>Categorize transactions ›</button>
       </section>}
       {!personal.hasBankConnection && <p className="cb-notice" role="status">Group expense shares appear here automatically. Connect a bank account in Profile to include other spending.</p>}
-      {overLimit.length > 0 && <p className="cb-notice cb-warn" role="status">Over budget this month: {overLimit.map(item => item.label).join(', ')}.</p>}
+      {overLimit.length > 0 && <p className="cb-notice cb-warn" role="status">Over budget for this month: {overLimit.map(item => item.label).join(', ')}.</p>}
 
+      {historical && <p className="cb-notice">Past spending is shown against your current category limits. Historical limits were not saved.</p>}
       <div className="cb-section-row"><h2 className="cb-section-heading">Category plan</h2>
-        <button type="button" className="cb-simulator-link" onClick={() => setDetail({ kind: 'limits' })}>Edit limits</button></div>
+        {!historical && <button type="button" className="cb-simulator-link" onClick={() => setDetail({ kind: 'limits' })}>Edit limits</button>}</div>
       {budgets.map(item => <button key={item.key} type="button" className="cb-category cb-row-button"
         aria-label={`${item.label} transactions`} onClick={() => setDetail({ kind: 'category', key: item.key, from: 'budget' })}>
         <div className="cb-category-head">
@@ -204,7 +218,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
         <div className="cb-category-bar" role="presentation"><div style={{ width: `${categoryPct(item)}%`, background: isOverLimit(item) ? 'var(--danger)' : item.color }} /></div>
       </button>)}
 
-      <button type="button" className="cb-simulator-link cb-export" disabled={exporting} onClick={() => void exportCsv()}>{exporting ? 'Preparing…' : 'Export this month (CSV)'}</button>
+      <button type="button" className="cb-simulator-link cb-export" disabled={exporting} onClick={() => void exportCsv()}>{exporting ? 'Preparing…' : 'Export selected month (CSV)'}</button>
       {exportError && <p className="cb-notice cb-warn" role="alert">{exportError}</p>}
     </>)}
   </main>;

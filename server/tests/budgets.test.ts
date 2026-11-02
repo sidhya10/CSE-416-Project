@@ -373,3 +373,16 @@ describe('personal budget CSV export', () => {
     expect(other.text).not.toContain('Thai Basil');
   });
 });
+
+it('loads and exports a past month and rejects invalid month selections', async () => {
+  const month = day(-1, 1).toISOString().slice(0, 7);
+  const result = await owner.get(`/api/budgets/personal?month=${month}`).expect(200);
+  expect(result.body.month).toBe(month);
+  expect(result.body.daysLeft).toBe(0);
+  for (const rows of Object.values(result.body.transactions) as { date: string }[][]) {
+    expect(rows.every(row => row.date.startsWith(month))).toBe(true);
+  }
+  const exported = await owner.get(`/api/budgets/personal/export.csv?month=${month}`).expect(200);
+  expect(exported.headers['content-disposition']).toContain(month);
+  for (const value of ['2026-13', 'invalid', '9999-01']) await owner.get(`/api/budgets/personal?month=${value}`).expect(400);
+});

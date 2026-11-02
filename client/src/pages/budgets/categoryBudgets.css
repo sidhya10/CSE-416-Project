@@ -87,3 +87,6 @@
 .cb-bank-subcard strong { display:block; overflow-wrap:anywhere; font-weight:500; color:var(--text); }
 .cb-bank-subcard small { display:block; margin-top:2px; font-size:11px; }
 .cb-bank-original { flex-shrink:0; text-align:right; }
+
+.cb-month-picker{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0;font-weight:600}
+.cb-month-picker select{min-width:0;padding:7px 10px;border:1px solid var(--border,#dedbce);border-radius:10px;background:var(--surface,#fff);color:inherit;font:inherit;font-size:14px}

@@ -17,13 +17,27 @@ const limitsBody = z.object({ limits: categoryLimits }).strict();
 const scenarioBody = z.object({ name: z.string().trim().min(1).max(MAX_SCENARIO_NAME_LENGTH), limits: categoryLimits }).strict();
 const planBody = z.object({ plannedCents: cents }).strict();
 
+const selectedMonth = (value: unknown) => {
+  if (value === undefined) return undefined;
+  const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).refine(value => value >= '1900-01' && value <= new Date().toISOString().slice(0, 7), 'Choose a current or past month').parse(value);
+  const today = new Date();
+  return month === today.toISOString().slice(0, 7) ? today : new Date(`${month}-01T00:00:00.000Z`);
+};
+
+async function budgetForMonth(userId: string, month: unknown) {
+  const date = selectedMonth(month);
+  const budget = await personalBudget(userId, date);
+  if (date && date.toISOString().slice(0, 7) < new Date().toISOString().slice(0, 7)) budget.daysLeft = 0;
+  return budget;
+}
+
 budgetsRouter.get('/personal', async (request, response) => {
-  response.json(await personalBudget(request.userId!));
+  response.json(await budgetForMonth(request.userId!, request.query.month));
 });
 
 // Downloads the same month the Budget tab shows, so the file always matches the screen.
 budgetsRouter.get('/personal/export.csv', async (request, response) => {
-  const { filename, content } = budgetCsv(await personalBudget(request.userId!));
+  const { filename, content } = budgetCsv(await budgetForMonth(request.userId!, request.query.month));
   response.setHeader('Content-Type', 'text/csv; charset=utf-8');
   response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   response.setHeader('Cache-Control', 'no-store');
