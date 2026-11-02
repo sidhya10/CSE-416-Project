@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { bankingApi, type ApiBankTransaction, type BankBudgetCategory, type BankReviewCategory, type TransactionReview } from '../../api/banking.api';
 import { ApiError } from '../../api/client';
 import { formatCents } from '../expenses/split';
@@ -87,20 +87,40 @@ function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBank
   </div>;
 }
 
-export default function TransactionReviewCenter({ onBack, onUnreviewedDelta }: { onBack: () => void; onUnreviewedDelta?: (delta: number) => void }) {
+export default function TransactionReviewCenter({ onBack, onUnreviewedDelta, initialMonth }: { onBack: () => void; onUnreviewedDelta?: (delta: number) => void; initialMonth?: string }) {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const monthOptions = Array.from({ length: 25 }, (_, index) => {
+    const date = new Date(`${currentMonth}-01T00:00:00Z`);
+    date.setUTCMonth(date.getUTCMonth() - index);
+    return { value: date.toISOString().slice(0, 7), label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) };
+  });
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
+  const [month, setMonth] = useState(initialMonth || currentMonth);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [transactions, setTransactions] = useState<ApiBankTransaction[]>([]);
   const [selected, setSelected] = useState<ApiBankTransaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const requestKey = useMemo(() => `${filter}:${query.trim()}`, [filter, query]);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  const requestKey = useMemo(() => `${filter}:${month}:${query.trim()}`, [filter, month, query]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!filterMenuRef.current?.contains(event.target as Node)) setFiltersOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setFiltersOpen(false); };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('pointerdown', closeOnOutsideClick); document.removeEventListener('keydown', closeOnEscape); };
+  }, [filtersOpen]);
 
   useEffect(() => {
     let active = true;
     const timeout = window.setTimeout(() => {
       setLoading(true); setError('');
-      bankingApi.transactions(filter, query).then(result => { if (active) setTransactions(result.transactions); })
+      bankingApi.transactions(filter, query, month).then(result => { if (active) setTransactions(result.transactions); })
         .catch(failure => { if (active) setError(message(failure)); })
         .finally(() => { if (active) setLoading(false); });
     }, query.trim() ? 250 : 0);
@@ -119,10 +139,23 @@ export default function TransactionReviewCenter({ onBack, onUnreviewedDelta }: {
 
   return <main className="banking-workspace review-workspace">
     <header className="bank-header"><button type="button" aria-label="Back" onClick={onBack}>‹</button>
-      <div><h1>Transactions</h1><p>All visible bank activity and recorded group repayments</p></div></header>
-    <input className="review-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search merchant, account, or note" aria-label="Search transactions" />
-    <div className="review-filters" role="group" aria-label="Transaction status">
-      {FILTERS.map(item => <button type="button" key={item.key} className={filter === item.key ? 'active' : ''} onClick={() => setFilter(item.key)}>{item.label}</button>)}
+      <div><h1>Transactions</h1><p>{monthOptions.find(item => item.value === month)?.label ?? month}</p></div></header>
+    <div className="review-toolbar">
+      <input className="review-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search merchant, account, or note" aria-label="Search transactions" />
+      <div className="review-filter-menu" ref={filterMenuRef}>
+        <button type="button" className={filtersOpen || filter !== 'all' ? 'review-filter-toggle active' : 'review-filter-toggle'} aria-label="Filter transactions" aria-expanded={filtersOpen} aria-haspopup="dialog" onClick={() => setFiltersOpen(open => !open)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+        </button>
+        {filtersOpen && <div className="review-filter-popover" role="dialog" aria-label="Transaction filters">
+          <label>Month<select aria-label="Transaction month" value={month} onChange={event => setMonth(event.target.value)}>
+            {monthOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select></label>
+          <fieldset><legend>Status</legend><div className="review-filter-options">
+            {FILTERS.map(item => <button type="button" key={item.key} className={filter === item.key ? 'active' : ''} onClick={() => setFilter(item.key)}>{item.label}</button>)}
+          </div></fieldset>
+          <button type="button" className="review-filter-done" onClick={() => setFiltersOpen(false)}>Done</button>
+        </div>}
+      </div>
     </div>
     {loading && <p className="bank-caption" role="status">Loading transactions…</p>}
     {!loading && !error && transactions.length === 0 && <section className="review-empty"><strong>{filter === 'unreviewed' ? 'Everything is categorized' : 'No matching transactions'}</strong><p>{filter === 'unreviewed' ? 'Only transactions the app could not categorize automatically appear here.' : 'Try another filter or search.'}</p></section>}
