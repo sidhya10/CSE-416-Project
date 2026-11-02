@@ -111,6 +111,9 @@ describe('bank connections', () => {
     const transaction = await prisma.bankTransaction.findFirstOrThrow({ where: { account: { connection: { userId: userIds[0] } } } });
     const listed = await owner.get('/api/banking/transactions').expect(200);
     expect(listed.body.transactions).toContainEqual(expect.objectContaining({ id: transaction.id, reviewed: true, needsReview: false, category: 'dining', excluded: false }));
+    expect((await owner.get('/api/banking/transactions').query({ month: '2026-10' }).expect(200)).body.transactions).toContainEqual(expect.objectContaining({ id: transaction.id }));
+    expect((await owner.get('/api/banking/transactions').query({ month: '2026-09' }).expect(200)).body.transactions).not.toContainEqual(expect.objectContaining({ id: transaction.id }));
+    await owner.get('/api/banking/transactions').query({ month: 'October 2026' }).expect(400);
     await other.get('/api/banking/transactions').expect(200).expect(response => expect(response.body.transactions).toEqual([]));
     await other.put(`/api/banking/transactions/${transaction.id}/review`).send({ category: 'shopping', excluded: false, reviewed: true, note: null, splits: [] }).expect(404);
 

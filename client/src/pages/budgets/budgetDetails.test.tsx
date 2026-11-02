@@ -103,11 +103,16 @@ describe('personal budget from the API', () => {
     expect(screen.getByText('↻ Bank synced 2m ago')).toBeInTheDocument();
     expect(screen.getByText('$248.00 / $365.00')).toBeInTheDocument();
     expect(screen.queryByText(/Over budget this month/)).not.toBeInTheDocument();
+    const preview = await screen.findByRole('region', { name: 'Recent transactions' });
+    expect(preview).toHaveTextContent('Spotify');
+    expect(screen.queryByRole('button', { name: 'Transactions ›' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View all transactions ›' }));
+    expect(onOpenTransactions).toHaveBeenCalledWith(new Date().toISOString().slice(0, 7));
     const review = await screen.findByRole('region', { name: 'Transactions to categorize' });
     expect(review).toHaveTextContent('1 transaction could not be categorized automatically');
     expect(review).toHaveTextContent('Spotify');
     fireEvent.click(screen.getByRole('button', { name: 'Categorize transactions ›' }));
-    expect(onOpenTransactions).toHaveBeenCalledOnce();
+    expect(onOpenTransactions).toHaveBeenCalledTimes(2);
   });
   it('does not fetch while its tab is hidden, then loads when shown', async () => {
     const calls = stubApi();
@@ -115,7 +120,7 @@ describe('personal budget from the API', () => {
     expect(calls).toHaveLength(0);
     rerender(<CategoryBudgets active onOpenSimulator={() => {}} />);
     expect(await screen.findByText('$1,057.50 spent')).toBeInTheDocument();
-    expect(calls.map(call => call.url)).toEqual(expect.arrayContaining(['/api/budgets/personal', '/api/budgets/groups', '/api/banking/transactions?status=unreviewed']));
+    expect(calls.map(call => call.url)).toEqual(expect.arrayContaining(['/api/budgets/personal', '/api/budgets/groups', '/api/banking/transactions?status=unreviewed', `/api/banking/transactions?status=all&month=${new Date().toISOString().slice(0, 7)}`]));
   });
   it('warns about categories over their limit', async () => {
     stubApi({}, { personal: personalFixture({ dining: { spentCents: 40000 } }) });

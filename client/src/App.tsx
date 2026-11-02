@@ -52,6 +52,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   const [groupsAtRoot, setGroupsAtRoot] = useState(true);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [transactionsOpen, setTransactionsOpen] = useState(false);
+  const [transactionsMonth, setTransactionsMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [transactionReviewCount, setTransactionReviewCount] = useState(0);
   const [simulatorVisited, setSimulatorVisited] = useState(false);
   const [googlePhone, setGooglePhone] = useState('');
@@ -118,11 +119,11 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
 
   return <div className="device">
     {user ? <>
-      <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} onReviewCountChange={setTransactionReviewCount} onReviewTransactions={() => { setSimulatorOpen(false); setTransactionsOpen(true); setTab('Budget'); }} /></div>
+      <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} onReviewCountChange={setTransactionReviewCount} onReviewTransactions={() => { setSimulatorOpen(false); setTransactionsMonth(new Date().toISOString().slice(0, 7)); setTransactionsOpen(true); setTab('Budget'); }} /></div>
       <div hidden={tab !== 'Notifications'} className="profile-content"><NotificationsPage key={user.id} active={tab === 'Notifications'} onOpenGroup={(groupId, expenseId) => { setNotificationTarget({ groupId, expenseId, request: Date.now() }); setTab('Groups'); }} /></div>
-      <div hidden={tab !== 'Budget' || simulatorOpen || transactionsOpen} className="profile-content"><CategoryBudgets onClearExpenseTarget={() => setBudgetTarget(null)} expenseTarget={budgetTarget} active={tab === 'Budget' && !simulatorOpen && !transactionsOpen} onReviewCountChange={setTransactionReviewCount} onOpenTransactions={() => { setSimulatorOpen(false); setTransactionsOpen(true); }} onOpenSimulator={() => { setSimulatorVisited(true); setTransactionsOpen(false); setSimulatorOpen(true); }} /></div>
+      <div hidden={tab !== 'Budget' || simulatorOpen || transactionsOpen} className="profile-content"><CategoryBudgets onClearExpenseTarget={() => setBudgetTarget(null)} expenseTarget={budgetTarget} active={tab === 'Budget' && !simulatorOpen && !transactionsOpen} onReviewCountChange={setTransactionReviewCount} onOpenTransactions={month => { setSimulatorOpen(false); setTransactionsMonth(month); setTransactionsOpen(true); }} onOpenSimulator={() => { setSimulatorVisited(true); setTransactionsOpen(false); setSimulatorOpen(true); }} /></div>
       <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator active={tab === 'Budget' && simulatorOpen} onBack={() => setSimulatorOpen(false)} />}</div>
-      <div hidden={tab !== 'Budget' || !transactionsOpen} className="profile-content">{transactionsOpen && <TransactionReviewCenter onBack={() => setTransactionsOpen(false)} onUnreviewedDelta={delta => setTransactionReviewCount(current => Math.max(0, current + delta))} />}</div>
+      <div hidden={tab !== 'Budget' || !transactionsOpen} className="profile-content">{transactionsOpen && <TransactionReviewCenter initialMonth={transactionsMonth} onBack={() => setTransactionsOpen(false)} onUnreviewedDelta={delta => setTransactionReviewCount(current => Math.max(0, current + delta))} />}</div>
       <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>
       <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace notificationTarget={notificationTarget} visible={tab === 'Groups'} currentUser={user} onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>
       {(tab === 'Home' || tab === 'Notifications' || (tab === 'Budget' && !simulatorOpen && !transactionsOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">

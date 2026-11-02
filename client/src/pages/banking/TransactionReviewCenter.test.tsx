@@ -20,6 +20,7 @@ it('shows all transactions, then categorizes only the item that needs review', a
   vi.stubGlobal('fetch', fetchMock);
   render(<TransactionReviewCenter onBack={() => {}} />);
 
+  fireEvent.click(await screen.findByRole('button', { name: 'Filter transactions' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Needs category' }));
   fireEvent.click(await screen.findByRole('button', { name: /Corner Cafe/ }));
   fireEvent.change(screen.getByLabelText('CATEGORY'), { target: { value: 'shopping' } });
@@ -31,6 +32,18 @@ it('shows all transactions, then categorizes only the item that needs review', a
     body: JSON.stringify({ category: 'shopping', excluded: false, note: 'Office supplies', reviewed: true, splits: [] }),
   })));
   expect(await screen.findByText('Everything is categorized')).toBeInTheDocument();
+});
+
+it('opens with the requested budget month and filters from the popup', async () => {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ transactions: [transaction] }), { status: 200 }));
+  vi.stubGlobal('fetch', fetchMock);
+  render(<TransactionReviewCenter initialMonth="2026-10" onBack={() => {}} />);
+
+  expect(await screen.findByText('October 2026')).toBeInTheDocument();
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('month=2026-10'), expect.anything()));
+  fireEvent.click(screen.getByRole('button', { name: 'Filter transactions' }));
+  fireEvent.change(screen.getByLabelText('Transaction month'), { target: { value: '2026-09' } });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('month=2026-09'), expect.anything()));
 });
 
 it('requires split amounts to equal the charge before saving', async () => {

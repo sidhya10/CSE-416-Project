@@ -188,12 +188,16 @@ const presentTransaction = (row: TransactionReviewRow) => {
   });
 };
 
-export async function listTransactions(userId: string, filters: { query?: string; status: TransactionReviewStatus }) {
+export async function listTransactions(userId: string, filters: { query?: string; status: TransactionReviewStatus; month?: string }) {
   const query = filters.query?.trim();
+  const monthStart = filters.month ? new Date(`${filters.month}-01T00:00:00.000Z`) : undefined;
+  const monthEnd = monthStart ? new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1)) : undefined;
+  const monthRange = monthStart && monthEnd ? { gte: monthStart, lt: monthEnd } : undefined;
   const rows = await prisma.bankTransaction.findMany({
     where: {
       account: { connection: { userId } },
       autoExcludedReason: null,
+      ...(monthRange ? { date: monthRange } : {}),
       ...(filters.status === 'unreviewed' ? { needsReview: true, excluded: false }
         : filters.status === 'reviewed' ? { needsReview: false, excluded: false }
           : filters.status === 'excluded' ? { excluded: true } : {}),
@@ -212,6 +216,7 @@ export async function listTransactions(userId: string, filters: { query?: string
   const synthetic = await prisma.personalSettlementTransaction.findMany({
     where: {
       userId, bankTransactionId: null, payments: { some: { status: { not: 'ISSUE' } } },
+      ...(monthRange ? { sentAt: monthRange } : {}),
       ...(query ? { OR: [
         { method: { contains: query, mode: 'insensitive' } },
         { group: { name: { contains: query, mode: 'insensitive' } } },

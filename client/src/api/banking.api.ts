@@ -39,9 +39,10 @@ export const bankingApi = {
     if (merchant.trim()) params.set('merchant', merchant.trim());
     return apiRequest<{ suggestions: ExpenseMatchSuggestion[] }>(`/banking/expense-matches?${params}`, { signal });
   },
-  transactions: (status: 'all' | 'unreviewed' | 'reviewed' | 'excluded' = 'unreviewed', query = '') => {
+  transactions: (status: 'all' | 'unreviewed' | 'reviewed' | 'excluded' = 'unreviewed', query = '', month = '') => {
     const params = new URLSearchParams({ status });
     if (query.trim()) params.set('query', query.trim());
+    if (month) params.set('month', month);
     return apiRequest<{ transactions: ApiBankTransaction[] }>(`/banking/transactions?${params}`);
   },
   reviewTransaction: (id: string, review: TransactionReview) =>
