@@ -20,7 +20,7 @@ export const greetingFor = (hour: number) => hour < 12 ? 'Good morning' : hour <
 
 export const firstName = (name: string) => name.trim().split(/\s+/)[0] || 'there';
 
-export type TodoTarget = 'Budget' | 'Groups';
+export type TodoTarget = 'Budget' | 'Groups' | 'Profile';
 export type Todo = { id: string; label: string; trailing: string; target: TodoTarget };
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;

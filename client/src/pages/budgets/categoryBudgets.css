@@ -91,3 +91,18 @@
 
 .cb-month-picker{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0;font-weight:600}
 .cb-month-picker select{min-width:0;padding:7px 10px;border:1px solid var(--border,#dedbce);border-radius:10px;background:var(--surface,#fff);color:inherit;font:inherit;font-size:14px}
+
+/* Keep personal budgeting visually aligned with groups and expense entry. */
+.cb-screen{font-family:var(--font-ui);font-size:var(--text-body);line-height:1.45}
+.cb-screen button,.cb-screen input,.cb-screen select{font-family:inherit}
+.cb-header h1,.cb-heading-row h1{font-size:var(--text-page-title);line-height:1.25}
+.cb-header p,.cb-detail-note,.cb-preview-status{font-size:var(--text-body);line-height:1.5}
+.cb-section-heading{font-size:var(--text-section);line-height:1.3}
+.cb-category,.cb-review-card{border:1px solid transparent;border-radius:var(--radius-card)}
+.cb-row-button:hover{border-color:var(--border);background:var(--surface-hover)}
+.cb-category-head strong,.cb-review-row strong{font-size:var(--text-control)}
+.cb-category-head span,.cb-review-row small,.cb-hero-sub,.cb-hero-meta{font-size:var(--text-caption)}
+.cb-toggle button,.cb-simulator-link,.cb-review-all,.cb-actions button{min-height:var(--control-height);border-radius:var(--radius-control);font-size:var(--text-body)}
+.cb-month-picker select,.cb-limit-row input{min-height:var(--control-height);border-radius:var(--radius-control);font-size:var(--text-control)}
+.cb-back{display:inline-flex;align-items:center;min-height:var(--icon-button-size);padding:0 8px;border-radius:var(--radius-control);color:var(--muted);font-size:var(--text-body)}
+.cb-back:hover{background:var(--surface-hover);color:var(--accent)}

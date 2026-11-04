@@ -24,11 +24,12 @@ function SettingsRow({ title, subtitle, action, onClick }: {
     : <div className="setting-row">{content}</div>;
 }
 
-export default function ProfileSettings({ user, onUserChange, onLogout, onRootChange }: {
+export default function ProfileSettings({ user, onUserChange, onLogout, onRootChange, bankingRequest = 0 }: {
   user: AppUser;
   onUserChange: (user: AppUser) => void;
   onLogout: () => void;
   onRootChange: (atRoot: boolean) => void;
+  bankingRequest?: number;
 }) {
   const [screen, setScreen] = useState<Screen>('settings');
   const profile = { name: user.name, username: user.username, birthday: user.birthday, bio: user.bio, photoUrl: user.photoUrl };
@@ -42,6 +43,11 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
   const [reminders, setReminders] = useState(true);
   const photoInput = useRef<HTMLInputElement>(null);
   useEffect(() => setDraft(profile), [user.name, user.username, user.birthday, user.bio, user.photoUrl]);
+  useEffect(() => {
+    if (!bankingRequest) return;
+    setScreen('banking');
+    onRootChange(false);
+  }, [bankingRequest, onRootChange]);
 
   const open = (next: Screen) => {
     setMessage(''); setPasswords({ current: '', next: '', confirm: '' });

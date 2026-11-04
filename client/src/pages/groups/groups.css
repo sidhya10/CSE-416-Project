@@ -88,3 +88,25 @@
 .deletion-dialog button { min-height: 44px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-subtle); color: var(--text); font-weight: 600; }
 .deletion-dialog button.group-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
 .deletion-dialog button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+/* Shared visual language for the group and personal workspaces. */
+.groups-workspace{font-family:var(--font-ui);font-size:var(--text-body);line-height:1.45}
+.group-header h1,.group-centered-header h1,.group-detail-header h1{font-size:var(--text-page-title);line-height:1.25}
+.group-section-title,.group-section-line .group-section-title{font-size:var(--text-section);line-height:1.3}
+.group-header p,.group-caption,.detail-description{font-size:var(--text-body);line-height:1.5}
+.group-overline,.group-field-label,.group-form label{font-size:var(--text-caption);letter-spacing:.01em}
+.group-search{min-height:var(--control-height);height:var(--control-height);gap:12px;border-radius:var(--radius-control);font-size:var(--icon-size)}
+.group-search input{font-size:var(--text-control)}
+.group-filter-trigger{width:var(--icon-button-size);height:var(--icon-button-size);border-radius:var(--radius-control);color:var(--muted)}
+.group-filter-trigger[aria-expanded=true]{color:var(--accent)}
+.group-filter-trigger svg{width:var(--icon-size);height:var(--icon-size)}
+.group-back,.group-more{display:grid;place-items:center;flex:none;width:var(--icon-button-size);height:var(--icon-button-size);padding:0;border-radius:var(--radius-control);color:var(--muted);font-size:var(--icon-size)}
+.group-back:hover,.group-more:hover{background:var(--surface-hover);color:var(--accent)}
+.group-list-card,.friend-card,.group-transaction,.private-budget,.member-row,.recurring-card{border:1px solid transparent;border-radius:var(--radius-card)}
+.group-list-card:hover,.friend-card:hover,.group-transaction:hover,.recurring-card:hover{border-color:var(--border);background:var(--surface-hover)}
+.group-list-card strong,.friend-card strong,.group-transaction strong,.member-row strong{font-size:var(--text-control)}
+.group-list-card small,.group-list-card em,.friend-card small,.group-transaction small,.member-row small{font-size:var(--text-caption)}
+.group-actions button,.group-primary,.group-form input,.group-form select{min-height:var(--control-height);height:var(--control-height);border-radius:var(--radius-control);font-size:var(--text-control)}
+.group-form textarea{border-radius:var(--radius-control);font-size:var(--text-control)}
+.group-card-menu{width:var(--icon-button-size);color:var(--muted);font-size:var(--icon-size)}
+.group-filter-dialog header>button{width:var(--icon-button-size);height:var(--icon-button-size);border-radius:var(--radius-control);color:var(--muted);font-size:var(--icon-size)}
