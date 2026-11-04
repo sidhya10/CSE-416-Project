@@ -112,13 +112,16 @@ describe('home dashboard with real data', () => {
       personal: personal({ hasBankConnection: false, lastSyncedAt: null, categories: personal().categories.map(c => ({ ...c, plannedCents: 0, spentCents: 0 })) }),
       groups: [], transactions: [], home: { history: home().history.map(m => ({ ...m, spendingCents: 0, incomeCents: 0 })), pendingPayments: { count: 0, cents: 0 }, latestExpense: null },
     });
-    render(<HomeDashboard userName="New" onNavigate={() => {}} />);
+    const onConnectBank = vi.fn();
+    render(<HomeDashboard userName="New" onNavigate={() => {}} onConnectBank={onConnectBank} />);
     expect(await screen.findByText('No limits set')).toBeInTheDocument();
     expect(screen.getByText('↻ No bank synced yet')).toBeInTheDocument();
     expect(screen.getByText('Connect a bank account in Profile to see your spending.')).toBeInTheDocument();
     expect(screen.getByText('No bank transactions in these months yet.')).toBeInTheDocument();
-    expect(await screen.findByText("You're all caught up.")).toBeInTheDocument();
-    expect(screen.getByText('Nothing needs attention')).toBeInTheDocument();
+    expect(await screen.findByText('Connect a bank account')).toBeInTheDocument();
+    expect(screen.getByText('1 item needs attention')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Connect ›' }));
+    expect(onConnectBank).toHaveBeenCalledOnce();
     expect(screen.queryByText(/^Latest:/)).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Transactions to review' })).not.toBeInTheDocument();
   });

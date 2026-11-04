@@ -11,8 +11,8 @@ import './dashboard.css';
 const loadUnreviewedTransactions = () => bankingApi.transactions('unreviewed');
 
 // `active` is false while the tab is hidden: nothing is fetched or refreshed until the user opens Home.
-export default function HomeDashboard({ userName, onNavigate, onReviewTransactions = () => {}, onReviewCountChange, active = true }: {
-  userName: string; onNavigate: (target: TodoTarget) => void; onReviewTransactions?: () => void; onReviewCountChange?: (count: number) => void; active?: boolean;
+export default function HomeDashboard({ userName, onNavigate, onConnectBank = () => onNavigate('Profile'), onReviewTransactions = () => {}, onReviewCountChange, active = true }: {
+  userName: string; onNavigate: (target: TodoTarget) => void; onConnectBank?: () => void; onReviewTransactions?: () => void; onReviewCountChange?: (count: number) => void; active?: boolean;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -37,7 +37,8 @@ export default function HomeDashboard({ userName, onNavigate, onReviewTransactio
   const monthLabel = personal.data ? budgetPeriod(personal.data).monthLabel : new Date().toLocaleDateString('en-US', { month: 'long' });
   const latest = home.data?.latestExpense;
   const unreviewed = reviews.data?.transactions ?? [];
-  const attentionCount = todos.length + (unreviewed.length ? 1 : 0);
+  const needsBankConnection = personal.data ? !personal.data.hasBankConnection : false;
+  const attentionCount = todos.length + (unreviewed.length ? 1 : 0) + (needsBankConnection ? 1 : 0);
 
   useEffect(() => {
     if (reviews.data) onReviewCountChange?.(reviews.data.transactions.length);
@@ -96,6 +97,7 @@ export default function HomeDashboard({ userName, onNavigate, onReviewTransactio
           <div><h2>Your to-dos</h2><small>{attentionCount ? `${attentionCount} ${attentionCount === 1 ? 'item needs' : 'items need'} attention` : 'Nothing needs attention'}</small></div>
         </div>
         {attentionCount === 0 && <p className="home-empty">You're all caught up.</p>}
+        {needsBankConnection && <div className="home-todo-row"><span>Connect a bank account</span><button type="button" onClick={onConnectBank}>Connect ›</button></div>}
         {todos.map(todo => <div key={todo.id} className="home-todo-row"><span>{todo.label}</span><button type="button" onClick={() => onNavigate(todo.target)}>{todo.trailing}</button></div>)}
         {unreviewed.length > 0 && <div className="home-todo-row"><span>Categorize {unreviewed.length} {unreviewed.length === 1 ? 'transaction' : 'transactions'}</span><button type="button" onClick={onReviewTransactions}>Open ›</button></div>}
       </section>}

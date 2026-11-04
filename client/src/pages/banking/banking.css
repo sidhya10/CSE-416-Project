@@ -82,3 +82,18 @@
 .review-check{display:flex!important;flex-direction:row!important;align-items:flex-start;gap:10px!important;text-transform:none}.review-check input{width:17px;height:17px;margin:2px 0 0}.review-check span{display:flex;flex-direction:column;gap:2px}.review-check strong{color:var(--text);font-size:12px}.review-check small{color:var(--muted);font-size:9px;font-weight:400}.bank-linked-notice{padding:9px;border-radius:10px;background:var(--soft-blue);color:var(--blue-caption)!important;font-size:10px!important}
 .review-splits{display:block!important;margin-top:10px!important}.review-split-row{display:grid;grid-template-columns:minmax(0,1fr) auto 82px auto;align-items:center;gap:5px;margin-bottom:7px}.review-split-row input,.review-split-row select{height:38px;min-width:0;padding:0 8px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:10px}.review-split-row button,.review-add-split{border:0!important;background:transparent!important;color:var(--accent)!important;font-size:12px!important;font-weight:600}.review-total{margin:6px 0!important;color:var(--danger)!important;font-size:9px!important}.review-total.valid{color:var(--accent)!important}
 .review-dialog-actions{display:flex;gap:9px!important}.review-dialog-actions button{margin:0!important}.review-dialog-actions button:first-child{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}.review-dialog-actions button:last-child{background:var(--primary)!important;color:#fff!important;border-color:var(--accent)!important}
+
+/* Banking uses the same type, controls, cards, and icon treatment as budgets and groups. */
+.banking-workspace{font-family:var(--font-ui);font-size:var(--text-body);line-height:1.45}
+.bank-header h1{font-size:var(--text-page-title);line-height:1.25}
+.bank-header p,.bank-banner small,.bank-account-copy small,.bank-sync-card>p,.review-empty p{font-size:var(--text-caption);line-height:1.5}
+.bank-header button{display:grid;place-items:center;flex:none;width:var(--icon-button-size);height:var(--icon-button-size);padding:0;border-radius:var(--radius-control);color:var(--muted);font-size:var(--icon-size)}
+.bank-header button:hover,.bank-menu-toggle:hover{background:var(--surface-hover);color:var(--accent)}
+.bank-account-card,.bank-sync-card,.review-card,.bank-banner{border-radius:var(--radius-card)}
+.bank-account-card,.review-card{border:1px solid transparent}
+.bank-account-card:hover,.review-card:hover{border-color:var(--border)}
+.bank-account-copy strong,.review-card-main>strong,.bank-banner strong,.bank-sync-card h2{font-size:var(--text-control)}
+.bank-connect-button,.bank-sync-button,.review-search,.review-filter-toggle{min-height:var(--control-height);height:var(--control-height);border-radius:var(--radius-control);font-size:var(--text-control)}
+.review-filter-toggle{width:var(--icon-button-size);color:var(--muted)}
+.review-filter-toggle svg{width:var(--icon-size);height:var(--icon-size)}
+.bank-menu-toggle{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;color:var(--muted);font-size:var(--icon-size)}

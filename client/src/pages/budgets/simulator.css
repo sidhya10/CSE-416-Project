@@ -130,3 +130,15 @@
 .sim-result-stats div{display:flex;flex-direction:column;gap:2px;min-width:0}
 .sim-result-stats dt{color:var(--muted);font-size:10px}.sim-result-stats dd{margin:0;font-size:13px;font-weight:600}
 .sim-result-note{margin:10px 0 0;color:var(--muted);font-size:11px;line-height:1.4}
+
+/* Match the rest of the personal-budget experience. */
+.budgets-workspace{font-family:var(--font-ui);font-size:var(--text-body);line-height:1.45}
+.sim-header h1{font-size:var(--text-page-title);line-height:1.25}
+.sim-header p,.sim-subnote,.sim-library-sub,.sim-result-note{font-size:var(--text-body);line-height:1.5}
+.sim-section-line h2,.sim-list-meta h2{font-size:var(--text-section)}
+.sim-header button{display:grid;place-items:center;flex:none;width:var(--icon-button-size);height:var(--icon-button-size);padding:0;border-radius:var(--radius-control);color:var(--muted);font-size:var(--icon-size)}
+.sim-header button:hover{background:var(--surface-hover);color:var(--accent)}
+.sim-category,.sim-library-card,.sim-scenario-main,.sim-baseline-card,.sim-compare-card,.sim-scenario-card,.sim-result{border:1px solid transparent;border-radius:var(--radius-card)}
+.sim-scenario-main:hover,.sim-result:hover{border-color:var(--border);background:var(--surface-hover)}
+.sim-category-head strong,.sim-scenario-main strong,.sim-compare-head strong{font-size:var(--text-control)}
+.sim-secondary-button,.sim-pill{min-height:var(--control-height);border-radius:var(--radius-control);font-size:var(--text-body)}
