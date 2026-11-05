@@ -53,7 +53,7 @@ describe('weekly digest from bank data', () => {
       row(shown, 'excluded-jan2', 8888, '2090-01-02', 'FOOD_AND_DRINK', { merchant: 'Excluded', excluded: true }),
       row(hidden, 'hidden-jan2', 9999, '2090-01-02', 'FOOD_AND_DRINK', { merchant: 'Hidden account' }),
     ] });
-    await prisma.categoryLimit.createMany({ data: [{ userId: bankId, category: 'dining', limitCents: 36500 }, { userId: bankId, category: 'shopping', limitCents: 3000 }] });
+    await prisma.categoryLimit.createMany({ data: [{ userId: bankId, month: '2090-01', category: 'dining', limitCents: 36500 }, { userId: bankId, month: '2090-01', category: 'shopping', limitCents: 3000 }] });
   });
 
   it('adds up the seven days across both months, skipping hidden accounts, excluded charges and other days', async () => {

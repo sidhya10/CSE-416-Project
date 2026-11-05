@@ -62,7 +62,7 @@ async function financialActivity(userId: string, keys: string[], start?: Date, e
 export async function personalBudget(userId: string, now = new Date()) {
   const window = monthWindow(now);
   const [limits, rows, connections, shares, settlementTransactions] = await Promise.all([
-    prisma.categoryLimit.findMany({ where: { userId } }),
+    prisma.categoryLimit.findMany({ where: { userId, month: { lte: window.month } }, orderBy: { month: 'desc' } }),
     // Plaid reports money leaving an account as a positive amount; refunds and deposits are negative.
     prisma.bankTransaction.findMany({
       where: { amountCents: { gt: 0 }, autoExcludedReason: null, date: { gte: window.start, lt: window.end }, account: { hidden: false, connection: { userId } } },
@@ -118,10 +118,12 @@ export async function personalBudget(userId: string, now = new Date()) {
     }
   }
   for (const key of CATEGORY_KEYS) transactions[key].sort((a, b) => b.date.localeCompare(a.date));
-  const limitFor = new Map(limits.map(limit => [limit.category, limit.limitCents]));
+  // The newest limit at or before this month applies until a later monthly edit.
+  const limitFor = new Map<string, number>();
+  for (const limit of limits) if (!limitFor.has(limit.category)) limitFor.set(limit.category, limit.limitCents);
   const synced = connections.flatMap(connection => connection.lastSyncedAt ? [connection.lastSyncedAt.getTime()] : []);
   return {
-    month: window.month, daysInMonth: window.daysInMonth, daysLeft: window.daysLeft,
+    month: window.month, hasSavedLimits: limits.length > 0, daysInMonth: window.daysInMonth, daysLeft: window.daysLeft,
     hasBankConnection: connections.length > 0, lastSyncedAt: synced.length ? Math.max(...synced) : null,
     categories: CATEGORY_KEYS.map(key => ({ key, plannedCents: limitFor.get(key) ?? 0, spentCents: spent[key] })),
     transactions,
@@ -129,9 +131,11 @@ export async function personalBudget(userId: string, now = new Date()) {
 }
 
 export async function saveLimits(userId: string, limits: Partial<Record<CategoryKey, number>>) {
+  const now = new Date();
+  const month = monthWindow(now).month;
   await prisma.$transaction(Object.entries(limits).map(([category, limitCents]) =>
-    prisma.categoryLimit.upsert({ where: { userId_category: { userId, category } }, create: { userId, category, limitCents }, update: { limitCents } })));
-  return personalBudget(userId);
+    prisma.categoryLimit.upsert({ where: { userId_month_category: { userId, month, category } }, create: { userId, month, category, limitCents }, update: { limitCents } })));
+  return personalBudget(userId, now);
 }
 
 type ScenarioLimits = Partial<Record<CategoryKey, number>>;

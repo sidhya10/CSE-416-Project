@@ -142,7 +142,7 @@ describe('personal budget', () => {
     await owner.put('/api/budgets/personal/limits').send({ limits: { dining: 40000 } }).expect(200);
     // Rows from the earlier tests only: dining, groceries, and other. The rejected requests added none.
     expect(await prisma.categoryLimit.count({ where: { userId: ownerId } })).toBe(3);
-    expect(await prisma.categoryLimit.findUniqueOrThrow({ where: { userId_category: { userId: ownerId, category: 'dining' } } })).toMatchObject({ limitCents: 40000 });
+    expect(await prisma.categoryLimit.findUniqueOrThrow({ where: { userId_month_category: { userId: ownerId, month: todayIso.slice(0, 7), category: 'dining' } } })).toMatchObject({ limitCents: 40000 });
   });
 });
 
@@ -390,4 +390,37 @@ it('loads and exports a past month and rejects invalid month selections', async 
   const exported = await owner.get(`/api/budgets/personal/export.csv?month=${month}`).expect(200);
   expect(exported.headers['content-disposition']).toContain(month);
   for (const value of ['2026-13', 'invalid', '9999-01']) await owner.get(`/api/budgets/personal?month=${value}`).expect(400);
+});
+
+it('keeps past monthly limits unchanged when current limits are edited', async () => {
+  const month = day(-1, 1).toISOString().slice(0, 7);
+  await prisma.categoryLimit.create({ data: { userId: ownerId, month, category: 'dining', limitCents: 12345 } });
+  await owner.put('/api/budgets/personal/limits').send({ limits: { dining: 54321 } }).expect(200);
+  const past = await owner.get(`/api/budgets/personal?month=${month}`).expect(200);
+  expect(past.body.hasSavedLimits).toBe(true);
+  expect(byKey(past.body.categories).dining.plannedCents).toBe(12345);
+  const current = await owner.get('/api/budgets/personal').expect(200);
+  expect(byKey(current.body.categories).dining.plannedCents).toBe(54321);
+  const older = await owner.get(`/api/budgets/personal?month=${day(-2, 1).toISOString().slice(0, 7)}`).expect(200);
+  expect(older.body.hasSavedLimits).toBe(false);
+  expect(older.body.categories.every((c: Category) => c.plannedCents === 0)).toBe(true);
+});
+
+it('inherits limits across months while current edits and zero limits preserve history', async () => {
+  const previous = day(-1, 1).toISOString().slice(0, 7);
+  const earlier = day(-3, 1).toISOString().slice(0, 7);
+  await prisma.categoryLimit.createMany({ data: [
+    { userId: memberId, month: earlier, category: 'transit', limitCents: 200000 },
+    { userId: memberId, month: previous, category: 'shopping', limitCents: 30000 },
+  ] });
+  const current = await member.get('/api/budgets/personal').expect(200);
+  expect(byKey(current.body.categories)).toMatchObject({ transit: { plannedCents: 200000 }, shopping: { plannedCents: 30000 } });
+  await member.put('/api/budgets/personal/limits').send({ limits: { transit: 250000, shopping: 0 } }).expect(200);
+  const edited = await member.get('/api/budgets/personal').expect(200);
+  expect(byKey(edited.body.categories)).toMatchObject({ transit: { plannedCents: 250000 }, shopping: { plannedCents: 0 } });
+  const past = await member.get(`/api/budgets/personal?month=${previous}`).expect(200);
+  expect(byKey(past.body.categories)).toMatchObject({ transit: { plannedCents: 200000 }, shopping: { plannedCents: 30000 } });
+  const { personalBudget } = await import('../src/modules/budgets/budget.service.js');
+  const next = await personalBudget(memberId, day(1, 1));
+  expect(byKey(next.categories)).toMatchObject({ transit: { plannedCents: 250000 }, shopping: { plannedCents: 0 } });
 });

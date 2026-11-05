@@ -235,7 +235,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
       {!personal.hasBankConnection && <p className="cb-notice" role="status">Group expense shares appear here automatically. Connect a bank account in Profile to include other spending.</p>}
       {overLimit.length > 0 && <p className="cb-notice cb-warn" role="status">Over budget for this month: {overLimit.map(item => item.label).join(', ')}.</p>}
 
-      {historical && <p className="cb-notice">Past spending is shown against your current category limits. Historical limits were not saved.</p>}
+      {historical && personal.hasSavedLimits === false && <p className="cb-notice">No budget limits were saved for this month. Your actual spending is shown below.</p>}
       <div className="cb-section-row"><h2 className="cb-section-heading">Category plan</h2>
         {!historical && <button type="button" className="cb-simulator-link" onClick={() => setDetail({ kind: 'limits' })}>Edit limits</button>}</div>
       {budgets.map(item => <button key={item.key} type="button" className="cb-category cb-row-button"

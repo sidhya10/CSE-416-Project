@@ -4,7 +4,7 @@ export type CategoryKey = 'dining' | 'groceries' | 'transit' | 'shopping' | 'oth
 
 export type ApiCategoryTransaction = { linkedBank?: { merchant: string; date: string; amountCents: number }; id: string; merchant: string; date: string; amountCents: number; pending: boolean };
 export type ApiPersonalBudget = {
-  month: string; daysInMonth: number; daysLeft: number; hasBankConnection: boolean; lastSyncedAt: number | null;
+  month: string; hasSavedLimits?: boolean; daysInMonth: number; daysLeft: number; hasBankConnection: boolean; lastSyncedAt: number | null;
   categories: { key: CategoryKey; plannedCents: number; spentCents: number }[];
   transactions: Record<CategoryKey, ApiCategoryTransaction[]>;
 };
