@@ -282,12 +282,12 @@ describe('group budgets from the API', () => {
 it('loads a selected past month and makes historical limits read-only', async () => {
   const date = new Date(); date.setUTCDate(1); date.setUTCMonth(date.getUTCMonth() - 1);
   const month = date.toISOString().slice(0, 7);
-  const calls = stubApi({ [`GET /budgets/personal?month=${month}`]: () => json({ ...personalFixture(), month, daysLeft: 0 }) });
+  const calls = stubApi({ [`GET /budgets/personal?month=${month}`]: () => json({ ...personalFixture(), month, daysLeft: 0, hasSavedLimits: false }) });
   render(<CategoryBudgets onOpenSimulator={() => {}} />);
   await screen.findByRole('button', { name: 'Edit limits' });
   fireEvent.change(screen.getByLabelText('Budget month'), { target: { value: month } });
   await waitFor(() => expect(calls.some(call => call.url.includes(`month=${month}`))).toBe(true));
-  expect(await screen.findByText(/Historical limits were not saved/)).toBeVisible();
+  expect(await screen.findByText(/No budget limits were saved for this month/)).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Edit limits' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'View insights ›' }));
   expect(screen.getByRole('region', { name: 'Total spent' })).toBeVisible();

@@ -434,11 +434,12 @@ model CategoryLimit {
   id         String   @id @default(cuid())
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month      String   @default(dbgenerated("to_char((CURRENT_TIMESTAMP AT TIME ZONE 'UTC'), 'YYYY-MM')"))
   category   String
   limitCents Int
   updatedAt  DateTime @updatedAt
 
-  @@unique([userId, category])
+  @@unique([userId, month, category])
 }
 
 // One row per user per scheduled Friday send. The unique key is what keeps a restart or a second API
