@@ -87,17 +87,19 @@ describe('persisted expenses and settlements', () => {
     expect(await prisma.expense.count({ where: { groupId } })).toBe(before);
   });
 
-  it('confirms an available personal bank suggestion while creating the split', async () => {
+  it.each([undefined, '2026-10-08'])('links a selected bank charge with expense date %s', async expenseDate => {
     const connection = await prisma.bankConnection.create({ data: {
-      userId: ownerId, plaidItemId: `expense-match-${run}`, institutionName: 'Test Bank', accessTokenEnc: 'test-only',
+      userId: ownerId, plaidItemId: `expense-match-${run}-${expenseDate}`, institutionName: 'Test Bank', accessTokenEnc: 'test-only',
     } });
-    const account = await prisma.bankAccount.create({ data: { connectionId: connection.id, plaidAccountId: `expense-account-${run}`, name: 'Card', mask: '1234' } });
+    const account = await prisma.bankAccount.create({ data: { connectionId: connection.id, plaidAccountId: `expense-account-${run}-${expenseDate}`, name: 'Card', mask: '1234' } });
     const bank = await prisma.bankTransaction.create({ data: {
-      accountId: account.id, plaidTransactionId: `expense-transaction-${run}`, amountCents: 2103,
+      accountId: account.id, plaidTransactionId: `expense-transaction-${run}-${expenseDate}`, amountCents: 2103,
       date: new Date('2026-10-09T00:00:00.000Z'), name: 'Dinner', pending: false,
     } });
-    const created = await create({ ...input(), bankTransactionId: bank.id }).expect(201);
-    expect(created.body.expense).toMatchObject({ bankTransactionId: bank.id, budgetLinkReviewed: true });
+    const created = await owner.post(`/api/groups/${groupId}/expenses`).send({ clientRequestId: randomUUID(), expense: { ...input(), expenseDate, bankTransactionId: bank.id } }).expect(201);
+    expect(created.body.expense).toMatchObject({ bankTransactionId: bank.id, budgetLinkReviewed: true, expenseDate: `${expenseDate ?? '2026-10-09'}T00:00:00.000Z` });
+    const budget = await owner.get('/api/budgets/personal?month=2026-10').expect(200);
+    expect(Object.values(budget.body.transactions).flat()).toContainEqual(expect.objectContaining({ id: `share-${created.body.expense.id}`, linkedBank: expect.objectContaining({ date: '2026-10-09' }) }));
     expect(await prisma.budgetNotice.count({ where: { expenseId: created.body.expense.id } })).toBe(0);
     await create({ ...input(), paidByUserId: memberId, bankTransactionId: bank.id }).expect(400);
     await create({ ...input(), bankTransactionId: bank.id }).expect(409);

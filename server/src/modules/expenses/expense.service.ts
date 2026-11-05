@@ -89,6 +89,7 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
       return previous;
     }
     await validateMembers(tx, groupId, input);
+    let selectedBankDate: Date | undefined;
     if (input.bankTransactionId) {
       if (input.paidByUserId !== userId) throw new ExpenseError(400, 'Only your own bank charge can be linked while creating an expense');
       const bank = await tx.bankTransaction.findFirst({ where: {
@@ -96,8 +97,10 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
         account: { hidden: false, connection: { userId } },
       } });
       if (!bank) throw new ExpenseError(409, 'That bank transaction is no longer available. Refresh the suggestions and try again.');
+      selectedBankDate = bank.date;
     }
     const fields = expenseFields(input);
+    if (!input.expenseDate && selectedBankDate) fields.expenseDate = selectedBankDate;
     const automaticBankTransactionId = !input.bankTransactionId && input.paidByUserId === userId
       ? await automaticExpenseMatch(tx, userId, { amountCents: fields.totalCents, date: fields.expenseDate, merchant: input.title }) : null;
     const bankTransactionId = input.bankTransactionId ?? automaticBankTransactionId;

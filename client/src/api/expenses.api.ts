@@ -20,7 +20,7 @@ export function toExpenseInput(split: PreviewSplit, currentUserId: string) {
     receipt: split.receiptAttachment,
     bankTransactionId: split.bankTransactionId,
     budgetCategory: split.budgetCategory ?? 'other',
-    title: split.name, expenseDate: split.date.slice(0, 10), paidByUserId: id(split.payerId),
+    title: split.name, expenseDate: split.date ? split.date.slice(0, 10) : undefined, paidByUserId: id(split.payerId),
     splitMode: split.mode === 'equal' ? 'EQUAL' : 'ITEMS', participantIds: split.shares.map(share => id(share.memberId)),
     items: split.items.map(item => ({ name: item.name, quantity: item.quantity ?? 1, unitPriceCents: item.unitCents ?? item.cents,
       assignedUserIds: split.mode === 'items' ? (split.assignments[item.id] ?? []).map(id) : [] })),
