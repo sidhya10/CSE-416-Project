@@ -31,6 +31,23 @@ function openExpense(group = 'Weekend Trip') {
 const fill = (label: string, value: string) => fireEvent.change(screen.getByRole('textbox', { name: label }), { target: { value } });
 
 describe('Expense entry flow', () => {
+  it('clears zero-valued fee fields on focus and restores zero on blur', () => {
+    render(<ExpenseEntry groupName="Dinner group" members={[{ id: 'you', name: 'You' }]} onBack={vi.fn()} onConfirm={vi.fn()} />);
+    for (const label of ['Tax', 'Tip', 'Other']) expect(screen.getByRole('textbox', { name: label })).toHaveValue('0.00');
+
+    const tax = screen.getByRole('textbox', { name: 'Tax' });
+    fireEvent.focus(tax);
+    expect(tax).toHaveValue('');
+    fireEvent.blur(tax);
+    expect(tax).toHaveValue('0.00');
+
+    const tip = screen.getByRole('textbox', { name: 'Tip' });
+    fireEvent.focus(tip);
+    fireEvent.change(tip, { target: { value: '4.50' } });
+    fireEvent.blur(tip);
+    expect(tip).toHaveValue('4.50');
+  });
+
   it('shows inline bank matching after items and fees', () => {
     render(<ExpenseEntry groupName="Dinner group" members={[{ id: 'you', name: 'You' }]} onBack={vi.fn()} onConfirm={vi.fn()} />);
     const suggestions = screen.getByRole('region', { name: 'Suggested bank transactions' });

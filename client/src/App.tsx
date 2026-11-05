@@ -15,6 +15,7 @@ import WhatIfSimulator from './pages/budgets/WhatIfSimulator';
 import HomeDashboard from './pages/dashboard/HomeDashboard';
 import TransactionReviewCenter from './pages/banking/TransactionReviewCenter';
 import type { FriendFixture, GroupFixture } from './pages/groups/GroupsWorkspace';
+import MobileGestureShell from './components/common/MobileGestureShell';
 
 type Tab = 'Home' | 'Budget' | 'Groups' | 'Notifications' | 'Profile';
 type AuthView = 'login' | 'signup' | 'forgot' | 'reset';
@@ -52,7 +53,9 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
   const [groupsAtRoot, setGroupsAtRoot] = useState(true);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [transactionsOpen, setTransactionsOpen] = useState(false);
+  const [transactionsMonth, setTransactionsMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [transactionReviewCount, setTransactionReviewCount] = useState(0);
+  const [openBankingRequest, setOpenBankingRequest] = useState(0);
   const [simulatorVisited, setSimulatorVisited] = useState(false);
   const [googlePhone, setGooglePhone] = useState('');
   const [resetPasswords, setResetPasswords] = useState({ next: '', confirm: '' });
@@ -112,18 +115,18 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
     finally { setUser(null); setTab('Home'); setProfileAtRoot(true); setNotice(''); }
   };
 
-  if (loading) return <div className="device"><main className="login-screen"><p className="form-notice" role="status">Loading your account…</p></main></div>;
+  if (loading) return <MobileGestureShell><main className="login-screen"><p className="form-notice" role="status">Loading your account…</p></main></MobileGestureShell>;
 
-  if (guest && !user) return <div className="device"><GuestSplit onClose={() => setGuest(false)} /></div>;
+  if (guest && !user) return <MobileGestureShell><GuestSplit onClose={() => setGuest(false)} /></MobileGestureShell>;
 
-  return <div className="device">
+  return <MobileGestureShell>
     {user ? <>
-      <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} onReviewCountChange={setTransactionReviewCount} onReviewTransactions={() => { setSimulatorOpen(false); setTransactionsOpen(true); setTab('Budget'); }} /></div>
+      <div hidden={tab !== 'Home'} className="profile-content"><HomeDashboard userName={user.name} active={tab === 'Home'} onNavigate={setTab} onConnectBank={() => { setOpenBankingRequest(request => request + 1); setTab('Profile'); }} onReviewCountChange={setTransactionReviewCount} onReviewTransactions={() => { setSimulatorOpen(false); setTransactionsMonth(new Date().toISOString().slice(0, 7)); setTransactionsOpen(true); setTab('Budget'); }} /></div>
       <div hidden={tab !== 'Notifications'} className="profile-content"><NotificationsPage key={user.id} active={tab === 'Notifications'} onOpenGroup={(groupId, expenseId) => { setNotificationTarget({ groupId, expenseId, request: Date.now() }); setTab('Groups'); }} /></div>
-      <div hidden={tab !== 'Budget' || simulatorOpen || transactionsOpen} className="profile-content"><CategoryBudgets onClearExpenseTarget={() => setBudgetTarget(null)} expenseTarget={budgetTarget} active={tab === 'Budget' && !simulatorOpen && !transactionsOpen} onReviewCountChange={setTransactionReviewCount} onOpenTransactions={() => { setSimulatorOpen(false); setTransactionsOpen(true); }} onOpenSimulator={() => { setSimulatorVisited(true); setTransactionsOpen(false); setSimulatorOpen(true); }} /></div>
+      <div hidden={tab !== 'Budget' || simulatorOpen || transactionsOpen} className="profile-content"><CategoryBudgets onClearExpenseTarget={() => setBudgetTarget(null)} expenseTarget={budgetTarget} active={tab === 'Budget' && !simulatorOpen && !transactionsOpen} onReviewCountChange={setTransactionReviewCount} onOpenTransactions={month => { setSimulatorOpen(false); setTransactionsMonth(month); setTransactionsOpen(true); }} onOpenSimulator={() => { setSimulatorVisited(true); setTransactionsOpen(false); setSimulatorOpen(true); }} /></div>
       <div hidden={tab !== 'Budget' || !simulatorOpen} className="profile-content">{simulatorVisited && <WhatIfSimulator active={tab === 'Budget' && simulatorOpen} onBack={() => setSimulatorOpen(false)} />}</div>
-      <div hidden={tab !== 'Budget' || !transactionsOpen} className="profile-content">{transactionsOpen && <TransactionReviewCenter onBack={() => setTransactionsOpen(false)} onUnreviewedDelta={delta => setTransactionReviewCount(current => Math.max(0, current + delta))} />}</div>
-      <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>
+      <div hidden={tab !== 'Budget' || !transactionsOpen} className="profile-content">{transactionsOpen && <TransactionReviewCenter initialMonth={transactionsMonth} onBack={() => setTransactionsOpen(false)} onUnreviewedDelta={delta => setTransactionReviewCount(current => Math.max(0, current + delta))} />}</div>
+      <div hidden={tab !== 'Profile'} className="profile-content"><ProfileSettings user={user} bankingRequest={openBankingRequest} onUserChange={setUser} onRootChange={setProfileAtRoot} onLogout={() => void logout()} /></div>
       <div hidden={tab !== 'Groups'} className="profile-content"><GroupsWorkspace notificationTarget={notificationTarget} visible={tab === 'Groups'} currentUser={user} onRootChange={setGroupsAtRoot} initialGroupsData={groupFixtures} initialFriendsData={friendFixtures} /></div>
       {(tab === 'Home' || tab === 'Notifications' || (tab === 'Budget' && !simulatorOpen && !transactionsOpen) || (tab === 'Profile' && profileAtRoot) || (tab === 'Groups' && groupsAtRoot)) && <nav className="bottom-nav" aria-label="Main navigation">
         {tabs.map(({ label, glyph }) => label === 'Notifications' ? <NotificationsNavButton key={`${user.id}-notifications`} selected={tab === label} onClick={() => setTab(label)} /> : <button key={label} type="button" className={tab === label ? 'tab active' : 'tab'} aria-current={tab === label ? 'page' : undefined} onClick={() => setTab(label)}><span className="tab-glyph" aria-hidden="true">{glyph}{label === 'Budget' && transactionReviewCount > 0 && <b className="tab-review-badge">{transactionReviewCount > 9 ? '9+' : transactionReviewCount}</b>}</span><span>{label}</span></button>)}
@@ -179,5 +182,5 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
       <p className="switch-auth">Already have an account? <button type="button" onClick={() => changeView('login')}>Log in</button></p>
       {notice && <p className="form-notice" role="status">{notice}</p>}
     </main>}
-  </div>;
+  </MobileGestureShell>;
 }

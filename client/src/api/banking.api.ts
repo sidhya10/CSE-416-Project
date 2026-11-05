@@ -11,7 +11,7 @@ export type ApiBankTransaction = {
   id: string; accountId: string; accountName: string; institution: string; merchant: string; name: string;
   date: string; amountCents: number; pending: boolean; providerCategory: string | null;
   source?: 'bank' | 'group_payment'; category: BankReviewCategory | null; excluded: boolean; note: string | null; reviewed: boolean; needsReview?: boolean; reviewedAt: number | null;
-  linkedExpense: { id: string; title: string } | null;
+  linkedExpense: { id: string; title: string; groupName: string; personalBudgetCents: number | null } | null;
   groupPayment?: { id: string; groupId: string; groupName: string; recipientName: string; method: string } | null;
   splits: { id: string; category: BankBudgetCategory; amountCents: number }[];
 };
@@ -39,9 +39,10 @@ export const bankingApi = {
     if (merchant.trim()) params.set('merchant', merchant.trim());
     return apiRequest<{ suggestions: ExpenseMatchSuggestion[] }>(`/banking/expense-matches?${params}`, { signal });
   },
-  transactions: (status: 'all' | 'unreviewed' | 'reviewed' | 'excluded' = 'unreviewed', query = '') => {
+  transactions: (status: 'all' | 'unreviewed' | 'reviewed' | 'excluded' = 'unreviewed', query = '', month = '') => {
     const params = new URLSearchParams({ status });
     if (query.trim()) params.set('query', query.trim());
+    if (month) params.set('month', month);
     return apiRequest<{ transactions: ApiBankTransaction[] }>(`/banking/transactions?${params}`);
   },
   reviewTransaction: (id: string, review: TransactionReview) =>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from '../../components/common/Avatar';
-import { bankingApi } from '../../api/banking.api';
+import { bankingApi, type ApiBankTransaction } from '../../api/banking.api';
 import { budgetsApi, type ApiGroupBudget, type ApiPersonalBudget } from '../../api/budgets.api';
 import { ApiError } from '../../api/client';
 import { relativeTime } from '../../utils/dates';
@@ -17,12 +17,16 @@ type Detail = { kind: 'insights' } | { kind: 'category'; key: CategoryKey; from:
 const REFRESH_MS = 15_000;
 const errorMessage = (error: unknown) => error instanceof ApiError ? error.message : 'Unable to reach the server. Try again.';
 const loadUnreviewedTransactions = () => bankingApi.transactions('unreviewed');
+const labelForTransaction = (transaction: ApiBankTransaction) => transaction.category === 'income'
+  ? 'Income'
+  : transaction.category ? transaction.category.charAt(0).toUpperCase() + transaction.category.slice(1) : 'Uncategorized';
 
 // `active` is false while the tab is hidden: nothing is fetched or polled until the user opens the budget.
-export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = () => {}, onReviewCountChange, active = true, expenseTarget, onClearExpenseTarget }: { onClearExpenseTarget?: () => void; expenseTarget?: { category: string; expenseId: string } | null; onOpenSimulator: () => void; onOpenTransactions?: () => void; onReviewCountChange?: (count: number) => void; active?: boolean }) {
+export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = () => {}, onReviewCountChange, active = true, expenseTarget, onClearExpenseTarget }: { onClearExpenseTarget?: () => void; expenseTarget?: { category: string; expenseId: string } | null; onOpenSimulator: () => void; onOpenTransactions?: (month: string) => void; onReviewCountChange?: (count: number) => void; active?: boolean }) {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState('');
-  const historical = !!selectedMonth && selectedMonth !== currentMonth;
+  const activeMonth = selectedMonth || currentMonth;
+  const historical = activeMonth !== currentMonth;
   const monthOptions = Array.from({ length: 25 }, (_, index) => {
     const date = new Date(`${currentMonth}-01T00:00:00Z`);
     date.setUTCMonth(date.getUTCMonth() - index);
@@ -40,6 +44,9 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
   const [groups, setGroups] = useState<ApiGroupBudget[] | null>(null);
   const [personalError, setPersonalError] = useState('');
   const [groupsError, setGroupsError] = useState('');
+  const [monthTransactions, setMonthTransactions] = useState<ApiBankTransaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
+  const [transactionsError, setTransactionsError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
   const reviews = useLiveData(loadUnreviewedTransactions, active);
@@ -48,7 +55,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
     if (reviews.data) onReviewCountChange?.(reviews.data.transactions.length);
   }, [onReviewCountChange, reviews.data]);
   // Only the most recent request may update state, so a slow refresh cannot overwrite a newer save.
-  const latest = useRef({ personal: 0, groups: 0 });
+  const latest = useRef({ personal: 0, groups: 0, transactions: 0 });
 
   const loadPersonal = useCallback(async () => {
     const id = ++latest.current.personal;
@@ -60,7 +67,19 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
     try { const data = await budgetsApi.groups(); if (id === latest.current.groups) { setGroups(data.groups); setGroupsError(''); } }
     catch (error) { if (id === latest.current.groups) setGroupsError(errorMessage(error)); }
   }, []);
-  const refresh = useCallback(() => { void loadPersonal(); void loadGroups(); }, [loadPersonal, loadGroups]);
+  const loadMonthTransactions = useCallback(async () => {
+    const id = ++latest.current.transactions;
+    setTransactionsLoading(true);
+    try {
+      const data = await bankingApi.transactions('all', '', activeMonth);
+      if (id === latest.current.transactions) { setMonthTransactions(data.transactions); setTransactionsError(''); }
+    } catch (error) {
+      if (id === latest.current.transactions) setTransactionsError(errorMessage(error));
+    } finally {
+      if (id === latest.current.transactions) setTransactionsLoading(false);
+    }
+  }, [activeMonth]);
+  const refresh = useCallback(() => { void loadPersonal(); void loadGroups(); void loadMonthTransactions(); }, [loadPersonal, loadGroups, loadMonthTransactions]);
 
   useEffect(() => {
     if (!active) return;
@@ -132,8 +151,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
         <p>{activeGroup?.memberInfo ?? 'Shared spending with your groups'}</p>
       </> : <>
         <div className="cb-heading-row"><h1>Personal budget</h1>
-          <span className="cb-heading-actions"><button type="button" className="cb-simulator-link" onClick={onOpenTransactions}>Transactions ›</button>
-          <button type="button" className="cb-simulator-link" aria-label="Open what-if simulator" onClick={onOpenSimulator}>What-if ›</button></span></div>
+          <span className="cb-heading-actions"><button type="button" className="cb-simulator-link" aria-label="Open what-if simulator" onClick={onOpenSimulator}>What-if ›</button></span></div>
         <p>Budgets, bank sync, and spending insights</p>
       </>}
     </header>
@@ -195,13 +213,24 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
           <button type="button" onClick={() => setDetail({ kind: 'insights' })}>View insights ›</button>
         </div>
       </section>
+      <section className="cb-review-card cb-transaction-preview" aria-label="Recent transactions">
+        <div className="cb-review-head"><div><h2>Recent transactions</h2><small>{new Date(`${activeMonth}-01T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</small></div></div>
+        {transactionsLoading && <p className="cb-preview-status" role="status">Loading transactions…</p>}
+        {!transactionsLoading && transactionsError && <p className="cb-preview-status cb-preview-error" role="alert">{transactionsError}</p>}
+        {!transactionsLoading && !transactionsError && monthTransactions.length === 0 && <p className="cb-preview-status">No transactions for this month yet.</p>}
+        {!transactionsLoading && !transactionsError && monthTransactions.slice(0, 3).map(transaction => <div className="cb-review-row" key={transaction.id}>
+          <span><strong>{transaction.merchant}</strong><small>{labelForTransaction(transaction)} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</small></span>
+          <b className={transaction.amountCents < 0 ? 'income' : ''}>{formatCents(transaction.amountCents)}</b>
+        </div>)}
+        <button type="button" className="cb-review-all" onClick={() => onOpenTransactions(activeMonth)}>View all transactions ›</button>
+      </section>
       {!historical && unreviewed.length > 0 && <section className="cb-review-card" aria-label="Transactions to categorize">
         <div className="cb-review-head"><div><h2>Transactions to categorize</h2><small>{unreviewed.length} {unreviewed.length === 1 ? 'transaction could' : 'transactions could'} not be categorized automatically</small></div><span>{unreviewed.length}</span></div>
         {unreviewed.slice(0, 3).map(transaction => <div className="cb-review-row" key={transaction.id}>
           <span><strong>{transaction.merchant}</strong><small>{transaction.category ? transaction.category.charAt(0).toUpperCase() + transaction.category.slice(1) : 'Uncategorized'} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</small></span>
           <b className={transaction.amountCents < 0 ? 'income' : ''}>{formatCents(transaction.amountCents)}</b>
         </div>)}
-        <button type="button" className="cb-review-all" onClick={onOpenTransactions}>Categorize transactions ›</button>
+        <button type="button" className="cb-review-all" onClick={() => onOpenTransactions(activeMonth)}>Categorize transactions ›</button>
       </section>}
       {!personal.hasBankConnection && <p className="cb-notice" role="status">Group expense shares appear here automatically. Connect a bank account in Profile to include other spending.</p>}
       {overLimit.length > 0 && <p className="cb-notice cb-warn" role="status">Over budget for this month: {overLimit.map(item => item.label).join(', ')}.</p>}

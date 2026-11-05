@@ -40,8 +40,15 @@ function ExpandingNameInput({ label, value, placeholder, onChange }: { label: st
   return <textarea ref={ref} className="expense-name-input" aria-label={label} rows={1} placeholder={placeholder} value={value} onChange={event => onChange(event.target.value)} />;
 }
 
-function AmountInput({ label, value, onChange, suffix }: { label: string; value: string; onChange: (value: string) => void; suffix?: string }) {
-  return <span className="expense-money"><span aria-hidden="true">$</span><input aria-label={label} inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} />{suffix && <span>{suffix}</span>}</span>;
+function AmountInput({ label, value, onChange, suffix, clearZeroOnFocus = false }: { label: string; value: string; onChange: (value: string) => void; suffix?: string; clearZeroOnFocus?: boolean }) {
+  return <span className="expense-money"><span aria-hidden="true">$</span><input
+    aria-label={label}
+    inputMode="decimal"
+    value={value}
+    onChange={event => onChange(event.target.value)}
+    onFocus={() => { if (clearZeroOnFocus && (value === '0.00' || value === '0' || value === '0.0')) onChange(''); }}
+    onBlur={() => { if (clearZeroOnFocus && value.trim() === '') onChange('0.00'); }}
+  />{suffix && <span>{suffix}</span>}</span>;
 }
 
 export default function ExpenseEntry({ groupName, members, onBack, onConfirm, initialSplit, guest = false, guestReceiptCache }: { guestReceiptCache?: GuestReceiptCache; guest?: boolean; initialSplit?: PreviewSplit; groupName: string; members: Member[]; onBack: () => void; onConfirm: (split: PreviewSplit) => void | Promise<void> }) {
@@ -261,7 +268,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           {!items.length && <p>Add an item to start your receipt.</p>}
           <button className="expense-add" type="button" onClick={() => { const id = nextId.current++; setItems(previous => [...previous, { id, name: '', amount: '', quantity: '1' }]); }}>+ Add item</button>
         </section>
-        <section className="expense-fees"><h2>Tax, tip &amp; fees</h2><div>{(Object.keys(fees) as (keyof typeof fees)[]).map(key => <label key={key}>{key}<AmountInput label={key} value={fees[key]} onChange={value => setFees(previous => ({ ...previous, [key]: value }))} /></label>)}</div></section>
+        <section className="expense-fees"><h2>Tax, tip &amp; fees</h2><div>{(Object.keys(fees) as (keyof typeof fees)[]).map(key => <label key={key}>{key}<AmountInput label={key} value={fees[key]} clearZeroOnFocus onChange={value => setFees(previous => ({ ...previous, [key]: value }))} /></label>)}</div></section>
         {!guest && !initialSplit && payer === 'you' && <section className="expense-bank-match" aria-label="Suggested bank transactions">
           <h2>Match your bank charge</h2>
           {matchingBank && <p>Checking…</p>}

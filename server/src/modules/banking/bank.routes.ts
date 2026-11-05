@@ -14,6 +14,7 @@ const reviewCategory = z.enum(['dining', 'groceries', 'transit', 'shopping', 'ot
 const transactionQuery = z.object({
   query: z.string().trim().max(100).optional(),
   status: z.enum(['all', 'unreviewed', 'reviewed', 'excluded']).default('all'),
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
 });
 const expenseMatchQuery = z.object({
   amountCents: z.coerce.number().int().positive().max(2_000_000_000),

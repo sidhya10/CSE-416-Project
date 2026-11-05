@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { bankingApi, type ApiBankTransaction, type BankBudgetCategory, type BankReviewCategory, type TransactionReview } from '../../api/banking.api';
 import { ApiError } from '../../api/client';
 import { formatCents } from '../expenses/split';
@@ -52,7 +52,7 @@ function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBank
     <div className="bank-dialog transaction-review-dialog" role="dialog" aria-modal="true" aria-labelledby="review-transaction-title">
       <header><div><h2 id="review-transaction-title">Review transaction</h2><p>{transaction.merchant} · {formatCents(transaction.amountCents)}</p></div>
         <button type="button" aria-label="Close" disabled={saving} onClick={onCancel}>×</button></header>
-      {transaction.linkedExpense && <p className="bank-linked-notice">Linked to “{transaction.linkedExpense.title}.” Its full bank charge is already replaced by your group share in the budget.</p>}
+      {transaction.linkedExpense && <p className="bank-linked-notice">Linked to “{transaction.linkedExpense.title}” in {transaction.linkedExpense.groupName}. Your personal budget counts <strong>{formatCents(transaction.linkedExpense.personalBudgetCents ?? 0)}</strong> instead of the original {formatCents(transaction.amountCents)} bank charge.</p>}
       <label className="review-check"><input type="checkbox" checked={excluded} disabled={saving || !!transaction.linkedExpense} onChange={event => { setExcluded(event.target.checked); if (event.target.checked) setSplit(false); }} />
         <span><strong>Exclude from budget</strong><small>Use for transfers, reimbursements, and duplicate charges.</small></span></label>
       <label>CATEGORY<select value={category} disabled={saving || split || excluded || transaction.amountCents <= 0 || !!transaction.linkedExpense} onChange={event => setCategory(event.target.value as BankBudgetCategory)}>
@@ -87,20 +87,40 @@ function ReviewEditor({ transaction, onCancel, onSaved }: { transaction: ApiBank
   </div>;
 }
 
-export default function TransactionReviewCenter({ onBack, onUnreviewedDelta }: { onBack: () => void; onUnreviewedDelta?: (delta: number) => void }) {
+export default function TransactionReviewCenter({ onBack, onUnreviewedDelta, initialMonth }: { onBack: () => void; onUnreviewedDelta?: (delta: number) => void; initialMonth?: string }) {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const monthOptions = Array.from({ length: 25 }, (_, index) => {
+    const date = new Date(`${currentMonth}-01T00:00:00Z`);
+    date.setUTCMonth(date.getUTCMonth() - index);
+    return { value: date.toISOString().slice(0, 7), label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) };
+  });
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
+  const [month, setMonth] = useState(initialMonth || currentMonth);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [transactions, setTransactions] = useState<ApiBankTransaction[]>([]);
   const [selected, setSelected] = useState<ApiBankTransaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const requestKey = useMemo(() => `${filter}:${query.trim()}`, [filter, query]);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  const requestKey = useMemo(() => `${filter}:${month}:${query.trim()}`, [filter, month, query]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!filterMenuRef.current?.contains(event.target as Node)) setFiltersOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setFiltersOpen(false); };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('pointerdown', closeOnOutsideClick); document.removeEventListener('keydown', closeOnEscape); };
+  }, [filtersOpen]);
 
   useEffect(() => {
     let active = true;
     const timeout = window.setTimeout(() => {
       setLoading(true); setError('');
-      bankingApi.transactions(filter, query).then(result => { if (active) setTransactions(result.transactions); })
+      bankingApi.transactions(filter, query, month).then(result => { if (active) setTransactions(result.transactions); })
         .catch(failure => { if (active) setError(message(failure)); })
         .finally(() => { if (active) setLoading(false); });
     }, query.trim() ? 250 : 0);
@@ -119,20 +139,37 @@ export default function TransactionReviewCenter({ onBack, onUnreviewedDelta }: {
 
   return <main className="banking-workspace review-workspace">
     <header className="bank-header"><button type="button" aria-label="Back" onClick={onBack}>‹</button>
-      <div><h1>Transactions</h1><p>All visible bank activity and recorded group repayments</p></div></header>
-    <input className="review-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search merchant, account, or note" aria-label="Search transactions" />
-    <div className="review-filters" role="group" aria-label="Transaction status">
-      {FILTERS.map(item => <button type="button" key={item.key} className={filter === item.key ? 'active' : ''} onClick={() => setFilter(item.key)}>{item.label}</button>)}
+      <div><h1>Transactions</h1><p>{monthOptions.find(item => item.value === month)?.label ?? month}</p></div></header>
+    <div className="review-toolbar">
+      <input className="review-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search merchant, account, or note" aria-label="Search transactions" />
+      <div className="review-filter-menu" ref={filterMenuRef}>
+        <button type="button" className={filtersOpen || filter !== 'all' ? 'review-filter-toggle active' : 'review-filter-toggle'} aria-label="Filter transactions" aria-expanded={filtersOpen} aria-haspopup="dialog" onClick={() => setFiltersOpen(open => !open)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+        </button>
+        {filtersOpen && <div className="review-filter-popover" role="dialog" aria-label="Transaction filters">
+          <label>Month<select aria-label="Transaction month" value={month} onChange={event => setMonth(event.target.value)}>
+            {monthOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select></label>
+          <fieldset><legend>Status</legend><div className="review-filter-options">
+            {FILTERS.map(item => <button type="button" key={item.key} className={filter === item.key ? 'active' : ''} onClick={() => setFilter(item.key)}>{item.label}</button>)}
+          </div></fieldset>
+          <button type="button" className="review-filter-done" onClick={() => setFiltersOpen(false)}>Done</button>
+        </div>}
+      </div>
     </div>
     {loading && <p className="bank-caption" role="status">Loading transactions…</p>}
     {!loading && !error && transactions.length === 0 && <section className="review-empty"><strong>{filter === 'unreviewed' ? 'Everything is categorized' : 'No matching transactions'}</strong><p>{filter === 'unreviewed' ? 'Only transactions the app could not categorize automatically appear here.' : 'Try another filter or search.'}</p></section>}
     {error && <p className="form-notice" role="alert">{error}</p>}
     <div className="review-list">
-      {transactions.map(transaction => <button type="button" className="review-card" key={transaction.id} aria-disabled={transaction.source === 'group_payment'} onClick={() => { if (transaction.source !== 'group_payment') setSelected(transaction); }}>
+      {transactions.map(transaction => <button type="button" className={transaction.linkedExpense ? 'review-card linked-group-expense' : 'review-card'} key={transaction.id} aria-disabled={transaction.source === 'group_payment'} onClick={() => { if (transaction.source !== 'group_payment') setSelected(transaction); }}>
         <span className="review-card-main"><strong>{transaction.merchant}</strong><small>{transaction.institution} · {transaction.accountName} · {new Date(`${transaction.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</small>
-          <span className="review-badges">{transaction.pending && <em>Pending</em>}{transaction.linkedExpense && <em>Linked expense</em>}{transaction.groupPayment && <em>{transaction.groupPayment.method} · {transaction.groupPayment.groupName}</em>}{transaction.excluded ? <em>Excluded</em> : transaction.splits.length ? <em>{transaction.splits.length} category split</em> : <em>{labelFor(transaction.category)}</em>}{transaction.needsReview && <em>Needs category</em>}</span>
+          {transaction.linkedExpense && <small className="review-linked-context">Linked to {transaction.linkedExpense.title} · {transaction.linkedExpense.groupName}</small>}
+          <span className="review-badges">{transaction.pending && <em>Pending</em>}{transaction.linkedExpense && <em className="linked">Group expense</em>}{transaction.groupPayment && <em>{transaction.groupPayment.method} · {transaction.groupPayment.groupName}</em>}{transaction.excluded ? <em>Excluded</em> : transaction.splits.length ? <em>{transaction.splits.length} category split</em> : <em>{labelFor(transaction.category)}</em>}{transaction.needsReview && <em>Needs category</em>}</span>
           {transaction.note && <small className="review-note">{transaction.note}</small>}</span>
-        <span className={transaction.amountCents < 0 ? 'review-amount income' : 'review-amount'}>{formatCents(transaction.amountCents)}</span>
+        {transaction.linkedExpense ? <span className="review-linked-amounts">
+          <span className="review-budget-amount"><strong>{formatCents(transaction.linkedExpense.personalBudgetCents ?? 0)}</strong><small>Personal budget</small></span>
+          <span className="review-original-amount"><strong>{formatCents(transaction.amountCents)}</strong><small>Original charge</small></span>
+        </span> : <span className={transaction.amountCents < 0 ? 'review-amount income' : 'review-amount'}>{formatCents(transaction.amountCents)}</span>}
       </button>)}
     </div>
     {selected && <ReviewEditor transaction={selected} onCancel={() => setSelected(null)} onSaved={saved} />}

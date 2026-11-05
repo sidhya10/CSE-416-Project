@@ -142,7 +142,8 @@ describe('App account integration', () => {
     expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.findByRole('heading', { name: 'Personal budget' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Transactions ›' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Transactions ›' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View all transactions ›' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
   });
 });
