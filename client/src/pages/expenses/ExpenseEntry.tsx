@@ -193,7 +193,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     mode={splitMode} assignments={assignments} onModeChange={setSplitMode} onAssignmentsChange={setAssignments}
     onBack={() => setSplitting(false)} onConfirm={async split => {
       const receiptAttachment = guest ? undefined : receiptFile ? await prepareReceiptAttachment(receiptFile) : !receiptName && initialSplit?.receiptName ? null : undefined;
-      await onConfirm({ ...split, budgetCategory, bankTransactionId: selectedBankTransactionId, receiptAttachment, payments: initialSplit?.payments,
+      await onConfirm({ ...split, date: guest ? split.date : date, budgetCategory, bankTransactionId: selectedBankTransactionId, receiptAttachment, payments: initialSplit?.payments,
       feeBreakdown: { tax: cents(fees.Tax)!, tip: cents(fees.Tip)!, other: cents(fees.Other)! }, receiptName });
     }} />;
 

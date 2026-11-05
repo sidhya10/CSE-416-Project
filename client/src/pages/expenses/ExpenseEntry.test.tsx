@@ -59,7 +59,7 @@ describe('Expense entry flow', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('suggests a personal bank charge and carries an explicitly selected match into the split', async () => {
+  it.each(['', '2026-10-29'])('carries a selected bank match into the split with date %s', async date => {
     vi.mocked(bankingApi.expenseMatches).mockResolvedValue({ suggestions: [{
       id: 'bank-1', merchant: 'Myers + Chang', name: 'MYERS CHANG', amountCents: 2301, date: '2026-10-29',
       accountName: 'Card', institution: 'Test Bank', score: 100, reasons: ['Exact amount', 'Same date', 'Similar merchant'],
@@ -73,15 +73,17 @@ describe('Expense entry flow', () => {
     expect(bankingApi.expenseMatches).toHaveBeenLastCalledWith(2301, '', '', expect.any(AbortSignal), '');
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search suggested transactions' }), { target: { value: 'Myers' } });
     await waitFor(() => expect(bankingApi.expenseMatches).toHaveBeenLastCalledWith(2301, '', '', expect.any(AbortSignal), 'Myers'));
-    fireEvent.change(screen.getByLabelText(/Expense date/), { target: { value: '2026-10-29' } });
-    await waitFor(() => expect(bankingApi.expenseMatches).toHaveBeenLastCalledWith(2301, '2026-10-29', '', expect.any(AbortSignal), 'Myers'));
+    if (date) {
+      fireEvent.change(screen.getByLabelText(/Expense date/), { target: { value: date } });
+      await waitFor(() => expect(bankingApi.expenseMatches).toHaveBeenLastCalledWith(2301, date, '', expect.any(AbortSignal), 'Myers'));
+    }
     fill('EXPENSE NAME', 'Dinner at Myers Chang');
     fireEvent.click(suggestion);
     expect(suggestion).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $23.01' }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ bankTransactionId: 'bank-1' })));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ bankTransactionId: 'bank-1', date })));
   });
 
   it('opens from a group, calculates the design example and preserves the draft through payer selection', () => {
