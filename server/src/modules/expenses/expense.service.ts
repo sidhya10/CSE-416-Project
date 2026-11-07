@@ -142,19 +142,43 @@ export function editExpense(id: string, userId: string, version: number, input: 
   });
 }
 
-export function deleteExpense(id: string, userId: string) {
+export function deleteExpense(id: string, userId: string, acknowledgePayments = false) {
   return transaction(async tx => {
     const expense = await readExpense(tx, id, userId);
-    if (expense.createdByUserId !== userId && expense.paidByUserId !== userId) throw new ExpenseError(403, 'Only the creator or payer can delete this expense');
-    if (expense.shares.some(share => share.payments.length)) throw new ExpenseError(409, 'Expenses with payment history cannot be deleted');
+    if (expense.shares.some(share => share.payments.length) && !acknowledgePayments) throw new ExpenseError(409, 'This expense has payment history. Review the warning and acknowledge deletion before continuing.');
     // Serialize with edits and payment reporting; retries recheck the payment history.
     await tx.group.update({ where: { id: expense.groupId }, data: { lastActivityAt: new Date() } });
+    const personalIds = expense.shares.flatMap(share => share.payments.flatMap(payment => payment.personalSettlementTransactionId ? [payment.personalSettlementTransactionId] : []));
+    await tx.expensePayment.deleteMany({ where: { expenseId: id } });
+    // Keep shared settlement transactions that still represent other expenses.
+    await tx.personalSettlementTransaction.deleteMany({ where: { id: { in: personalIds }, payments: { none: {} } } });
+    const actor = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true } });
+    const group = await tx.group.findUniqueOrThrow({ where: { id: expense.groupId }, select: { name: true, memberships: { select: { userId: true } } } });
+    const payer = await tx.user.findUniqueOrThrow({ where: { id: expense.paidByUserId }, select: { name: true } });
+    const affectedSenders = new Set(expense.shares.filter(share => share.payments.length > 0).map(share => share.userId));
+    await tx.groupNotice.createMany({ data: group.memberships.filter(member => expense.settlementBatchId || member.userId !== userId || affectedSenders.has(member.userId)).map(member => {
+      const share = expense.shares.find(share => share.userId === member.userId);
+      const confirmed = share?.payments.filter(payment => payment.status === 'CONFIRMED').reduce((sum, payment) => sum + payment.amountCents, 0) ?? 0;
+      const reduction = member.userId === expense.paidByUserId ? 0 : Math.max(0, (share?.totalCents ?? 0) - confirmed);
+      const impact = expense.settlementBatchId
+        ? reduction > 0
+          ? ` Your amount owed has decreased by $${(reduction / 100).toFixed(2)}. View the group for your updated balance.`
+          : ' There is no change to the amount you currently owe in the app.'
+        : '';
+      return {
+        groupId: expense.groupId, recipientId: member.userId, actorId: userId, kind: 'EXPENSE_DELETED',
+        message: `${member.userId === userId ? 'You' : actor.name} deleted “${expense.title}” ($${(expense.totalCents / 100).toFixed(2)}) from ${group.name}.` + impact +
+          (affectedSenders.has(member.userId)
+            ? ` You had reported sending money to ${payer.name} toward this expense. Please review what was actually sent with ${payer.name} and arrange any refund or adjustment directly. The app does not move or refund money, even if your payment was confirmed.`
+            : ''),
+      };
+    }) });
     await tx.expense.delete({ where: { id } });
     if (expense.settlementBatchId) {
       const batchId = expense.settlementBatchId;
       const remaining = await tx.expense.count({ where: { settlementBatchId: batchId } });
       if (!remaining) await tx.settlementBatch.delete({ where: { id: batchId } });
-      else await tx.settlementNotice.updateMany({ where: { batchId, kind: { in: ['SPLIT_CREATED', 'REMINDER'] } }, data: { message: 'This group split was updated after an unpaid expense was deleted. View the group for current balances.' } });
+      else await tx.settlementNotice.updateMany({ where: { batchId }, data: { message: 'This group split was updated after an expense was deleted. View the group for current balances.' } });
     }
   });
 }

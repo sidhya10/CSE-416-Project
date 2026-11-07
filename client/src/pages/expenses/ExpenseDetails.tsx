@@ -14,10 +14,11 @@ import './details.css';
 type Expense = { title: string; subtitle: string; amount: string; split?: PreviewSplit };
 
 export default function ExpenseDetails({ expense, groupName, members, onBack, onEdit, onDelete, onPaymentAction, onPaymentViewChange, initialBudgetOpen = false, highlightBudget = false }: { highlightBudget?: boolean; initialBudgetOpen?: boolean;
-  onDelete?: () => Promise<void>; expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction, method?: string) => void | Promise<void>; onPaymentViewChange: (visible: boolean) => void;
+  onDelete?: (acknowledgePayments: boolean) => Promise<void>; expense: Expense; groupName: string; members: SplitMember[]; onBack: () => void; onEdit: () => void; onPaymentAction: (memberId: string, action: PaymentAction, method?: string) => void | Promise<void>; onPaymentViewChange: (visible: boolean) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [paymentWarning, setPaymentWarning] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [budgetSetupSaved, setBudgetSetupSaved] = useState(false);
   const emphasizeBudget = highlightBudget && !budgetSetupSaved;
@@ -32,14 +33,14 @@ export default function ExpenseDetails({ expense, groupName, members, onBack, on
   const ownPayment = split ? paymentFor(split, 'you') : undefined;
   const payer = split?.payerId === 'you';
   const editLocked = !!split?.expenseId && (!!split.settlementBatchId || split.recurring || split.hasPaymentHistory || (split.creatorId !== 'you' && !payer));
-  const canDelete = !!onDelete && !!split?.expenseId && !split.hasPaymentHistory && (split.creatorId === 'you' || payer);
+  const canDelete = !!onDelete && !!split?.expenseId;
   const changeTab = (open: boolean) => { setPaymentsOpen(open); setNotice(''); onPaymentViewChange(open); };
   const paymentNotice = () => split ? changeTab(true) : setNotice('Payment records are unavailable for this sample.');
   return <main className="expense-screen expense-details-screen">
-    {deleting && <ConfirmDeletion title="Delete expense?" description={`Permanently delete “${expense.title}” and its shares and receipt from this group?${split?.recurring ? ' The recurring schedule will remain unchanged.' : ''}`} busy={deleteBusy} error={deleteError} onCancel={() => setDeleting(false)} onConfirm={() => {
+    {deleting && <ConfirmDeletion title="Delete expense?" acknowledgment={split?.hasPaymentHistory || paymentWarning ? 'I understand that deleting payment records does not refund money already sent.' : undefined} description={`${split?.hasPaymentHistory || paymentWarning ? 'Payments have been reported for this expense, including sent, confirmed, or disputed payments. Deleting it removes its payment records and changes group balances and budgets. Any refunds must be arranged separately. ' : ''}Permanently delete “${expense.title}” and its shares and receipt from this group?${split?.recurring ? ' The recurring schedule will remain unchanged.' : ''}`} busy={deleteBusy} error={deleteError} onCancel={() => setDeleting(false)} onConfirm={() => {
       if (deleteBusy) return;
       setDeleteBusy(true); setDeleteError('');
-      void onDelete!().catch(error => setDeleteError(error instanceof Error ? error.message : 'Could not delete expense. Please retry.')).finally(() => setDeleteBusy(false));
+      void onDelete!(!!split?.hasPaymentHistory || paymentWarning).catch(error => { if (error instanceof Error && error.message.includes('acknowledg')) setPaymentWarning(true); setDeleteError(error instanceof Error ? error.message : 'Could not delete expense. Please retry.'); }).finally(() => setDeleteBusy(false));
     }} />}
     {receiptOpen && split?.expenseId && split.receiptName && <ReceiptViewer expenseId={split.expenseId} name={split.receiptName} onClose={() => setReceiptOpen(false)} />}
     <header className="expense-header"><button type="button" aria-label="Back to group" onClick={onBack}><BackArrow /></button><h1>{paymentsOpen ? 'Payment status' : 'Expense details'}</h1></header>

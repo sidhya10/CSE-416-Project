@@ -229,20 +229,23 @@ it('deletes unpaid expenses only for the creator or payer and cleans up their sh
   const { body: { expense } } = await create().expect(201);
   await request(app).delete(`/api/expenses/${expense.id}`).expect(401);
   await outsider.delete(`/api/expenses/${expense.id}`).expect(404);
-  await member.delete(`/api/expenses/${expense.id}`).expect(403);
-  await owner.delete(`/api/expenses/${expense.id}`).expect(204);
+  await member.delete(`/api/expenses/${expense.id}`).expect(204);
   await owner.get(`/api/expenses/${expense.id}`).expect(404);
   expect(await prisma.expenseShare.count({ where: { expenseId: expense.id } })).toBe(0);
   expect(await prisma.budgetNotice.count({ where: { expenseId: expense.id } })).toBe(0);
 });
 
-it('blocks deletion after sent, disputed, or confirmed payments', async () => {
+it('requires acknowledgment before any member deletes sent, disputed, or confirmed payments', async () => {
   for (const status of ['SENT', 'ISSUE', 'CONFIRMED']) {
     const { body: { expense } } = await create().expect(201);
     const { body: { payment } } = await member.post(`/api/expenses/${expense.id}/payments`).send({ amountCents: 100, clientRequestId: randomUUID() }).expect(201);
     if (status !== 'SENT') await owner.patch(`/api/expenses/${expense.id}/payments/${payment.id}`).send({ status }).expect(200);
     await owner.delete(`/api/expenses/${expense.id}`).expect(409);
     await owner.get(`/api/expenses/${expense.id}`).expect(200);
+    await outsider.delete(`/api/expenses/${expense.id}`).send({ acknowledgePayments: true }).expect(404);
+    await member.delete(`/api/expenses/${expense.id}`).send({ acknowledgePayments: true }).expect(204);
+    expect(await prisma.expensePayment.count({ where: { expenseId: expense.id } })).toBe(0);
+    expect(await prisma.personalSettlementTransaction.findUnique({ where: { id: payment.personalSettlementTransactionId } })).toBeNull();
   }
 });
 
@@ -273,4 +276,56 @@ it('updates initialized splits and removes empty batches when unpaid expenses ar
   await owner.delete(`/api/expenses/${expenseIds[1]}`).expect(204);
   expect(await prisma.settlementBatch.findUnique({ where: { id: batch.id } })).toBeNull();
   expect(await prisma.settlementNotice.count({ where: { batchId: batch.id } })).toBe(0);
+});
+
+it('notifies other group members when an expense is deleted and retains the message', async () => {
+  const { body: { expense } } = await create().expect(201);
+  await outsider.delete(`/api/expenses/${expense.id}`).expect(404);
+  const before = await prisma.groupNotice.count({ where: { groupId } });
+  await member.delete(`/api/expenses/${expense.id}`).expect(204);
+  expect(await prisma.groupNotice.count({ where: { groupId } })).toBe(before + 1);
+  const notice = await prisma.groupNotice.findFirstOrThrow({ where: { groupId, actorId: memberId }, orderBy: { createdAt: 'desc' } });
+  expect(notice).toMatchObject({ recipientId: ownerId, kind: 'EXPENSE_DELETED', readAt: null });
+  expect(notice.message).toContain('Expense Test 1 deleted “Dinner” ($21.03)');
+  expect((await owner.get('/api/settlement-notices').expect(200)).body.notices).toContainEqual(expect.objectContaining({ id: notice.id, groupId }));
+  await outsider.post(`/api/settlement-notices/${notice.id}/read`).expect(404);
+  await owner.post(`/api/settlement-notices/${notice.id}/read`).expect(204);
+  await owner.post(`/api/settlement-notices/${notice.id}/unread`).expect(204);
+  await member.delete(`/api/expenses/${expense.id}`).expect(404);
+  expect(await prisma.groupNotice.count({ where: { groupId } })).toBe(before + 1);
+  await owner.delete(`/api/settlement-notices/${notice.id}`).expect(204);
+  expect((await owner.get('/api/settlement-notices')).body.notices.map((n: { id: string }) => n.id)).not.toContain(notice.id);
+});
+
+it.each(['NONE', 'SENT', 'CONFIRMED', 'PARTIAL', 'ISSUE'])('warns a sender about cost changes after deleting a settlement expense with %s payments', async status => {
+  const group = (await owner.post('/api/groups').send({ name: 'Paid deletion', memberIds: [memberId] }).expect(201)).body.group;
+  groupIds.push(group.id);
+  const expense = (await owner.post(`/api/groups/${group.id}/expenses`).send({ clientRequestId: randomUUID(), expense: input() }).expect(201)).body.expense;
+  const preview = (await owner.get(`/api/groups/${group.id}/settlements/preview`).expect(200)).body;
+  const batch = (await owner.post(`/api/groups/${group.id}/settlements`).send({ clientRequestId: randomUUID(), expenseIds: preview.expenseIds, totalCents: preview.totalCents }).expect(201)).body.batch;
+  if (status === 'PARTIAL') await member.post(`/api/expenses/${expense.id}/payments`).send({ amountCents: 500, method: 'Cash', clientRequestId: randomUUID() }).expect(201);
+  else if (status !== 'NONE') await member.post(`/api/settlements/${batch.id}/payments`).send({ recipientId: ownerId, amountCents: preview.totalCents, method: 'Cash', clientRequestId: randomUUID() }).expect(200);
+  if (['CONFIRMED', 'PARTIAL', 'ISSUE'].includes(status)) {
+    const payments = await prisma.expensePayment.findMany({ where: { expenseId: expense.id } });
+    await owner.post(`/api/settlements/${batch.id}/confirm`).send({ senderId: memberId, paymentIds: payments.map(p => p.id), status: status === 'PARTIAL' ? 'CONFIRMED' : status }).expect(200);
+  }
+  // A sender who deletes the expense also needs the reconciliation notice.
+  const deleter = status === 'SENT' ? owner : member;
+  await deleter.delete(`/api/expenses/${expense.id}`).send({ acknowledgePayments: true }).expect(204);
+  expect(await prisma.settlementBatch.findUnique({ where: { id: batch.id } })).toBeNull();
+  const notices = (await member.get('/api/settlement-notices').expect(200)).body.notices;
+  const notice = notices.find((n: { groupId: string }) => n.groupId === group.id);
+  expect(notice).toMatchObject({ kind: 'EXPENSE_DELETED', readAt: null });
+  expect(notice.message).toContain('Dinner');
+  if (status === 'CONFIRMED') expect(notice.message).toContain('no change to the amount you currently owe');
+  else expect(notice.message).toContain(`amount owed has decreased by $${status === 'PARTIAL' ? '5.51' : '10.51'}`);
+  if (status === 'NONE') expect(notice.message).not.toContain('reported sending money');
+  else {
+    expect(notice.message).toContain('reported sending money to Expense Test 0');
+    expect(notice.message).toContain('arrange any refund or adjustment directly');
+    expect(notice.message).toContain('The app does not move or refund money');
+  }
+  const payerNotice = await prisma.groupNotice.findFirstOrThrow({ where: { groupId: group.id, recipientId: ownerId } });
+  expect(payerNotice.message).toContain('no change to the amount you currently owe');
+  expect(payerNotice.message).not.toContain('reported sending money');
 });
