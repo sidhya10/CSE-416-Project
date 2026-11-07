@@ -35,6 +35,7 @@ it('opens the group from a split notice and marks it read', async () => {
 });
 
 it.each([
+  ['EXPENSE_DELETED', 'Expense deleted', 'Eva deleted “Dinner” ($25.00) from Demo Group.'],
   ['PAYMENT_SENT', 'Confirm payment received', 'Jordan reported sending you $30.00. Please confirm once received.'],
   ['CONFIRMED', 'Payment confirmed', 'Alex confirmed receiving $30.00.'],
 ])('opens the relevant group for %s notifications', async (kind, title, message) => {

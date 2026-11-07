@@ -8,6 +8,7 @@ datasource db {
 }
 
 model User {
+  groupNotices GroupNotice[]
   categoryBudgetNotices          CategoryBudgetNotice[]
   budgetNotices                  BudgetNotice[]
   id                             String                          @id @default(cuid())
@@ -93,6 +94,7 @@ enum GroupInvitationStatus {
 }
 
 model Group {
+  notices GroupNotice[]
   id                             String                          @id @default(cuid())
   name                           String
   description                    String                          @default("")
@@ -553,4 +555,22 @@ model CategoryBudgetNotice {
   deletedAt   DateTime?
 
   @@unique([recipientId, month, category])
+}
+
+// Stored independently of expenses so deletion notifications survive their removal.
+model GroupNotice {
+  id String @id @default(cuid())
+  groupId String
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId String
+  kind String
+  message String
+  createdAt DateTime @default(now())
+  readAt DateTime?
+  deletedAt DateTime?
+
+  @@index([recipientId, readAt])
+  @@index([groupId])
 }

@@ -32,7 +32,8 @@ expensesRouter.put('/expenses/:id', async (req, res) => {
   res.json({ expense: await editExpense(req.params.id, req.userId!, input.version, input.expense) });
 });
 expensesRouter.delete('/expenses/:id', async (req, res) => {
-  await deleteExpense(req.params.id, req.userId!);
+  const { acknowledgePayments } = z.object({ acknowledgePayments: z.boolean().default(false) }).strict().parse(req.body ?? {});
+  await deleteExpense(req.params.id, req.userId!, acknowledgePayments);
   res.status(204).end();
 });
 expensesRouter.post('/expenses/:id/payments', async (req, res) => {

@@ -42,7 +42,7 @@ it('shows all saved participants for equal splits without inventing per-item rou
 
 it('confirms deletion of an unpaid saved expense', async () => {
   const onDelete = vi.fn().mockResolvedValue(undefined);
-  render(<ExpenseDetails expense={{ title: 'Dinner', subtitle: '', amount: '$8.01', split: { ...split, expenseId: 'saved', creatorId: 'you', hasPaymentHistory: false } }} groupName="Trip" members={[]} onBack={vi.fn()} onEdit={vi.fn()} onDelete={onDelete} onPaymentAction={vi.fn()} onPaymentViewChange={vi.fn()} />);
+  render(<ExpenseDetails expense={{ title: 'Dinner', subtitle: '', amount: '$8.01', split: { ...split, expenseId: 'saved', creatorId: 'another-member', payerId: 'another-member', hasPaymentHistory: false } }} groupName="Trip" members={[]} onBack={vi.fn()} onEdit={vi.fn()} onDelete={onDelete} onPaymentAction={vi.fn()} onPaymentViewChange={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Delete expense' }));
   expect(onDelete).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -52,7 +52,12 @@ it('confirms deletion of an unpaid saved expense', async () => {
   expect(onDelete).toHaveBeenCalledOnce();
 });
 
-it('does not offer deletion for expenses with payment history', () => {
-  render(<ExpenseDetails expense={{ title: 'Dinner', subtitle: '', amount: '$8.01', split: { ...split, expenseId: 'saved', creatorId: 'you', hasPaymentHistory: true } }} groupName="Trip" members={[]} onBack={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onPaymentAction={vi.fn()} onPaymentViewChange={vi.fn()} />);
-  expect(screen.queryByRole('button', { name: 'Delete expense' })).not.toBeInTheDocument();
+it('requires acknowledgment before deleting expenses with payment history', async () => {
+  const onDelete = vi.fn().mockResolvedValue(undefined);
+  render(<ExpenseDetails expense={{ title: 'Dinner', subtitle: '', amount: '$8.01', split: { ...split, expenseId: 'saved', creatorId: 'you', hasPaymentHistory: true } }} groupName="Trip" members={[]} onBack={vi.fn()} onEdit={vi.fn()} onDelete={onDelete} onPaymentAction={vi.fn()} onPaymentViewChange={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Delete expense' }));
+  expect(screen.getByRole('button', { name: 'Delete permanently' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox'));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' })); });
+  expect(onDelete).toHaveBeenCalledWith(true);
 });
