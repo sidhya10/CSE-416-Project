@@ -11,7 +11,7 @@ describe('group creation and archive navigation', () => {
   it('requires a friend and cancels member editing back to the preserved customization draft', () => {
     renderGroups();
     fireEvent.click(screen.getByRole('button', { name: /new group/i }));
-    const next = () => screen.getByRole('button', { name: /next: customize group/i });
+    const next = () => screen.getByRole('button', { name: /^customize group$/i });
     expect(next()).toBeDisabled();
     fireEvent.click(next());
     expect(screen.queryByRole('heading', { name: 'Customize group' })).not.toBeInTheDocument();
@@ -54,21 +54,21 @@ it('exits creation with Back then Cancel even after editing members', () => {
   renderGroups();
   fireEvent.click(screen.getByRole('button', { name: /new group/i }));
   fireEvent.click(screen.getByRole('button', { name: /Alex.*@alex/ }));
-  fireEvent.click(screen.getByRole('button', { name: /next: customize group/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^customize group$/i }));
   fireEvent.click(screen.getByRole('button', { name: 'Edit members' }));
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   fireEvent.click(screen.getByRole('button', { name: 'Back' }));
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(screen.getByRole('heading', { name: 'Groups' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /new group/i }));
-  expect(screen.getByRole('button', { name: /next: customize group/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^customize group$/i })).toBeDisabled();
 });
 it('shows every selected member in customization, beyond four', () => {
   const people = Array.from({ length: 7 }, (_, i) => ({ ...friend, id: `friend-${i}`, name: `Person ${i}`, username: `person${i}`, handle: `@person${i}` }));
   render(<GroupsWorkspace currentUser={owner} onRootChange={() => {}} initialFriendsData={people} initialGroupsData={[]} />);
   fireEvent.click(screen.getByRole('button', { name: /new group/i }));
   people.forEach(person => fireEvent.click(screen.getByRole('button', { name: new RegExp(`${person.name}.*${person.handle}`) })));
-  fireEvent.click(screen.getByRole('button', { name: /next: customize group/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^customize group$/i }));
   expect(screen.getByText('MEMBERS · 8')).toBeInTheDocument();
   people.forEach(person => expect(screen.getByText(person.name)).toBeInTheDocument());
   expect(document.querySelectorAll('.member-preview-card > div')).toHaveLength(8);

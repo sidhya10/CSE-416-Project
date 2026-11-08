@@ -52,4 +52,10 @@ it('keeps the spinner visible while refreshing and dismisses it on completion', 
   expect(screen.getByRole('status')).toHaveTextContent('Refreshing');
   await act(async () => { finish(); });
   expect(root.querySelector('.pull-refresh')).not.toHaveClass('visible');
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
+
+it('does not add an idle status alongside the current screen notification', () => {
+  render(<MobileGestureShell><p role="status">Expense saved.</p></MobileGestureShell>);
+  expect(screen.getByRole('status')).toHaveTextContent('Expense saved.');
 });

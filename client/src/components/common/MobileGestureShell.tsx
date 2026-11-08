@@ -102,7 +102,7 @@ export default function MobileGestureShell({ children, onRefresh = reloadPage }:
         <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray={`${refreshing ? 42 : Math.max(3, Math.min(48, pull / REFRESH_DISTANCE_PX * 48))} 57`} />
       </svg>
     </div>
-    <span className="refresh-status" role="status" aria-live="polite">{refreshError ? 'Could not refresh. Pull down to try again.' : refreshing ? 'Refreshing…' : ready ? 'Release to refresh' : ''}</span>
+    <span className="refresh-status" role={refreshError || refreshing || ready ? 'status' : undefined} aria-live="polite">{refreshError ? 'Could not refresh. Pull down to try again.' : refreshing ? 'Refreshing…' : ready ? 'Release to refresh' : ''}</span>
     {children}
   </div>;
 }
