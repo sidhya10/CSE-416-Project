@@ -22,9 +22,9 @@ test('an expense persists across reload, edits in place, and updates the group o
   await page.getByRole('button', { name: 'Groups', exact: true }).click();
   await page.getByRole('button', { name: /new group/i }).click();
   await expect(page.getByRole('heading', { name: 'SELECTED · 0' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /next: customize group/i })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^customize group$/i })).toBeDisabled();
   await page.getByRole('button', { name: /Flow Friend.*@flow_friend/ }).click();
-  await page.getByRole('button', { name: /next: customize group/i }).click();
+  await page.getByRole('button', { name: /^customize group$/i }).click();
   await page.getByRole('textbox', { name: 'GROUP NAME' }).fill('Project Team');
   await page.getByRole('button', { name: 'Create group' }).click();
 
@@ -259,7 +259,7 @@ test('mobile customization shows all members and Back then Cancel exits creation
   await page.getByRole('button', { name: 'Groups', exact: true }).click();
   await page.getByRole('button', { name: /new group/i }).click();
   for (let i = 0; i < 7; i++) await page.getByRole('button', { name: new RegExp(`Mobile Friend ${i}.*@mob_${i}_`) }).click();
-  await page.getByRole('button', { name: /next: customize group/i }).click();
+  await page.getByRole('button', { name: /^customize group$/i }).click();
   await expect(page.getByText('MEMBERS · 8')).toBeVisible();
   const members = page.locator('.member-preview-card > div');
   await expect(members).toHaveCount(8);

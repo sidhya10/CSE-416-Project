@@ -151,7 +151,7 @@ describe('Expense balance integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
     fireEvent.click(screen.getByRole('button', { name: /new group/i }));
     fireEvent.click(screen.getByRole('button', { name: /Alex.*@alex/i }));
-    fireEvent.click(screen.getByRole('button', { name: /next: customize group/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^customize group$/i }));
     fireEvent.change(screen.getByRole('textbox', { name: 'GROUP NAME' }), { target: { value: 'Project Team' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create group' }));
 

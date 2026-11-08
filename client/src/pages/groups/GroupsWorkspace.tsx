@@ -19,7 +19,7 @@ import { formatCents, type PreviewSplit } from '../expenses/split';
 import SplitSaved from '../expenses/SplitSaved';
 import ExpenseEntry from '../expenses/ExpenseEntry';
 import RunningTotalSplit from './RunningTotalSplit';
-import { ContactSelectionUnavailableError, selectContactIdentifiers } from '../../native/contactSelection';
+import { ContactSelectionUnavailableError, selectContactIdentifiers, supportsContactSelection } from '../../native/contactSelection';
 
 type GroupType = 'General' | 'Trip' | 'Recurring';
 type Friend = FriendUser & { handle: string; color: string };
@@ -634,9 +634,9 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     </>}
     {screen === 'friends' && <>
       <Header title="Find friends" subtitle="Search by full name, username, email, or phone number" back={() => go('list')} />
-      <div className="group-search-row"><label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, @username, email, or phone" aria-label="Search friends" /></label><button className="group-filter-trigger" type="button" aria-label="Sort people" aria-expanded={friendSortOpen} onClick={() => setFriendSortOpen(true)}><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M8 6h12M8 12h8M8 18h4M4 5v14m0 0-2-2m2 2 2-2" /></svg></button></div>
-      <button className="group-secondary contact-match-button" type="button" onClick={() => void matchContacts()} disabled={peopleLoading}>Choose contacts to find friends</button>
-      <p className="group-caption contact-privacy">Your address book is never read or stored. Only the phone numbers and email addresses from contacts you choose are checked for account matches.</p>
+      <div className="group-search-row"><label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find friends" aria-label="Search friends" /></label><button className="group-filter-trigger" type="button" aria-label="Sort people" aria-expanded={friendSortOpen} onClick={() => setFriendSortOpen(true)}><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M8 6h12M8 12h8M8 18h4M4 5v14m0 0-2-2m2 2 2-2" /></svg></button></div>
+      {supportsContactSelection() && <><button className="group-secondary contact-match-button" type="button" onClick={() => void matchContacts()} disabled={peopleLoading}>Choose contacts to find friends</button>
+      <p className="group-caption contact-privacy">Your address book is never read or stored. Only the phone numbers and email addresses from contacts you choose are checked for account matches.</p></>}
       {friendSortOpen && <div className="group-filter-backdrop" role="presentation" onMouseDown={() => setFriendSortOpen(false)}><section className="group-filter-dialog friend-sort-dialog" role="dialog" aria-modal="true" aria-labelledby="friend-sort-title" onMouseDown={event => event.stopPropagation()}><header><h2 id="friend-sort-title">Sort people</h2><button type="button" aria-label="Close sort" onClick={() => setFriendSortOpen(false)}>×</button></header><label>Sort people by<select value={friendSort} onChange={event => { setFriendSort(event.target.value); setFriendSortOpen(false); }}><option value="name">Name</option><option value="username">Username</option><option value="email">Email</option></select></label></section></div>}
       <h2 className="group-overline">SEARCH RESULTS</h2>
       {peopleLoading && <p className="group-caption" role="status">Searching accounts…</p>}
@@ -667,16 +667,16 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     </>}
     {screen === 'select' && <>
       <header className="group-centered-header"><button type="button" onClick={() => { if (editingMembers) setSelected(memberSelectionSnapshot); go(editingMembers ? 'customize' : 'list'); }}>Cancel</button><h1>Select friends</h1></header>
-      <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search your friends" aria-label="Search your friends" /></label>
+      <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find friends" aria-label="Search your friends" /></label>
       <h2 className="group-overline">SELECTED · {selected.length}</h2>
-      <div className="selected-friends">{selected.map(id => { const friend = friends.find(item => item.id === id); return friend &&
+      <div className={`selected-friends${selected.length ? '' : ' is-empty'}`}>{!selected.length && <p>No friends selected yet. Choose from the list below.</p>}{selected.map(id => { const friend = friends.find(item => item.id === id); return friend &&
         <div key={id}><Avatar name={friend.name} color={friend.color} /><small>{friend.name.split(' ')[0]}</small></div>; })}</div>
       <h2 className="group-overline">ALL FRIENDS</h2>
       <p className="group-caption">Select at least one friend to continue.</p>
       {listFriends.map(friend => <button type="button" className="friend-card select-friend" key={friend.id} onClick={() => toggle(friend.id)}>
         <Avatar name={friend.name} color={friend.color} /><span><strong>{friend.name}</strong><small>{friend.handle}</small></span>
         <span className={selected.includes(friend.id) ? 'selection checked' : 'selection'}>{selected.includes(friend.id) ? '✓' : ''}</span></button>)}
-      <button className="group-primary group-bottom-action" type="button" disabled={!selected.length} onClick={() => { if (!selected.length) return; setDraft(previous => ({ ...previous, members: selected })); go('customize'); }}>Next: customize group</button>
+      <button className="group-primary group-bottom-action" type="button" disabled={!selected.length} onClick={() => { if (!selected.length) return; setDraft(previous => ({ ...previous, members: selected })); go('customize'); }}>Customize group</button>
     </>}
     {screen === 'customize' && <>
       <Header title="Customize group" subtitle="You can change these settings later." back={() => { setEditingMembers(false); go('select'); }} />
@@ -817,7 +817,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     </>}
     {screen === 'add-members' && active && <>
       <header className="group-centered-header"><button type="button" onClick={() => go('settings')}>Cancel</button><h1>Add people</h1></header>
-      <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search your friends" aria-label="Search your friends" /></label>
+      <label className="group-search"><span aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find friends" aria-label="Search your friends" /></label>
       <p className="group-info"><strong>New members start from $0</strong><small>They join the next expense period. Previous transactions and balances remain with existing members.</small></p>
       <h2 className="group-overline">FRIENDS</h2>
       {listFriends.filter(friend => !active.members.includes(friend.id)).map(friend => <button className="friend-card select-friend" type="button" key={friend.id} onClick={() => toggle(friend.id)}>

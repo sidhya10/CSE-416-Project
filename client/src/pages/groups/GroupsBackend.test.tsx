@@ -52,7 +52,7 @@ describe('group backend integration', () => {
     await screen.findByRole('button', { name: /new group/i });
     fireEvent.click(screen.getByRole('button', { name: /new group/i }));
     fireEvent.click(await screen.findByRole('button', { name: /Friend.*@friend/i }));
-    fireEvent.click(screen.getByRole('button', { name: /next: customize group/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^customize group$/i }));
     fireEvent.change(screen.getByRole('textbox', { name: 'GROUP NAME' }), { target: { value: 'Persistent Team' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create group' }));
     expect(await screen.findByRole('heading', { name: 'Persistent Team' })).toBeInTheDocument();
