@@ -8,6 +8,9 @@ type ContactNavigator = Navigator & {
   };
 };
 
+export const supportsContactSelection = () => Capacitor.isNativePlatform()
+  || (typeof navigator !== 'undefined' && typeof (navigator as ContactNavigator).contacts?.select === 'function');
+
 export type ContactIdentifiers = { emails: string[]; phones: string[] };
 
 export class ContactSelectionUnavailableError extends Error {

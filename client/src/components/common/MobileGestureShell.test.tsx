@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import MobileGestureShell from './MobileGestureShell';
 
@@ -37,4 +37,19 @@ describe('mobile gestures', () => {
     fireEvent.touchEnd(root, { changedTouches: [touch(190, 104)] });
     expect(back).not.toHaveBeenCalled();
   });
+});
+
+it('keeps the spinner visible while refreshing and dismisses it on completion', async () => {
+  let finish!: () => void;
+  const refresh = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  render(<MobileGestureShell onRefresh={refresh}><main>Refresh content</main></MobileGestureShell>);
+  const root = screen.getByText('Refresh content').parentElement!;
+  fireEvent.touchStart(root, { touches: [touch(100, 20)] });
+  fireEvent.touchMove(root, { touches: [touch(100, 160)] });
+  fireEvent.touchEnd(root, { changedTouches: [touch(100, 160)] });
+  await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+  expect(root.querySelector('.pull-refresh')).toHaveClass('visible', 'refreshing');
+  expect(screen.getByRole('status')).toHaveTextContent('Refreshing');
+  await act(async () => { finish(); });
+  expect(root.querySelector('.pull-refresh')).not.toHaveClass('visible');
 });

@@ -1,0 +1,1 @@
+import fs from'node:fs/promises';import{FileBlob,PresentationFile}from'@oai/artifact-tool';const p=await PresentationFile.importPptx(await FileBlob.load('output/CSE416-Presentation-Revised-Introduction.pptx'));await fs.writeFile('.cloudflare-build/intro-final.png',new Uint8Array(await(await p.slides.items[1].export({format:'png'})).arrayBuffer()));
