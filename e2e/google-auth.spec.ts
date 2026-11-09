@@ -41,7 +41,7 @@ async function mockGoogle(page: Page) {
       if (event.origin === window.location.origin && event.data.testGoogleCredential) configuration.callback({ credential: 'provider-test-token', state: event.data.state });
     });
   ` }));
-  await page.context().route('**/google-test-popup?*', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body><h1>Google account chooser fixture</h1><button onclick="window.opener.postMessage({ testGoogleCredential: true, state: new URLSearchParams(location.search).get('state') }, location.origin); window.close();">Choose test account</button></body></html>` }));
+  await page.context().route('**/google-test-popup?*', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body><h1>Google account chooser fixture</h1><button onclick="window.opener.postMessage({ testGoogleCredential: true, state: new URLSearchParams(location.search).get('state') }, location.origin);">Choose test account</button></body></html>` }));
   return { account, requests };
 }
 const clickGoogle = async (page: Page, label: string) => {
@@ -52,6 +52,14 @@ const clickGoogle = async (page: Page, label: string) => {
   return chooser;
 };
 
+// Close the fixture after Playwright finishes dispatching the click. Closing it
+// inside onclick can destroy the target before click() finishes in Chromium.
+const chooseGoogleAccount = async (popup: Page) => {
+  await popup.getByRole('button', { name: 'Choose test account' }).click();
+  await popup.close();
+  expect(popup.isClosed()).toBe(true);
+};
+
 for (const signup of [false, true]) test(`Google ${signup ? 'sign-up' : 'sign-in'} opens a popup and completes its callback`, async ({ page }) => {
   const fixture = await mockGoogle(page);
   await page.goto('/');
@@ -60,7 +68,7 @@ for (const signup of [false, true]) test(`Google ${signup ? 'sign-up' : 'sign-in
     await page.getByRole('textbox', { name: 'PHONE NUMBER · REQUIRED' }).fill('+1 646 555 0101');
   }
   const popup = await clickGoogle(page, signup ? 'Sign up with Google' : 'Continue with Google');
-  await popup.getByRole('button', { name: 'Choose test account' }).click();
+  await chooseGoogleAccount(popup);
   await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
   expect(fixture.requests.some(r => r.path === '/api/auth/google' && r.body.credential === 'provider-test-token')).toBe(true);
 });
@@ -74,7 +82,7 @@ test('profile connects Google to the password account and both entry points rema
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
   await page.getByRole('button', { name: /Account settings/ }).click();
   const popup = await clickGoogle(page, 'Continue with Google');
-  await popup.getByRole('button', { name: 'Choose test account' }).click();
+  await chooseGoogleAccount(popup);
   await expect(page.getByText('Google account connected. You can sign in with Google or your existing password.')).toBeVisible();
   await expect(page.getByText('Password login enabled')).toBeVisible();
   await expect(page.getByText(fixture.account.email)).toBeVisible();
@@ -82,7 +90,7 @@ test('profile connects Google to the password account and both entry points rema
   await page.getByRole('button', { name: 'Back to Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Log out', exact: true }).click();
   const loginPopup = await clickGoogle(page, 'Continue with Google');
-  await loginPopup.getByRole('button', { name: 'Choose test account' }).click();
+  await chooseGoogleAccount(loginPopup);
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
   await expect(page.getByText('Popup Owner')).toBeVisible();
 });
