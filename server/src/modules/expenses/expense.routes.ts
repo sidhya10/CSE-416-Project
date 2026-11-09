@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { categorize } from '../budgets/budget.categories.js';
 import { ExpenseError } from './expense.service.js';
 import { Router } from 'express';
@@ -10,11 +11,23 @@ import { deleteExpense, createExpense, editExpense, expenseInclude, groupBalance
 export const expensesRouter = Router();
 expensesRouter.use(requireAuth);
 expensesRouter.get('/groups/:groupId/expenses', async (req, res) => {
-  const expenses = await transaction(async tx => {
+  const input = z.object({ scope: z.enum(['all', 'open', 'history']).default('all'), limit: z.coerce.number().int().min(1).max(100).default(30), cursor: z.string().min(1).optional() }).parse(req.query);
+  const result = await transaction(async tx => {
     await requireMember(tx, req.params.groupId, req.userId!);
-    return tx.expense.findMany({ where: { groupId: req.params.groupId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: expenseInclude });
+    const cursor = input.cursor ? await tx.expense.findFirst({ where: { id: input.cursor, groupId: req.params.groupId }, select: { id: true, createdAt: true } }) : null;
+    if (input.cursor && !cursor) throw new ExpenseError(400, 'Expense history changed. Reload this group.');
+    const open = Prisma.sql`EXISTS (SELECT 1 FROM "ExpenseShare" s WHERE s."expenseId" = e.id AND s."userId" <> e."paidByUserId"
+      AND s."totalCents" > COALESCE((SELECT SUM(p."amountCents") FROM "ExpensePayment" p WHERE p."expenseId" = e.id AND p."senderUserId" = s."userId" AND p.status = 'CONFIRMED'), 0))`;
+    const ids = await tx.$queryRaw<{ id: string }[]>`SELECT e.id FROM "Expense" e WHERE e."groupId" = ${req.params.groupId}
+      ${input.scope === 'open' ? Prisma.sql`AND ${open}` : input.scope === 'history' ? Prisma.sql`AND NOT ${open}` : Prisma.empty}
+      ${cursor ? Prisma.sql`AND (e."createdAt", e.id) < (${cursor.createdAt}, ${cursor.id})` : Prisma.empty}
+      ORDER BY e."createdAt" DESC, e.id DESC ${input.scope === 'open' ? Prisma.empty : Prisma.sql`LIMIT ${input.limit + 1}`}`;
+    const more = input.scope !== 'open' && ids.length > input.limit;
+    const page = more ? ids.slice(0, input.limit) : ids;
+    const expenses = await tx.expense.findMany({ where: { id: { in: page.map(row => row.id) } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: expenseInclude });
+    return { expenses, nextCursor: more ? page.at(-1)!.id : null };
   });
-  res.json({ expenses });
+  res.json(result);
 });
 expensesRouter.post('/groups/:groupId/expenses', async (req, res) => {
   const input = createExpenseInput.parse(req.body);

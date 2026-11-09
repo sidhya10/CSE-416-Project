@@ -1,20 +1,20 @@
 import { hasOpenSplits } from './settlement.js';
 import { presentBill } from '../recurring/recurring.service.js';
 import { Prisma } from '@prisma/client';
-import { presentUser } from '../users/user.presenter.js';
+import { groupUserSelect, presentUser } from '../users/user.presenter.js';
 
 export const groupInclude = {
-  createdBy: true,
+  createdBy: { select: groupUserSelect },
   recurringBills: { include: { cycles: true } },
-  expenses: { include: { shares: { include: { payments: true } } } },
-  memberships: { include: { user: true }, orderBy: { joinedAt: 'asc' as const } },
+  expenses: { select: { paidByUserId: true, shares: { select: { userId: true, totalCents: true, payments: { where: { status: 'CONFIRMED' }, select: { status: true, amountCents: true } } } } } },
+  memberships: { include: { user: { select: groupUserSelect } }, orderBy: { joinedAt: 'asc' as const } },
   invitations: {
-    include: { invitedUser: true, invitedBy: true },
+    include: { invitedUser: { select: groupUserSelect }, invitedBy: { select: groupUserSelect } },
     orderBy: { createdAt: 'asc' as const },
   },
 } satisfies Prisma.GroupInclude;
 
-export type GroupWithRelations = Prisma.GroupGetPayload<{ include: typeof groupInclude }>;
+export type GroupWithRelations = Omit<Prisma.GroupGetPayload<{ include: typeof groupInclude }>, 'photoUrl'> & { photoUrl?: string | null };
 
 export function presentGroup(group: GroupWithRelations, currentUserId: string) {
   let amountOwesCents = 0, amountOwedCents = 0;
@@ -36,7 +36,7 @@ export function presentGroup(group: GroupWithRelations, currentUserId: string) {
     description: group.description,
     type: group.type,
     color: group.color,
-    photoUrl: group.photoUrl,
+    photoUrl: group.photoUrl === undefined ? `/api/groups/${group.id}/photo?v=${group.updatedAt.getTime()}` : group.photoUrl,
     startDate: group.startDate?.toISOString().slice(0, 10) ?? '',
     endDate: group.endDate?.toISOString().slice(0, 10) ?? '',
     createdById: group.createdById,

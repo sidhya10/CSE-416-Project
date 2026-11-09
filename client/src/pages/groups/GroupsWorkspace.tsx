@@ -113,6 +113,10 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const [screen, setScreen] = useState<Screen>('list');
   const [groups, setGroups] = useState<Group[]>(initialGroupsData ?? initialGroups);
   const [activeId, setActiveId] = useState<number | string | null>(null);
+  const activeIdRef = useRef(activeId); activeIdRef.current = activeId;
+  const [historyCursors, setHistoryCursors] = useState<Record<string, string | null>>({});
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const expenseSequence = useRef(0);
   const [draft, setDraft] = useState<Group>(initialDraft);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState('');
@@ -192,44 +196,53 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     }),
   });
   const refreshFriends = () => friendsApi.list().then(result => setFriends(result.friends.map(toFriend))).catch(error => setMessage(error instanceof ApiError ? error.message : 'Could not load friends.'));
+  const refreshExpenses = async (groupId: string, append = false, cursor?: string) => {
+    const sequence = ++expenseSequence.current;
+    try {
+      const [history, open] = await Promise.all([expensesApi.list(groupId, { scope: 'history', cursor }), append ? Promise.resolve(null) : expensesApi.list(groupId, { scope: 'open' })]);
+      if (sequence !== expenseSequence.current || String(activeIdRef.current) !== groupId) return;
+      const rows = [...(open?.expenses ?? []), ...history.expenses].map(expense => fromApiExpense(expense, currentUser.id)).reverse();
+      setPreviewSplits(previous => {
+        const combined = append ? [...rows, ...(previous[groupId] ?? [])] : rows;
+        return { ...previous, [groupId]: [...new Map(combined.map(row => [row.expenseId, row])).values()] };
+      });
+      setHistoryCursors(previous => ({ ...previous, [groupId]: history.nextCursor ?? null }));
+      if (!append && screenRef.current === 'expense-details') setViewedExpense(previous => {
+        const split = rows.find(value => value.expenseId === previous?.split?.expenseId);
+        return split && previous ? { ...previous, split, title: split.name, amount: formatCents(split.totalCents) } : previous;
+      });
+    } catch (error) { if (sequence === expenseSequence.current) setMessage(error instanceof Error ? error.message : 'Could not load expenses.'); }
+  };
   const refreshGroups = async () => {
     const sequence = ++refreshSequence.current;
     try {
       const result = await groupsApi.list();
-      const fetched = await Promise.all(result.groups.map(async group => {
-        try {
-          const response = await expensesApi.list(group.id);
-          return { group: fromApiGroup(group), splits: response.expenses.map(expense => fromApiExpense(expense, currentUser.id)).reverse() };
-        } catch (error) {
-          if (error instanceof ApiError && error.status === 404) return null;
-          throw error;
-        }
-      }));
-      // Another member may delete a group between listing it and loading its expenses.
-      const rows = fetched.filter((row): row is NonNullable<typeof row> => row !== null);
       if (sequence !== refreshSequence.current) return;
-      setPreviewSplits(Object.fromEntries(rows.map(row => [row.group.id, row.splits])));
-      setGroups(previous => rows.map(({ group, splits }) => {
+      setGroups(previous => result.groups.map(group => {
         const local = previous.find(item => item.id === group.id);
-        return { ...group, balance: splits.reduce((sum, split) => sum + splitBalanceDelta(split), 0),
-          privateBudget: local?.privateBudget ?? null, plans: local?.plans ?? [] };
+        return { ...fromApiGroup(group), privateBudget: local?.privateBudget ?? null, plans: local?.plans ?? [] };
       }));
-      if (screenRef.current === 'expense-details') setViewedExpense(previous => {
-        const split = rows.flatMap(row => row.splits).find(value => value.expenseId === previous?.split?.expenseId);
-        return split && previous ? { ...previous, split, title: split.name, amount: formatCents(split.totalCents) } : previous;
-      });
-    } catch (error) { if (sequence === refreshSequence.current) setMessage(error instanceof Error ? error.message : 'Could not load expenses.'); }
+      const selectedId = activeIdRef.current;
+      if (selectedId !== null && !['list', 'archive', 'friends'].includes(screenRef.current) && result.groups.some(g => g.id === String(selectedId))) await refreshExpenses(String(selectedId));
+    } catch (error) { if (sequence === refreshSequence.current) setMessage(error instanceof Error ? error.message : 'Could not load groups.'); }
     finally { if (sequence === refreshSequence.current) setExpensesLoading(false); }
   };
+  const refreshLatest = useRef(refreshGroups); refreshLatest.current = refreshGroups;
+  useEffect(() => {
+    if (initialGroupsData || !visible || activeId === null || ['list', 'archive', 'friends'].includes(screen)) return;
+    void refreshExpenses(String(activeId));
+    return () => { expenseSequence.current++; };
+    // Detail reads are scoped to the selected group; timer callbacks use current refs.
+  }, [activeId, visible, screen, initialGroupsData]);
   useEffect(() => { if (!initialFriendsData) void refreshFriends(); }, [initialFriendsData]);
   useEffect(() => {
-    if (initialGroupsData) return;
-    void refreshGroups();
-    const interval = window.setInterval(() => void refreshGroups(), 15_000);
-    const onVisible = () => { if (document.visibilityState === 'visible') void refreshGroups(); };
+    if (initialGroupsData || !visible) return;
+    if (!document.hidden) void refreshLatest.current();
+    const interval = window.setInterval(() => { if (!document.hidden) void refreshLatest.current(); }, 60_000);
+    const onVisible = () => { if (!document.hidden) void refreshLatest.current(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
-  }, [initialGroupsData]);
+  }, [initialGroupsData, visible]);
   useEffect(() => {
     if (screen !== 'friends') return;
     if (!query.trim()) { setSearchResults([]); setPeopleLoading(false); return; }
@@ -269,6 +282,15 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       const split = (previewSplits[target.id] ?? []).find(s => s.expenseId === notificationTarget.expenseId);
       if (split) setViewedExpense({ title: split.name, subtitle: '', amount: formatCents(split.totalCents), split });
       setScreen(split ? 'expense-details' : 'detail'); screenRef.current = split ? 'expense-details' : 'detail'; onRootChange(false); setMessage('');
+      if (!split && notificationTarget.expenseId && !initialGroupsData) {
+        const expenseId = notificationTarget.expenseId;
+        void expensesApi.get(expenseId).then(({ expense }) => {
+          if (openedNotification.current !== notificationTarget.request || String(activeIdRef.current) !== target.id) return;
+          const loaded = fromApiExpense(expense, currentUser.id);
+          setViewedExpense({ title: loaded.name, subtitle: '', amount: formatCents(loaded.totalCents), split: loaded });
+          screenRef.current = 'expense-details'; setScreen('expense-details');
+        }).catch(() => setMessage('This expense is no longer available.'));
+      }
     } else {
       setActiveId(null); setScreen('list'); screenRef.current = 'list'; onRootChange(true); setMessage('This group is no longer available to your account.');
     }
@@ -397,7 +419,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     try {
       const saved = fromApiGroup((await groupsApi.update(String(active.id), {
         inactivityDays: active.inactivityDays ?? 60, name: active.name.trim(), description: active.description.trim(), type: active.type, color: active.color,
-        photoUrl: active.photo, startDate: active.startDate, endDate: active.endDate,
+        photoUrl: active.photo?.startsWith('/api/groups/') ? undefined : active.photo, startDate: active.startDate, endDate: active.endDate,
       })).group);
       setGroups(previous => previous.map(group => group.id === active.id
         ? { ...saved, balance: group.balance, privateBudget: group.privateBudget, plans: group.plans, bills: group.bills, archived: group.archived } : group));
@@ -706,6 +728,9 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
       <div className="group-detail-header"><button type="button" className="group-back" onClick={() => go(active.archived ? 'archive' : 'list')} aria-label="Back to Groups">‹</button>
         <Avatar name={active.name} color={active.color} photo={active.photo} /><span><h1>{active.name}</h1><small>{active.type}{active.type === 'Trip' && active.startDate ? ` · ${dateLabel(active.startDate)}–${dateLabel(active.endDate)}` : ''} · {active.members.length + 1} members</small></span>
         <button type="button" className="group-more" onClick={() => { setEditing(true); go('settings'); }} aria-label="Group settings">•••</button></div>
+      {!initialGroupsData && historyCursors[active.id] && <button type="button" disabled={historyBusy} onClick={() => {
+        setHistoryBusy(true); void refreshExpenses(String(active.id), true, historyCursors[active.id]!).finally(() => setHistoryBusy(false));
+      }}>{historyBusy ? 'Loading history…' : 'Load older expenses'}</button>}
       {active.type === 'Recurring' ? <>
         {!initialGroupsData && <SettlementInbox key={active.id} groupId={String(active.id)} active={visible} onChanged={() => void refreshGroups()} />}
         <p className="detail-description">{active.description || 'Add a description in group settings.'}</p>

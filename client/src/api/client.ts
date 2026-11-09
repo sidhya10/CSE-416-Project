@@ -4,7 +4,42 @@ export class ApiError extends Error {
   constructor(message: string, public status: number) { super(message); }
 }
 
+const reads = new Map<string, { expires: number; value: unknown }>();
+const pending = new Map<string, Promise<unknown>>();
+let generation = 0;
+export function invalidateApiReads() { generation++; reads.clear(); pending.clear(); }
+// Returning to the app must see changes made by other members, even within the TTL.
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) invalidateApiReads();
+});
+
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const method = (options.method ?? 'GET').toUpperCase();
+  const cacheable = method === 'GET' && !path.startsWith('/auth/') && !options.signal;
+  if (method !== 'GET') invalidateApiReads();
+  const key = `${apiBase}${path}`;
+  if (cacheable) {
+    const cached = reads.get(key);
+    if (cached && cached.expires > Date.now()) return cached.value as T;
+    const running = pending.get(key);
+    if (running) return running as Promise<T>;
+  }
+  const started = generation;
+  const operation = request<T>(path, options).then(value => {
+    if (cacheable && started === generation) {
+      if (reads.size >= 100) reads.delete(reads.keys().next().value!);
+      reads.set(key, { value, expires: Date.now() + 15_000 });
+    }
+    return value;
+  }).finally(() => {
+    if (started === generation) pending.delete(key);
+    if (method !== 'GET') invalidateApiReads();
+  });
+  if (cacheable) pending.set(key, operation);
+  return operation;
+}
+
+async function request<T>(path: string, options: RequestInit): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
     credentials: 'include',

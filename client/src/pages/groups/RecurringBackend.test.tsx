@@ -11,7 +11,7 @@ it('saves a recurring schedule with real payer IDs, reloads it and updates the u
     if (url.endsWith('/friends')) return response({ friends: [] });
     if (url.endsWith('/groups')) return response({ groups: [group] });
     if (url.endsWith('/groups/home')) return response({ group });
-    if (url.endsWith('/expenses')) return response({ expenses: [] });
+    if (url.split('?')[0]!.endsWith('/expenses')) return response({ expenses: [] });
     if (url.endsWith('/groups/home/recurring') && init?.method === 'POST') {
       const body = JSON.parse(String(init.body));
       group = { ...group, recurringBills: [{ ...body, id: 'bill-1', intervalEvery: body.customEvery, intervalUnit: body.customUnit, cycles: [], paused: false, error: null, nextDate: body.startDate }] };
@@ -47,7 +47,7 @@ it('repairs a paused schedule without retaining hidden shares for a removed memb
     if (url.endsWith('/friends')) return response({ friends: [] });
     if (url.endsWith('/groups')) return response({ groups: [group] });
     if (url.endsWith('/groups/repair-home')) return response({ group });
-    if (url.endsWith('/expenses')) return response({ expenses: [] });
+    if (url.split('?')[0]!.endsWith('/expenses')) return response({ expenses: [] });
     return response({ bill });
   }));
   render(<GroupsWorkspace currentUser={user} onRootChange={() => {}} />);

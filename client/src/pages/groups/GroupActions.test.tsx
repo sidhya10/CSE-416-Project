@@ -60,7 +60,7 @@ it('keeps a group and its dialog on a failed delete, then retries through the AP
     const url = String(input);
     if (init?.method === 'DELETE') { attempts++; if (attempts === 1) return response({ error: 'Try again' }, 500); removed = true; return response(null, 204); }
     if (url.endsWith('/friends')) return response({ friends: [] });
-    if (url.endsWith('/expenses')) return response({ expenses: [] });
+    if (url.split('?')[0]!.endsWith('/expenses')) return response({ expenses: [] });
     if (url.endsWith('/groups')) return response({ groups: removed ? [] : [stored] });
     return response({ group: stored });
   });

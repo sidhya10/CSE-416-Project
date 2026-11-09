@@ -1,3 +1,4 @@
+import { sendPhoto } from '../../utils/photo.js';
 import { groupHasOpenSplits } from './settlement.js';
 import { lockMaintenance } from '../../utils/maintenance-lock.js';
 import { runMaintenance } from '../recurring/recurring.service.js';
@@ -62,6 +63,11 @@ async function requireMember(groupId: string, userId: string) {
   return member ?? null;
 }
 
+groupsRouter.get('/:groupId/photo', async (req, res) => {
+  const group = await prisma.group.findFirst({ where: { id: req.params.groupId, memberships: { some: { userId: req.userId! } } }, select: { name: true, photoUrl: true } });
+  if (!group) { res.status(404).end(); return; }
+  sendPhoto(req, res, group.photoUrl, group.name);
+});
 groupsRouter.get('/', async (request, response, next) => {
   try {
     const filters = groupFilters.parse(request.query);
@@ -69,6 +75,7 @@ groupsRouter.get('/', async (request, response, next) => {
     const groups = await prisma.group.findMany({
       where: { memberships: { some: { userId: request.userId! } } },
       include: groupInclude,
+      omit: { photoUrl: true },
       orderBy: { updatedAt: 'desc' },
     });
     response.json({ groups: filterGroups(groups.map(group => presentGroup(group, request.userId!)), filters) });

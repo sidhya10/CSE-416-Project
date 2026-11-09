@@ -1,3 +1,4 @@
+import { sendPhoto } from '../../utils/photo.js';
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -8,6 +9,11 @@ import { presentUser } from './user.presenter.js';
 import { normalizePhone, phoneSchema } from '../auth/identity.js';
 
 export const usersRouter = Router();
+usersRouter.get('/:id/photo', requireAuth, async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: String(req.params.id) }, select: { name: true, photoUrl: true } });
+  if (!user) { res.status(404).end(); return; }
+  sendPhoto(req, res, user.photoUrl, user.name);
+});
 const updateSchema = z.object({
   username: z.string().trim().min(3).max(30).regex(/^[A-Za-z0-9_]+$/).transform(value => value.toLowerCase()).optional(),
   name: z.string().trim().min(1).max(80).optional(),

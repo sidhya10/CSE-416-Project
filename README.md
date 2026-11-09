@@ -342,6 +342,16 @@ The Vercel client forwards `/api/*` requests to Render, so the browser continues
 
 The current Render service uses the free plan. It may spin down while idle, so the first request after inactivity can take longer than normal. The Neon production database was initialized from the repository's Prisma migrations; data from the retired Railway database was not imported because that database was unavailable during migration.
 
+## Database transfer reductions
+
+- Pause automatic polling on hidden screens and refresh visible data once per minute.
+- Share short-lived GET results across screens and invalidate them after writes and authentication changes.
+- Load expense details only for the selected group, with complete open obligations and paginated past expenses.
+- Deliver group/profile photos separately with private caching instead of embedding images in recurring group-list responses.
+- Fetch only the unread notification count for the navigation badge and aggregate group balances in PostgreSQL.
+
+These changes do not switch database providers. See [database transfer behavior and API pagination](docs/database-transfer.md).
+
 ## Tests and Quality Checks
 
 Run all repository checks:
