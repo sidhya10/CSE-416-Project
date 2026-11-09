@@ -2,7 +2,7 @@
 
 **Team:** Eva · Vivian · Nicole · Sidhya  
 **Course:** CSE 416 · Software Engineering  
-**Implementation status:** November 2, 2026 · Milestone 4
+**Implementation status:** November 9, 2026 · Milestone 5 integration and release preparation
 
 ## Project Overview
 
@@ -11,6 +11,19 @@ This project is a mobile-responsive web application for young adults who manage 
 The product's central workflow is now implemented: every participant's share of a group expense is counted once in their personal budget. The app first tries to match a payer's split to one unambiguous posted bank charge using its amount, expense date, and merchant. If no safe automatic match exists, the payer can search the existing ranked suggestions and choose one manually. When linked, the full bank charge is excluded from the payer's spending total and replaced by the payer's own share.
 
 The app records that payments were sent and received, but it does not move money. It currently supports USD only.
+
+## Latest updates and database migration status
+
+The latest merged changes include:
+
+- Month-specific personal budget limits: editing the current month no longer changes saved limits for previous months. A month without saved limits uses the most recent earlier limits; history before the monthly-limit migration cannot be reconstructed.
+- Bank reconnection deduplication, monthly transaction browsing, and clearer linked-transaction cards showing the original bank charge and personal share.
+- Expense-to-bank linking when the expense date is omitted; the server defaults the date to today.
+- Permanent expense deletion with explicit acknowledgment when payment history exists, notifications to affected group members, and updated settlement balances. Real transfers are not refunded by deleting an expense.
+- Consistent personal/group mobile controls, pull-to-refresh with loading/error feedback, left-edge swipe-back, and a Home to-do linking users without a bank connection to Bank Connections.
+- An initial iPhone build has been uploaded to App Store Connect for TestFlight distribution. External beta approval and public-link availability must be checked in App Store Connect; native Google Sign-In and production bank OAuth are not claimed as completed.
+
+**Database cutover:** Production uses **Prisma Postgres Free** as of November 9, 2026. Neon rejected source reads with HTTP 402 (quota exceeded), so the project owner authorized starting with a fresh database. The existing Neon data was not imported or deleted. Existing users must register again, recreate groups, and reconnect bank accounts; old accounts, expenses, payments, and bank connections are absent from the new database. See [Prisma Postgres cutover](docs/prisma-postgres-migration.md).
 
 ## Milestone 4 Update
 
@@ -236,7 +249,7 @@ Possible future features also include exportable trip summaries, savings goals, 
 | iPhone shell | Capacitor 8, Swift Package Manager, Xcode | Separate iOS 15+ wrapper for TestFlight that loads the production HTTPS application without changing the Vercel deployment |
 | Styling and charts | CSS | Responsive layouts, theme support, progress bars, and chart-like visualizations |
 | Backend | Node.js, Express, TypeScript, Render | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts; the production API runs as a Render web service |
-| Database | Neon PostgreSQL, Prisma | Serverless PostgreSQL persistence and transactional financial operations; Prisma migrations are applied when the Render service starts |
+| Database | Prisma Postgres Free, Prisma ORM | Serverless PostgreSQL persistence and transactional financial operations; Prisma migrations are applied when the Render service starts |
 | Authentication | bcrypt, Google Identity Services, signed httpOnly cookies | Identifier/password login, hashed one-time recovery codes, optional email reset links, Google authentication/recovery, and revocable server-managed sessions |
 | Bank data | Plaid | Account connection, balance retrieval, and transaction synchronization |
 | Receipt processing | Azure Document Intelligence, `heic-convert`, `sharp` | Receipt extraction, HEIC conversion, and image processing |
@@ -300,7 +313,7 @@ npm ci --include=optional
 
 ### iPhone and TestFlight
 
-The repository includes a separate Capacitor iOS project in `ios/`. It loads the existing production web client over HTTPS, so web and iPhone users share the same Render API, Neon database, sessions, and application behavior. Building the iOS target does not modify or redeploy the Vercel web client.
+The repository includes a separate Capacitor iOS project in `ios/`. It loads the existing production web client over HTTPS, so web and iPhone users share the same Render API, Prisma Postgres database, sessions, and application behavior. Building the iOS target does not modify or redeploy the Vercel web client.
 
 On a Mac with Xcode installed:
 
@@ -335,12 +348,12 @@ To enable connected bank accounts, configure the Plaid variables documented in `
 |---|---|---|
 | Web client | Vercel | <https://cse-416-project-tau.vercel.app> |
 | REST API | Render | <https://cse-416-budget-api.onrender.com> |
-| PostgreSQL | Neon | Private TLS connection from the Render API |
-| iPhone beta | Capacitor / TestFlight | Native project implemented; Apple signing and TestFlight upload pending |
+| PostgreSQL | Prisma Postgres Free | Server-only TLS connection from the Render API |
+| iPhone beta | Capacitor / TestFlight | Initial build uploaded by the project owner; external beta approval is managed in App Store Connect |
 
-The Vercel client forwards `/api/*` requests to Render, so the browser continues to use same-origin API paths. Render runs the Node/Express server from `main`, applies pending Prisma migrations during startup, and connects to the Neon database. The reproducible service configuration is in [`render.yaml`](render.yaml); production credentials are stored only as Render environment variables and are not committed to the repository.
+The Vercel client forwards `/api/*` requests to Render, so the browser continues to use same-origin API paths. Render runs the Node/Express server from `main`, applies pending Prisma migrations during startup, and connects to Prisma Postgres. The reproducible service configuration is in [`render.yaml`](render.yaml); production credentials are stored only as Render environment variables and are not committed to the repository.
 
-The current Render service uses the free plan. It may spin down while idle, so the first request after inactivity can take longer than normal. The Neon production database was initialized from the repository's Prisma migrations; data from the retired Railway database was not imported because that database was unavailable during migration.
+The current Render service uses the free plan. It may spin down while idle, so the first request after inactivity can take longer than normal. The Prisma Postgres database was initialized from the repository's versioned migrations. No Neon or retired Railway records were imported. The iOS shell loads the hosted Vercel application, so it reaches the same new database through Render without a native rebuild for this configuration change.
 
 ## Database transfer reductions
 
