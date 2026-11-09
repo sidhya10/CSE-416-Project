@@ -16,7 +16,7 @@ it('retries a failed save with real user IDs and the same request key, then relo
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('/friends')) return response({ friends: [] });
     if (url.endsWith('/groups')) return response({ groups: [group] });
-    if (url.endsWith('/groups/group-id/expenses') && init?.method === 'POST') {
+    if (url.split('?')[0]!.endsWith('/groups/group-id/expenses') && init?.method === 'POST') {
       const body = JSON.parse(String(init.body));
       submitted.push(body);
       if (submitted.length === 1) return response({ error: 'Temporary save failure. Try again.' }, 503);
@@ -26,7 +26,7 @@ it('retries a failed save with real user IDs and the same request key, then relo
         shares: [owner, friend].map(user => ({ userId: user.id, user, baseCents: 500, totalCents: 500, payments: [] })) };
       return response({ expense: saved }, 201);
     }
-    if (url.endsWith('/groups/group-id/expenses')) return response({ expenses: saved ? [saved] : [] });
+    if (url.split('?')[0]!.endsWith('/groups/group-id/expenses')) return response({ expenses: saved ? [saved] : [] });
     throw new Error(`Unexpected request ${url}`);
   }));
   const first = render(<App initialUser={owner} />);

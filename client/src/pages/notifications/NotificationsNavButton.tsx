@@ -3,8 +3,8 @@ import { settlementsApi } from '../../api/settlements.api';
 import { useLiveData } from '../dashboard/useLiveData';
 
 export default function NotificationsNavButton({ selected, onClick }: { selected: boolean; onClick: () => void }) {
-  const { data, refresh } = useLiveData(settlementsApi.notifications, true);
-  const unread = data?.notices.filter(n => !n.readAt).length ?? 0;
+  const { data, refresh } = useLiveData(settlementsApi.unreadCount, true);
+  const unread = data?.unread ?? 0;
   useEffect(() => {
     const update = () => { void refresh(); };
     window.addEventListener('cse416:settlements', update);

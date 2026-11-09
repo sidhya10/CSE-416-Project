@@ -9,6 +9,17 @@ export const settlementsRouter = Router();
 settlementsRouter.use(requireAuth);
 const id = z.string().min(1).max(100);
 const cents = z.number().int().positive().max(2_000_000_000);
+settlementsRouter.get('/settlement-notices/unread-count', async (req, res) => {
+  const where = { recipientId: req.userId!, readAt: null, deletedAt: null };
+  const member = { memberships: { some: { userId: req.userId! } } };
+  const counts = await Promise.all([
+    prisma.categoryBudgetNotice.count({ where }),
+    prisma.settlementNotice.count({ where: { ...where, batch: { group: member } } }),
+    prisma.budgetNotice.count({ where: { ...where, expense: { paidByUserId: req.userId!, group: member } } }),
+    prisma.groupNotice.count({ where: { ...where, group: member } }),
+  ]);
+  res.json({ unread: counts.reduce((sum, count) => sum + count, 0) });
+});
 settlementsRouter.get('/settlement-notices', async (req, res) => {
   await refreshCategoryBudgetNotices(req.userId!);
   const categoryNotices = await prisma.categoryBudgetNotice.findMany({ where: { recipientId: req.userId!, deletedAt: null } });

@@ -233,23 +233,18 @@ export function resolvePayment(expenseId: string, paymentId: string, userId: str
 export function groupBalances(groupId: string, userId: string) {
   return transaction(async tx => {
     await requireMember(tx, groupId, userId);
-    const members = await tx.groupMembership.findMany({ where: { groupId } });
-    const expenses = await tx.expense.findMany({ where: { groupId }, include: expenseInclude });
-    const ids = new Set([...members.map(member => member.userId), ...expenses.flatMap(expense => expense.shares.map(share => share.userId))]);
-    const balances = new Map([...ids].map(userId => [userId, { userId, balanceCents: 0, spendingCents: 0 }]));
-    for (const expense of expenses) {
-      const payer = balances.get(expense.paidByUserId)!;
-      payer.balanceCents += expense.totalCents;
-      for (const share of expense.shares) {
-        const member = balances.get(share.userId)!;
-        member.spendingCents += share.totalCents;
-        member.balanceCents -= share.totalCents;
-        for (const payment of share.payments) if (payment.status === 'CONFIRMED') {
-          member.balanceCents += payment.amountCents;
-          payer.balanceCents -= payment.amountCents;
-        }
-      }
-    }
-    return [...balances.values()];
+    const rows = await tx.$queryRaw<{ userId: string; balanceCents: bigint; spendingCents: bigint }[]>`
+      WITH entries AS (
+        SELECT "userId", 0::bigint AS balance, 0::bigint AS spending FROM "GroupMembership" WHERE "groupId" = ${groupId}
+        UNION ALL SELECT "paidByUserId", "totalCents"::bigint, 0::bigint FROM "Expense" WHERE "groupId" = ${groupId}
+        UNION ALL SELECT s."userId", -s."totalCents"::bigint, s."totalCents"::bigint
+          FROM "ExpenseShare" s JOIN "Expense" e ON e.id = s."expenseId" WHERE e."groupId" = ${groupId}
+        UNION ALL SELECT p."senderUserId", p."amountCents"::bigint, 0::bigint
+          FROM "ExpensePayment" p JOIN "Expense" e ON e.id = p."expenseId" WHERE e."groupId" = ${groupId} AND p.status = 'CONFIRMED'
+        UNION ALL SELECT e."paidByUserId", -p."amountCents"::bigint, 0::bigint
+          FROM "ExpensePayment" p JOIN "Expense" e ON e.id = p."expenseId" WHERE e."groupId" = ${groupId} AND p.status = 'CONFIRMED'
+      ) SELECT "userId", SUM(balance)::bigint AS "balanceCents", SUM(spending)::bigint AS "spendingCents"
+        FROM entries GROUP BY "userId" ORDER BY "userId"`;
+    return rows.map(row => ({ userId: row.userId, balanceCents: Number(row.balanceCents), spendingCents: Number(row.spendingCents) }));
   });
 }

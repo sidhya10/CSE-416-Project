@@ -6,6 +6,7 @@ export type SettlementInboxData = { userId: string; batches: SettlementBatch[]; 
 export const paymentMethods = ['Venmo', 'Zelle', 'PayPal', 'Cash', 'Bank transfer', 'Other'] as const;
 export type AppNotice = { expenseId?: string; groupId: string | null; id: string; message: string; kind: string; createdAt: string; readAt: string | null };
 export const settlementsApi = {
+  unreadCount: () => apiRequest<{ unread: number }>('/settlement-notices/unread-count'),
   deleteNotification: (id: string) => apiRequest(`/settlement-notices/${id}`, { method: 'DELETE' }),
   clearNotifications: () => apiRequest('/settlement-notices', { method: 'DELETE' }),
   notifications: () => apiRequest<{ notices: AppNotice[] }>('/settlement-notices'),

@@ -14,7 +14,7 @@ import './categoryBudgets.css';
 type BudgetScope = 'personal' | 'group';
 type Detail = { kind: 'insights' } | { kind: 'category'; key: CategoryKey; from: 'budget' | 'insights' } | { kind: 'owes' } | { kind: 'limits' } | { kind: 'groupPlan' } | null;
 
-const REFRESH_MS = 15_000;
+const REFRESH_MS = 60_000;
 const errorMessage = (error: unknown) => error instanceof ApiError ? error.message : 'Unable to reach the server. Try again.';
 const loadUnreviewedTransactions = () => bankingApi.transactions('unreviewed');
 const labelForTransaction = (transaction: ApiBankTransaction) => transaction.category === 'income'
@@ -83,7 +83,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
 
   useEffect(() => {
     if (!active) return;
-    refresh();
+    if (!document.hidden) refresh();
     const interval = window.setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
     const onVisible = () => { if (!document.hidden) refresh(); };
     document.addEventListener('visibilitychange', onVisible);

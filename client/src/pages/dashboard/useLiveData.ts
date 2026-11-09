@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 
-const REFRESH_MS = 15_000;
+const REFRESH_MS = 60_000;
 
 // Loads data while `active`, then refreshes on an interval and when the browser tab is shown again.
 // Only the latest request may update state, and a failed refresh keeps the data already shown.
@@ -17,7 +17,7 @@ export function useLiveData<T>(load: () => Promise<T>, active: boolean) {
   }, [load]);
   useEffect(() => {
     if (!active) return;
-    void refresh();
+    if (!document.hidden) void refresh();
     const interval = window.setInterval(() => { if (!document.hidden) void refresh(); }, REFRESH_MS);
     const onVisible = () => { if (!document.hidden) void refresh(); };
     document.addEventListener('visibilitychange', onVisible);

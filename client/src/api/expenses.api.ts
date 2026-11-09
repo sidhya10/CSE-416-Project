@@ -59,7 +59,12 @@ export function fromApiExpense(expense: ApiExpense, currentUserId: string): Prev
 }
 export const expensesApi = {
   delete: (id: string, acknowledgePayments = false) => apiRequest(`/expenses/${id}`, { method: 'DELETE', body: JSON.stringify({ acknowledgePayments }) }),
-  list: (groupId: string) => apiRequest<{ expenses: ApiExpense[] }>(`/groups/${groupId}/expenses`),
+  list: (groupId: string, page?: { scope?: 'open' | 'history'; cursor?: string }) => {
+    const query = new URLSearchParams();
+    if (page?.scope) query.set('scope', page.scope);
+    if (page?.cursor) query.set('cursor', page.cursor);
+    return apiRequest<{ expenses: ApiExpense[]; nextCursor?: string | null }>(`/groups/${groupId}/expenses${query.size ? `?${query}` : ''}`);
+  },
   get: (id: string) => apiRequest<{ expense: ApiExpense }>(`/expenses/${id}`),
   create: (groupId: string, split: PreviewSplit, userId: string, clientRequestId: string) => apiRequest<{ expense: ApiExpense }>(`/groups/${groupId}/expenses`, { method: 'POST', body: JSON.stringify({ clientRequestId, expense: toExpenseInput(split, userId) }) }),
   edit: (split: PreviewSplit, userId: string, id: string, version: number) => apiRequest<{ expense: ApiExpense }>(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify({ version, expense: toExpenseInput(split, userId) }) }),

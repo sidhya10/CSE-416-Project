@@ -173,7 +173,7 @@ export async function groupBudgets(userId: string, now = new Date()) {
   const window = monthWindow(now);
   const groups = await prisma.group.findMany({
     where: { archivedAt: null, memberships: { some: { userId } } },
-    include: { memberships: { orderBy: { joinedAt: 'asc' } }, budgetPlan: true },
+    select: { id: true, name: true, color: true, type: true, memberships: { orderBy: { joinedAt: 'asc' }, select: { userId: true, role: true } }, budgetPlan: true },
     orderBy: { updatedAt: 'desc' },
   });
   if (!groups.length) return [];
@@ -219,7 +219,7 @@ export async function homeSummary(userId: string, now = new Date()) {
   const inGroup = { memberships: { some: { userId } }, archivedAt: null };
   const [activity, pending, latest] = await Promise.all([
     financialActivity(userId, keys, start, window.end),
-    prisma.expensePayment.findMany({ where: { status: 'SENT', share: { expense: { paidByUserId: userId, group: inGroup } } }, select: { amountCents: true } }),
+    prisma.expensePayment.aggregate({ where: { status: 'SENT', share: { expense: { paidByUserId: userId, group: inGroup } } }, _count: true, _sum: { amountCents: true } }),
     prisma.expense.findFirst({
       where: { group: inGroup }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { title: true, totalCents: true, createdAt: true, creator: { select: { id: true, name: true } }, group: { select: { name: true } } },
@@ -227,7 +227,7 @@ export async function homeSummary(userId: string, now = new Date()) {
   ]);
   return {
     history: keys.map(key => activity.months.get(key)!),
-    pendingPayments: { count: pending.length, cents: pending.reduce((sum, payment) => sum + payment.amountCents, 0) },
+    pendingPayments: { count: pending._count, cents: pending._sum.amountCents ?? 0 },
     latestExpense: latest && { title: latest.title, groupName: latest.group.name, creatorName: latest.creator.name, isYou: latest.creator.id === userId, totalCents: latest.totalCents, createdAt: latest.createdAt.toISOString() },
   };
 }
