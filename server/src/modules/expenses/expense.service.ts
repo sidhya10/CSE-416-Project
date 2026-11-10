@@ -1,3 +1,4 @@
+import { readReceiptUpload } from '../receipts/receipt.upload.js';
 import { validateReceipt } from '../receipts/receipt.validation.js';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database.js';
@@ -52,10 +53,12 @@ async function writeItemsAndShares(tx: Transaction, expenseId: string, input: Ex
   }
 }
 
-async function writeReceipt(tx: Transaction, expenseId: string, input: ExpenseInput) {
+async function writeReceipt(tx: Transaction, expenseId: string, input: ExpenseInput, userId: string) {
   if (input.receipt === undefined) return;
   if (input.receipt === null) { await tx.expenseReceipt.deleteMany({ where: { expenseId } }); return; }
-  const { name, mimeType, base64 } = input.receipt;
+  const receipt = 'uploadId' in input.receipt ? await readReceiptUpload(tx, input.receipt, userId) : input.receipt;
+  const { name, mimeType, base64 } = receipt;
+  if (!['image/jpeg', 'application/pdf'].includes(mimeType)) throw new ExpenseError(400, 'Prepare the receipt attachment first');
   const bytes = validateReceipt(base64, mimeType);
   if (mimeType === 'image/jpeg' && bytes.length > 1024 * 1024) throw new ExpenseError(400, 'Saved receipt images must be under 1 MB.');
   const data = { name, mimeType, data: new Uint8Array(bytes) };
@@ -111,7 +114,7 @@ export function createExpense(groupId: string, userId: string, clientRequestId: 
     await tx.group.update({ where: { id: groupId }, data: { lastActivityAt: new Date() } });
     await writeItemsAndShares(tx, expense.id, input);
     if (input.budgetCategory) await tx.expenseShare.updateMany({ where: { expenseId: expense.id }, data: { budgetCategory: input.budgetCategory } });
-    await writeReceipt(tx, expense.id, input);
+    await writeReceipt(tx, expense.id, input, userId);
     if (!bankTransactionId) await notifyBudgetPayer(tx, expense.id, input);
     return readExpense(tx, expense.id, userId);
   });
@@ -132,7 +135,7 @@ export function editExpense(id: string, userId: string, version: number, input: 
     await tx.expenseShare.deleteMany({ where: { expenseId: id } });
     await writeItemsAndShares(tx, id, input);
     for (const share of previous.shares) await tx.expenseShare.updateMany({ where: { expenseId: id, userId: share.userId }, data: { budgetCategory: share.userId === userId ? input.budgetCategory ?? share.budgetCategory : share.budgetCategory } });
-    await writeReceipt(tx, id, input);
+    await writeReceipt(tx, id, input, userId);
     if (previous.paidByUserId !== input.paidByUserId) {
       await tx.budgetNotice.deleteMany({ where: { expenseId: id } });
       await tx.expense.update({ where: { id }, data: { budgetLinkReviewed: false } });

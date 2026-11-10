@@ -5,6 +5,7 @@ config({ path: process.env.ENV_FILE ?? '../.env' });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  CRON_SECRET: z.preprocess(value => value || undefined, z.string().min(32).optional()),
   PORT: z.coerce.number().int().positive().default(3000),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),

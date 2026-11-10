@@ -47,7 +47,7 @@ export async function parseReceipt(userId: string, base64: string, mimeType: str
   }
 }
 
-// Anonymous scans retain only aggregate quota counters, never receipt contents or results.
+// OCR accounting retains only aggregate guest counters; the upload transport separately expires temporary chunks.
 export async function parseGuestReceipt(base64: string, mimeType: string) {
   const bytes = validateReceipt(base64, mimeType);
   const now = new Date(), month = now.toISOString().slice(0, 7), day = now.toISOString().slice(0, 10);

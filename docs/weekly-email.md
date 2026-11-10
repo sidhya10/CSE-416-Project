@@ -1,6 +1,6 @@
 # Weekly summary email
 
-Every Friday at 10:00 Eastern, each user gets one email with their spending, budget alerts and shared activity from the past week. Users with nothing to report that week are skipped. The email is sent through Resend and is off until it is switched on.
+The weekly summary is scheduled for Friday at 10:00 Eastern. On Vercel Hobby, the daily 15:00 UTC cron checks the send window with approximate timing (10:00 Eastern in winter, 11:00 in summer); precise delivery is not guaranteed. Each eligible user gets at most one email with their spending, budget alerts and shared activity from the past week. Users with nothing to report that week are skipped. The email is sent through Resend and is off until it is switched on.
 
 ## What the email contains
 
@@ -33,9 +33,9 @@ Apply the new migration with `npx prisma migrate deploy`, then `npm run prisma:g
 
 ## How sending works
 
-- The API server checks once a minute. From Friday 10:00 Eastern (14:00 UTC in summer, 15:00 UTC in winter) it sends in batches of 50 users, with a short pause between emails to stay under Resend's rate limit.
+- The standalone API server checks once a minute. Vercel uses the authenticated daily cron instead; see [Vercel scheduling limits](vercel-deployment.md#schedules). From Friday 10:00 Eastern (14:00 UTC in summer, 15:00 UTC in winter) it sends in batches of 50 users, with a short pause between emails to stay under Resend's rate limit.
 - A `WeeklyEmailSend` row is created for each user and Friday before anything is sent. It is unique per user and date, so a restart or a second API instance cannot email anyone twice. Its status is `SENDING`, `SENT`, `SKIPPED` (nothing to report) or `FAILED`. The email's idempotency key is `weekly-<userId>-<date>`.
-- A failed or interrupted send is retried 10 minutes later, up to 3 attempts in total.
+- A failed or interrupted send becomes eligible for retry after 10 minutes, up to 3 attempts in total. Retries require another scheduler invocation inside the send window; the Vercel Hobby daily cron does not guarantee this.
 - The email is built as of the scheduled Friday time, so a retry later that day says the same thing. A send that is more than 24 hours late is skipped.
 
 ## Previewing locally

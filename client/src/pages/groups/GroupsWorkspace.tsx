@@ -1,3 +1,4 @@
+import { photoDataUrl } from '../../utils/photoUpload';
 import SettlementInbox from '../settlements/SettlementInbox';
 import SettlementReview from '../settlements/SettlementReview';
 import ConfirmDeletion from '../../components/common/ConfirmDeletion';
@@ -370,10 +371,8 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const choosePhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) { setMessage('Choose an image smaller than 5 MB.'); return; }
-    const reader = new FileReader();
-    reader.onload = () => updateGroup({ photo: typeof reader.result === 'string' ? reader.result : null });
-    reader.readAsDataURL(file);
+    void photoDataUrl(file).then(photo => updateGroup({ photo }))
+      .catch(error => setMessage(error instanceof Error ? error.message : 'Could not prepare this photo.'));
   };
   const listFriends = friends.filter(friend => `${friend.name} ${friend.handle} ${friend.email} ${friend.phone ?? ''}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => a[friendSort as 'name' | 'username' | 'email'].localeCompare(b[friendSort as 'name' | 'username' | 'email']));
   const addFriend = async (friend: Friend) => {
