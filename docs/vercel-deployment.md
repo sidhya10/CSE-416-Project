@@ -2,7 +2,11 @@
 
 ## Current status
 
-Implementation is prepared. Production cutover still requires transferring existing Render secrets, applying the new migration, and verifying the resulting deployment. Do not treat a successful frontend build as evidence that authentication, banking, or receipts work.
+Production cutover completed on November 10, 2026, at the existing app hostname. The existing Render database, session-signing, bank-encryption, Google/Azure settings and receipt quotas were transferred to Vercel production; the temporary export was deleted. Supplied Resend and production Plaid settings remain in place. The new migration applied successfully. Render stays suspended for rollback.
+
+Verified on production: health, protected scheduler authentication, registration, session reads, password login, group create/list/delete, native image conversion, expense/receipt persistence and binary download, Google sign-in challenge creation, production Plaid Link-token creation, and Azure OCR of a synthetic receipt. Disposable account/group/expense records were deleted. This did not link a real bank account or complete an interactive Google sign-in.
+
+CI for the application change passed migrations, lint, typechecking, 214 frontend tests, 251 backend tests, both API collections, builds, and 11 browser tests.
 
 ## Configuration
 

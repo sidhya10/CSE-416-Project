@@ -50,7 +50,7 @@ Milestone 4 includes the team's committed semester feature set after the explici
 
 ### Mobile, deployment, and quality
 
-- Prepared a unified Vercel deployment for the web client and Express API, retaining Prisma Postgres and same-origin `/api` paths.
+- Deployed the web client and Express API together on Vercel, retaining Prisma Postgres and same-origin `/api` paths.
 - Added a Capacitor iOS project, native contact selection, safe-area-aware mobile layouts, fixed bottom navigation, compact guest mode, and non-scrolling login and registration screens.
 - Expanded Prisma migrations, backend integration tests, frontend tests, Postman checks, Playwright flows, and GitHub Actions coverage for the new financial rules.
 
@@ -344,7 +344,7 @@ To enable connected bank accounts, configure the Plaid variables documented in `
 
 ## Production Deployment
 
-The repository now targets Vercel for both the web client and Express API. **Cutover is pending transfer of the existing Render secrets and production verification.** Render is suspended after exhausting its bandwidth allowance; the previous live deployment forwards API requests there until this change is deployed. Koyeb preparation has been removed.
+The web client and Express API now run together on Vercel, using the existing Prisma Postgres database. Production cutover completed on November 10, 2026. Render remains suspended after exhausting its bandwidth allowance and is retained as a rollback option; production API traffic no longer forwards there. Koyeb preparation has been removed.
 
 | Component | Target provider | Production address |
 |---|---|---|
@@ -354,6 +354,8 @@ The repository now targets Vercel for both the web client and Express API. **Cut
 | iPhone beta | Capacitor / TestFlight | Loads the same HTTPS application; this backend change needs no native rebuild |
 
 The function exports the Express app without starting the standalone listener or background timers. Production builds apply versioned migrations, including temporary receipt-upload tables. Preview builds do not migrate databases. The former Render service configuration remains available for rollback; do not run both services' background schedules concurrently.
+
+Production verification passed for account registration/login, session persistence, group creation/listing/deletion, receipt conversion/storage/download, production Plaid Link-token creation, and Azure parsing of a synthetic receipt. Disposable test records were removed. Google sign-in challenge creation was verified; a full Google account sign-in and a real bank connection still require an interactive user test.
 
 See [Vercel deployment and cutover](docs/vercel-deployment.md) for secrets, scheduling, upload limits, and verification. Production Plaid credentials must remain server-only; existing Sandbox bank connections require reconnecting in Production. No Neon or retired Railway records were imported into Prisma Postgres.
 
