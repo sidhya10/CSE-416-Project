@@ -6,6 +6,10 @@
   "outputDirectory": "client/dist",
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "/api"
+    },
+    {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }
@@ -22,7 +26,7 @@
     }
   ],
   "functions": {
-    "api/[...path].ts": {
+    "api/index.ts": {
       "maxDuration": 300,
       "includeFiles": "node_modules/{.prisma/client,heic-convert,heic-decode,libheif-js,sharp,@img}/**"
     }
