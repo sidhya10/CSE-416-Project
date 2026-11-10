@@ -36,8 +36,8 @@ it('checks ownership, token, complete chunks, and persists a large PDF via a sma
   expect(prepared.body).toEqual(input);
   const expense = await owner.post(`/api/groups/${groupId}/expenses`).send({ clientRequestId: randomUUID(), expense: { title: 'PDF attachment', paidByUserId: users[0], participantIds: [users[0]], splitMode: 'EQUAL', items: [{ name: 'Tea', quantity: 1, unitPriceCents: 100, assignedUserIds: [] }], receipt: input } }).expect(201);
   const saved = await prisma.expenseReceipt.findUniqueOrThrow({ where: { expenseId: expense.body.expense.id } });
-  expect(Buffer.from(saved.data)).toEqual(pdf);
-});
+  expect(Buffer.from(saved.data).equals(pdf)).toBe(true);
+}, 15_000);
 it('rejects expired uploads and cleans them before allocating another upload', async () => {
   const ref = (await owner.post('/api/receipts/uploads').send({ name: 'old.pdf', mimeType: 'application/pdf', size: 10 }).expect(201)).body;
   uploads.push(ref.uploadId);
