@@ -28,3 +28,17 @@ it('does not cache failed or aborted guest scans', async () => {
   await expect(scanReceipt(file, controller.signal, true, cache)).rejects.toThrow();
   expect(apiRequest).toHaveBeenCalledTimes(1);
 });
+it('uploads large receipts in bounded chunks and sends only a reference for parsing', async () => {
+  const reference = { uploadId: 'upload-1', uploadToken: 't'.repeat(43) };
+  vi.mocked(apiRequest).mockImplementation(async (path) => {
+    if (path === '/receipts/uploads?guest=true') return { ...reference, chunkSize: 1024 * 1024 } as never;
+    if (path === '/receipts/guest/parse') return { receipt, cached: false } as never;
+    return undefined as never;
+  });
+  const file = new File([new Uint8Array(3 * 1024 * 1024)], 'large.pdf', { type: 'application/pdf' });
+  await scanReceipt(file, new AbortController().signal, true);
+  const chunks = vi.mocked(apiRequest).mock.calls.filter(([path]) => path.includes('/chunks/'));
+  expect(chunks).toHaveLength(3);
+  for (const [, options] of chunks) expect(String(options?.body).length).toBeLessThan(1_500_000);
+  expect(apiRequest).toHaveBeenLastCalledWith('/receipts/guest/parse', expect.objectContaining({ body: JSON.stringify(reference) }));
+});

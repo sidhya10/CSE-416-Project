@@ -51,19 +51,6 @@ jobs:
       - run: npm run test:api:ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - name: Build Koyeb API image
-        run: docker build -f Dockerfile.koyeb -t cse416-api:koyeb .
-      - name: Verify Koyeb image startup and API protection
-        run: |
-          docker run -d --name koyeb-api-smoke --network host \
-            -e DATABASE_URL -e JWT_SECRET \
-            -e NODE_ENV=production -e PORT=3001 \
-            -e CORS_ORIGIN=http://localhost:5173 \
-            cse416-api:koyeb
-          trap 'docker logs koyeb-api-smoke; docker rm -f koyeb-api-smoke' EXIT
-          curl --fail --retry 20 --retry-connrefused --retry-delay 2 http://127.0.0.1:3001/api/health
-          status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/groups)
-          test "$status" = "401"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

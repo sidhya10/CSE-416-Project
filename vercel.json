@@ -2,15 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "npm ci",
-  "buildCommand": "npm run build --workspace client",
+  "buildCommand": "node scripts/vercel-build.mjs",
   "outputDirectory": "client/dist",
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://cse-416-budget-api.onrender.com/api/:path*"
-    },
-    {
-      "source": "/:path*",
+      "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }
   ],
@@ -23,6 +19,18 @@
           "value": "same-origin-allow-popups"
         }
       ]
+    }
+  ],
+  "functions": {
+    "api/[...path].ts": {
+      "maxDuration": 300,
+      "includeFiles": "node_modules/{.prisma/client,heic-convert,heic-decode,libheif-js,sharp,@img}/**"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/jobs/daily",
+      "schedule": "0 15 * * *"
     }
   ]
 }

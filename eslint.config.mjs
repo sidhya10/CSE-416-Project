@@ -24,7 +24,7 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser, ...globals.es2022 } },
   },
   {
-    files: ['server/**/*.ts', 'prisma/**/*.ts', 'shared/**/*.ts'],
+    files: ['api/**/*.ts', 'server/**/*.ts', 'prisma/**/*.ts', 'shared/**/*.ts'],
     languageOptions: { globals: { ...globals.node, ...globals.es2022 } },
   },
 );

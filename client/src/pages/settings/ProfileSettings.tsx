@@ -1,3 +1,4 @@
+import { photoDataUrl } from '../../utils/photoUpload';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useAppearance } from '../../appearance';
 import { authApi } from '../../api/auth.api';
@@ -69,13 +70,8 @@ export default function ProfileSettings({ user, onUserChange, onLogout, onRootCh
   const selectPhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
-      setMessage('Choose an image smaller than 5 MB.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setDraft(previous => ({ ...previous, photoUrl: typeof reader.result === 'string' ? reader.result : null }));
-    reader.readAsDataURL(file);
+    void photoDataUrl(file).then(photoUrl => setDraft(previous => ({ ...previous, photoUrl })))
+      .catch(error => setMessage(error instanceof Error ? error.message : 'Could not prepare this photo.'));
   };
 
   const avatar = (item: Profile, large = false) => <span className={large ? 'profile-avatar large' : 'profile-avatar'}>
