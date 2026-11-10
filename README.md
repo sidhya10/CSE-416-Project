@@ -344,6 +344,8 @@ To enable connected bank accounts, configure the Plaid variables documented in `
 
 ## Production Deployment
 
+**Koyeb migration pending:** Render is suspended after exhausting its bandwidth allowance. A Free Koyeb API deployment is prepared in [`Dockerfile.koyeb`](Dockerfile.koyeb); follow [deployment and cutover instructions](docs/koyeb-deployment.md). Prisma Postgres stays unchanged. The Vercel API rewrite has not been switched because the Koyeb service is not yet provisioned or verified.
+
 | Component | Provider | Production address |
 |---|---|---|
 | Web client | Vercel | <https://cse-416-project-tau.vercel.app> |
