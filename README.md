@@ -342,6 +342,10 @@ AZURE_DOCUMENT_INTELLIGENCE_KEY
 
 To enable connected bank accounts, configure the Plaid variables documented in `.env.example`. Use Plaid Sandbox for development and demonstrations. See [Bank connections (Plaid)](docs/banking-backend.md) for setup, routes, and sandbox testing.
 
+### Native Google sign-in on iOS
+
+The iOS wrapper uses Google's native sign-in SDK through a Capacitor bridge; browsers retain the web sign-in flow. The native flow keeps the same backend nonce/state and session checks and supports sign-in, sign-up, linking, and recovery. The supplied iOS OAuth client is configured for `com.cse416.divvy`; run `npm run mobile:google -- --check` to validate its callback metadata. See [Google sign-in setup](docs/google-auth.md#configure-the-ios-build) for complete steps. This integration requires a new native build and real-device verification; it is not activated merely by deploying Vercel.
+
 ## Production Deployment
 
 The web client and Express API now run together on Vercel, using the existing Prisma Postgres database. Production cutover completed on November 10, 2026. Render remains suspended after exhausting its bandwidth allowance and is retained as a rollback option; production API traffic no longer forwards there. Koyeb preparation has been removed.
