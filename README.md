@@ -344,7 +344,7 @@ To enable connected bank accounts, configure the Plaid variables documented in `
 
 ### Native Google sign-in on iOS
 
-The iOS wrapper uses Google's native sign-in SDK through a Capacitor bridge; browsers retain the web sign-in flow. The native flow keeps the same backend nonce/state and session checks and supports sign-in, sign-up, linking, and recovery. Configure a Google OAuth client of type **iOS** for the bundle ID of your existing TestFlight app, then run `npm run mobile:google -- --client-id YOUR_IOS_CLIENT_ID.apps.googleusercontent.com`. See [Google sign-in setup](docs/google-auth.md#configure-the-ios-build) for complete steps. This integration requires a new native build and the real iOS OAuth metadata; it is not activated merely by deploying Vercel.
+The iOS wrapper uses Google's native sign-in SDK through a Capacitor bridge; browsers retain the web sign-in flow. The native flow keeps the same backend nonce/state and session checks and supports sign-in, sign-up, linking, and recovery. The supplied iOS OAuth client is configured for `com.cse416.divvy`; run `npm run mobile:google -- --check` to validate its callback metadata. See [Google sign-in setup](docs/google-auth.md#configure-the-ios-build) for complete steps. This integration requires a new native build and real-device verification; it is not activated merely by deploying Vercel.
 
 ## Production Deployment
 

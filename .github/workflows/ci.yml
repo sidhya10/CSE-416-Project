@@ -68,8 +68,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run mobile:sync
-      # Public dummy metadata validates wiring; CI never signs in or uses Google credentials.
-      - run: npm run mobile:google -- --client-id 1234567890-ci.apps.googleusercontent.com
+      # OAuth client IDs are public metadata. CI validates them but never signs in.
       - run: npm run mobile:google -- --check
       - run: xcodebuild -version
       - name: Compile iOS Google bridge without signing

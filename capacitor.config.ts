@@ -4,7 +4,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // the existing HTTPS application so web and TestFlight users share the same
 // API origin, sessions, and data without changing the web hosting setup.
 const config: CapacitorConfig = {
-  appId: 'com.cse416.personalgroupbudget',
+  appId: 'com.cse416.divvy',
   appName: 'CSE 416 Budget',
   webDir: 'client/dist',
   loggingBehavior: 'none',

@@ -52,7 +52,7 @@ The browser uses the web popup. The Capacitor iOS app now uses Google's native S
 
 ### Configure the iOS build
 
-1. In Google Cloud's Google Auth Platform / Clients (or APIs & Services / Credentials), create an OAuth client of type **iOS** in the same Google project as the existing Web client. Set its bundle ID to the **exact identifier of the app already uploaded to App Store Connect**. The repository defaults to `com.cse416.personalgroupbudget`; your previously uploaded app may use `com.cse416.divvy`. Check Xcode's app target and App Store Connect rather than creating a new app identifier or changing the existing listing.
+1. In Google Cloud's Google Auth Platform / Clients (or APIs & Services / Credentials), create an OAuth client of type **iOS** in the same Google project as the existing Web client. Set its bundle ID to the **exact identifier of the app already uploaded to App Store Connect**. This repository is configured for the confirmed TestFlight bundle ID `com.cse416.divvy`. Keep that identifier in Xcode and App Store Connect.
 2. Copy the public iOS client ID, ending in `.apps.googleusercontent.com`. This is different from the Web client ID already configured on Vercel. No client secret belongs in the iOS app.
 3. On your Mac, after pulling this change, run:
 
@@ -64,7 +64,7 @@ The browser uses the web popup. The Capacitor iOS app now uses Google's native S
    npm run mobile:open
    ```
 
-   The configuration command requires Python 3. It adds `GIDClientID` and its reversed callback URL scheme to `ios/App/App/Info.plist`, preserving other URL handlers and signing/bundle settings. Run it with the actual ID, not the example placeholder. The resulting configuration is public OAuth metadata; it may be committed to keep future builds consistent. It is intentionally absent until the real iOS client is supplied.
+   The configuration command requires Python 3. It adds `GIDClientID` and its reversed callback URL scheme to `ios/App/App/Info.plist`, preserving other URL handlers and signing/bundle settings. Run it with the actual ID, not the example placeholder. The resulting configuration is public OAuth metadata; it may be committed to keep future builds consistent. The supplied iOS client and reversed callback scheme are now committed for `com.cse416.divvy`.
 4. Xcode resolves the pinned GoogleSignIn 9.2.0 Swift package directly from the app project. It is separate from Capacitor's generated `CapApp-SPM/Package.swift`, so `cap sync` does not remove it. Version 9.2 includes custom nonce support while retaining this app's iOS 15 target.
 5. Preserve your Apple signing team and existing bundle ID, increase the build number above the latest uploaded build, run on an iPhone, then archive and upload through App Store Connect. A Vercel deployment cannot install the native SDK into an existing TestFlight binary.
 
@@ -81,4 +81,4 @@ Playwright tests open a real browser popup using a stub Google provider and stub
 References: [Google JavaScript API](https://developers.google.com/identity/gsi/web/reference/js-reference), [Google web setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid), [server token verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token), [native application OAuth](https://developers.google.com/identity/protocols/oauth2/native-app).
 
 
-The `ios-build` CI job runs `mobile:sync`, exercises public dummy iOS client metadata configuration, and compiles the iOS simulator target without code signing. It does not authenticate to Google. A real-device sign-in/sign-up, cancellation/retry, account switching, linking, recovery, app relaunch/session persistence, and callback return must still be checked with the real OAuth client before uploading the new TestFlight build.
+The `ios-build` CI job runs `mobile:sync`, validates the committed public iOS client metadata, and compiles the iOS simulator target without code signing. It does not authenticate to Google. A real-device sign-in/sign-up, cancellation/retry, account switching, linking, recovery, app relaunch/session persistence, and callback return must still be checked with the real OAuth client before uploading the new TestFlight build.
