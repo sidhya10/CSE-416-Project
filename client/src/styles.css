@@ -1,6 +1,19 @@
 :root{font-family:var(--font-ui);color:var(--text);background:var(--canvas);font-synthesis:none;text-rendering:optimizeLegibility}
 *{box-sizing:border-box}html,body,#root{min-height:100%;height:100%}body{margin:0;min-width:320px}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .device{position:relative;display:flex;flex-direction:column;width:min(100%,390px);height:min(844px,100dvh);margin:0 auto;background:var(--page);border:1px solid var(--border);border-radius:28px;overflow:hidden}
+.native-app,.native-app body,.native-app #root{background:var(--page)}
+.native-app{width:100%;height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.native-app body,.native-app #root{width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}
+.native-app .device{width:100%;height:100dvh;border:0;border-radius:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.native-app .device> *{min-width:0;max-width:100%}
+/* Prevent iOS focus zoom without disabling the user's pinch-to-zoom gesture. */
+.native-app .device input,.native-app .device select,.native-app .device textarea{font-size:max(16px,1em)!important}
+.native-app .device .auth-login,.native-app .device .auth-signup{overflow-y:auto;overflow-x:hidden}
+.native-app .device .auth-login,.native-app .device .auth-signup{padding-top:8px;padding-bottom:8px}
+.native-app .device .bottom-nav{margin-bottom:8px}
+.native-app .device .guest-banner{padding-top:10px}
+.native-app .device .guest-body{padding-bottom:24px}
+.native-app .device .guest-split .expense-footer{padding-bottom:12px}
 .pull-refresh{position:absolute;z-index:1200;top:env(safe-area-inset-top,0px);left:50%;display:grid;place-items:center;width:40px;height:40px;border:1px solid var(--border);border-radius:50%;background:var(--surface);color:var(--accent);box-shadow:0 2px 8px #14251d20;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .24s cubic-bezier(.2,.8,.2,1)}
 .pull-refresh.visible{opacity:1}.pull-refresh.dragging{transition:opacity .12s ease}.pull-refresh.refreshing svg{animation:refresh-spin .8s linear infinite}
 .refresh-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
