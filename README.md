@@ -2,7 +2,7 @@
 
 **Team:** Eva · Vivian · Nicole · Sidhya  
 **Course:** CSE 416 · Software Engineering  
-**Implementation status:** November 9, 2026 · Milestone 5 integration and release preparation
+**Implementation status:** November 11, 2026 · Milestone 5 integration and release preparation
 
 ## Project Overview
 
@@ -16,14 +16,18 @@ The app records that payments were sent and received, but it does not move money
 
 The latest merged changes include:
 
+- Native Google sign-in for iOS, configured for `com.cse416.divvy`, with the existing backend session checks. This requires a new TestFlight binary and physical-device verification.
+- Eva’s mobile safe-area, status-bar, and layout fixes, plus stable group avatar placeholders across list, detail, customization, and settings screens.
+- Removed generated presentation artifacts from source control.
+
 - Month-specific personal budget limits: editing the current month no longer changes saved limits for previous months. A month without saved limits uses the most recent earlier limits; history before the monthly-limit migration cannot be reconstructed.
 - Bank reconnection deduplication, monthly transaction browsing, and clearer linked-transaction cards showing the original bank charge and personal share.
 - Expense-to-bank linking when the expense date is omitted; the server defaults the date to today.
 - Permanent expense deletion with explicit acknowledgment when payment history exists, notifications to affected group members, and updated settlement balances. Real transfers are not refunded by deleting an expense.
 - Consistent personal/group mobile controls, pull-to-refresh with loading/error feedback, left-edge swipe-back, and a Home to-do linking users without a bank connection to Bank Connections.
-- An initial iPhone build has been uploaded to App Store Connect for TestFlight distribution. External beta approval and public-link availability must be checked in App Store Connect; native Google Sign-In and production bank OAuth are not claimed as completed.
+- An initial iPhone build has been uploaded to App Store Connect for TestFlight distribution. External beta approval and public-link availability must be checked in App Store Connect; native Google Sign-In is now implemented in source, while real-device sign-in and production bank OAuth still require interactive verification.
 
-**Database cutover:** Production uses **Prisma Postgres Free** as of November 9, 2026. Neon rejected source reads with HTTP 402 (quota exceeded), so the project owner authorized starting with a fresh database. The existing Neon data was not imported or deleted. Existing users must register again, recreate groups, and reconnect bank accounts; old accounts, expenses, payments, and bank connections are absent from the new database. See [Prisma Postgres cutover](docs/prisma-postgres-migration.md).
+**Database cutover:** Production uses **Prisma Postgres Free** as of November 9, 2026. Neon rejected source reads with HTTP 402 (quota exceeded), so the project owner authorized starting with a fresh database. The existing Neon data was not imported or deleted. Accounts and financial records from the former Neon database were not automatically imported. Existing Prisma accounts, groups, expenses, and review demo data are retained during subsequent deployments; deployments do not reset or reseed production. See [Prisma Postgres cutover](docs/prisma-postgres-migration.md).
 
 ## Milestone 4 Update
 
@@ -213,7 +217,7 @@ The next milestone is primarily a hardening and release-readiness milestone. The
 1. **End-to-end hardening:** exercise registration, bank sync, receipt scanning, splitting, settlement, and budget reconciliation with multiple realistic accounts; address edge cases, accessibility, loading/error states, and narrow-phone usability.
 2. **Payer fairness:** use existing group ledger totals to suggest who should pay the next shared expense when one person has been fronting substantially more than everyone else. This remains advisory and never changes the payer automatically.
 3. **Bank-sync resilience:** add scheduled or webhook-driven synchronization, improve ambiguous-match explanations, and test transfer reconciliation against more Plaid Sandbox scenarios.
-4. **iPhone beta readiness:** complete Apple signing and TestFlight upload, then validate camera, contacts, receipt selection, cookies, and safe-area behavior on physical iPhones. Native Google Sign-In and production Plaid OAuth remain separate follow-up integrations.
+4. **iPhone beta readiness:** upload a new build containing native Google Sign-In and the latest mobile configuration, then validate Google authentication, camera, contacts, receipt selection, cookies, and safe-area behavior on physical iPhones. Production Plaid OAuth and bank-app return handling still require device verification.
 5. **Notification readiness:** add weekly-email opt-out controls and a verified sending setup before enabling scheduled summaries for real users; evaluate Web Push only after the in-app and email flows are stable.
 6. **Demo and operations:** maintain repeatable demo accounts, verify coordinated Vercel application releases, monitor production errors, and keep README/API documentation synchronized with shipped behavior.
 
@@ -235,7 +239,7 @@ The following product concepts are planned or incomplete and should not be treat
 - **Debt simplification:** Within-group and cross-group debt netting are not implemented.
 - **Multi-currency:** All current financial flows use USD.
 - **Receipt merging:** Multiple receipt photos or pages cannot be merged into one scan.
-- **Native mobile distribution:** A separate Capacitor iPhone shell with native contact selection is implemented and ready to archive in Xcode. It has not yet been signed or uploaded to TestFlight. The first beta should use password login and Plaid Sandbox; native Google Sign-In and production Plaid OAuth handling remain future mobile integrations.
+- **Native mobile distribution:** An initial Capacitor iPhone build has been uploaded to App Store Connect. Native contact selection and native Google Sign-In are implemented; the latter and mobile configuration changes require a new TestFlight binary. Production Plaid is configured, but interactive Google authentication and real-bank OAuth/return handling still need physical-device verification.
 
 Possible future features also include exportable trip summaries, savings goals, budget rollover, and a curated credit-card benefits tool.
 
@@ -320,6 +324,7 @@ On a Mac with Xcode installed:
 ```sh
 npm ci
 npm run mobile:sync
+npm run mobile:google -- --check
 npm run mobile:open
 ```
 
@@ -355,9 +360,9 @@ The web client and Express API now run together on Vercel, using the existing Pr
 | Web client | Vercel | <https://cse-416-project-tau.vercel.app> |
 | REST API | Vercel Functions | Same host, `/api/*` |
 | PostgreSQL | Prisma Postgres Free | Server-only TLS connection; existing database retained |
-| iPhone beta | Capacitor / TestFlight | Loads the same HTTPS application; this backend change needs no native rebuild |
+| iPhone beta | Capacitor / TestFlight | Loads the same HTTPS application; native Google SDK and Capacitor configuration changes require a new uploaded binary |
 
-The function exports the Express app without starting the standalone listener or background timers. Production builds apply versioned migrations, including temporary receipt-upload tables. Preview builds do not migrate databases. The former Render service configuration remains available for rollback; do not run both services' background schedules concurrently.
+The function exports the Express app without starting the standalone listener or background timers. Production builds apply versioned migrations, including temporary receipt-upload tables. The latest merged release contains 26 migration directories and no new database schema changes; deploy checks pending migrations without resetting existing data. Preview builds do not migrate databases. The former Render service configuration remains available for rollback; do not run both services' background schedules concurrently.
 
 Production verification passed for account registration/login, session persistence, group creation/listing/deletion, receipt conversion/storage/download, production Plaid Link-token creation, and Azure parsing of a synthetic receipt. Disposable test records were removed. Google sign-in challenge creation was verified; a full Google account sign-in and a real bank connection still require an interactive user test.
 
