@@ -1,3 +1,4 @@
+import { jobsRouter } from './modules/jobs/jobs.routes.js';
 import { settlementsRouter } from './modules/settlements/settlement.routes.js';
 import { bankingRouter } from './modules/banking/bank.routes.js';
 import { budgetsRouter } from './modules/budgets/budget.routes.js';
@@ -33,6 +34,7 @@ app.get('/api/health', (_request, response) => {
   response.status(200).json({ status: 'ok', service: 'cse-416-api' });
 });
 
+app.use('/api/jobs', jobsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/friends', friendsRouter);

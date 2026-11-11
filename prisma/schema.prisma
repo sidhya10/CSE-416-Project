@@ -574,3 +574,27 @@ model GroupNotice {
   @@index([recipientId, readAt])
   @@index([groupId])
 }
+
+// Short-lived receipt transport, kept out of individual serverless request bodies.
+model ReceiptUpload {
+  id         String   @id @default(cuid())
+  tokenHash  String
+  ownerId    String?
+  clientKey  String
+  name       String
+  mimeType   String
+  size       Int
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  chunks     ReceiptUploadChunk[]
+  @@index([expiresAt])
+  @@index([clientKey, createdAt])
+}
+
+model ReceiptUploadChunk {
+  uploadId String
+  index    Int
+  data     Bytes
+  upload   ReceiptUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  @@id([uploadId, index])
+}

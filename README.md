@@ -50,7 +50,7 @@ Milestone 4 includes the team's committed semester feature set after the explici
 
 ### Mobile, deployment, and quality
 
-- Migrated the production API and database to Render and Neon while retaining Vercel for the web client and same-origin `/api` forwarding.
+- Deployed the web client and Express API together on Vercel, retaining Prisma Postgres and same-origin `/api` paths.
 - Added a Capacitor iOS project, native contact selection, safe-area-aware mobile layouts, fixed bottom navigation, compact guest mode, and non-scrolling login and registration screens.
 - Expanded Prisma migrations, backend integration tests, frontend tests, Postman checks, Playwright flows, and GitHub Actions coverage for the new financial rules.
 
@@ -215,7 +215,7 @@ The next milestone is primarily a hardening and release-readiness milestone. The
 3. **Bank-sync resilience:** add scheduled or webhook-driven synchronization, improve ambiguous-match explanations, and test transfer reconciliation against more Plaid Sandbox scenarios.
 4. **iPhone beta readiness:** complete Apple signing and TestFlight upload, then validate camera, contacts, receipt selection, cookies, and safe-area behavior on physical iPhones. Native Google Sign-In and production Plaid OAuth remain separate follow-up integrations.
 5. **Notification readiness:** add weekly-email opt-out controls and a verified sending setup before enabling scheduled summaries for real users; evaluate Web Push only after the in-app and email flows are stable.
-6. **Demo and operations:** maintain repeatable demo accounts, verify coordinated Vercel and Render releases, monitor production errors, and keep README/API documentation synchronized with shipped behavior.
+6. **Demo and operations:** maintain repeatable demo accounts, verify coordinated Vercel application releases, monitor production errors, and keep README/API documentation synchronized with shipped behavior.
 
 If time remains after those priorities, persistent trip planning and invitation acceptance are the highest-value deferred workflow additions. Large new features will not take priority over correctness of the core reconciliation path.
 
@@ -248,8 +248,8 @@ Possible future features also include exportable trip summaries, savings goals, 
 | Frontend | React 19, TypeScript, Vite | Mobile-responsive interface and client-side application state |
 | iPhone shell | Capacitor 8, Swift Package Manager, Xcode | Separate iOS 15+ wrapper for TestFlight that loads the production HTTPS application without changing the Vercel deployment |
 | Styling and charts | CSS | Responsive layouts, theme support, progress bars, and chart-like visualizations |
-| Backend | Node.js, Express, TypeScript, Render | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts; the production API runs as a Render web service |
-| Database | Prisma Postgres Free, Prisma ORM | Serverless PostgreSQL persistence and transactional financial operations; Prisma migrations are applied when the Render service starts |
+| Backend | Node.js, Express, TypeScript, Vercel Functions | Authentication and REST APIs for users, groups, expenses, settlements, budgets, banking, recurring bills, and receipts; the API exports an Express handler for Vercel Functions |
+| Database | Prisma Postgres Free, Prisma ORM | Serverless PostgreSQL persistence and transactional financial operations; production Vercel builds apply pending Prisma migrations |
 | Authentication | bcrypt, Google Identity Services, signed httpOnly cookies | Identifier/password login, hashed one-time recovery codes, optional email reset links, Google authentication/recovery, and revocable server-managed sessions |
 | Bank data | Plaid | Account connection, balance retrieval, and transaction synchronization |
 | Receipt processing | Azure Document Intelligence, `heic-convert`, `sharp` | Receipt extraction, HEIC conversion, and image processing |
@@ -313,7 +313,7 @@ npm ci --include=optional
 
 ### iPhone and TestFlight
 
-The repository includes a separate Capacitor iOS project in `ios/`. It loads the existing production web client over HTTPS, so web and iPhone users share the same Render API, Prisma Postgres database, sessions, and application behavior. Building the iOS target does not modify or redeploy the Vercel web client.
+The repository includes a separate Capacitor iOS project in `ios/`. It loads the existing production web client over HTTPS, so web and iPhone users share the same API, Prisma Postgres database, sessions, and application behavior. Building the iOS target does not modify or redeploy the Vercel web client.
 
 On a Mac with Xcode installed:
 
@@ -344,16 +344,20 @@ To enable connected bank accounts, configure the Plaid variables documented in `
 
 ## Production Deployment
 
-| Component | Provider | Production address |
+The web client and Express API now run together on Vercel, using the existing Prisma Postgres database. Production cutover completed on November 10, 2026. Render remains suspended after exhausting its bandwidth allowance and is retained as a rollback option; production API traffic no longer forwards there. Koyeb preparation has been removed.
+
+| Component | Target provider | Production address |
 |---|---|---|
 | Web client | Vercel | <https://cse-416-project-tau.vercel.app> |
-| REST API | Render | <https://cse-416-budget-api.onrender.com> |
-| PostgreSQL | Prisma Postgres Free | Server-only TLS connection from the Render API |
-| iPhone beta | Capacitor / TestFlight | Initial build uploaded by the project owner; external beta approval is managed in App Store Connect |
+| REST API | Vercel Functions | Same host, `/api/*` |
+| PostgreSQL | Prisma Postgres Free | Server-only TLS connection; existing database retained |
+| iPhone beta | Capacitor / TestFlight | Loads the same HTTPS application; this backend change needs no native rebuild |
 
-The Vercel client forwards `/api/*` requests to Render, so the browser continues to use same-origin API paths. Render runs the Node/Express server from `main`, applies pending Prisma migrations during startup, and connects to Prisma Postgres. The reproducible service configuration is in [`render.yaml`](render.yaml); production credentials are stored only as Render environment variables and are not committed to the repository.
+The function exports the Express app without starting the standalone listener or background timers. Production builds apply versioned migrations, including temporary receipt-upload tables. Preview builds do not migrate databases. The former Render service configuration remains available for rollback; do not run both services' background schedules concurrently.
 
-The current Render service uses the free plan. It may spin down while idle, so the first request after inactivity can take longer than normal. The Prisma Postgres database was initialized from the repository's versioned migrations. No Neon or retired Railway records were imported. The iOS shell loads the hosted Vercel application, so it reaches the same new database through Render without a native rebuild for this configuration change.
+Production verification passed for account registration/login, session persistence, group creation/listing/deletion, receipt conversion/storage/download, production Plaid Link-token creation, and Azure parsing of a synthetic receipt. Disposable test records were removed. Google sign-in challenge creation was verified; a full Google account sign-in and a real bank connection still require an interactive user test.
+
+See [Vercel deployment and cutover](docs/vercel-deployment.md) for secrets, scheduling, upload limits, and verification. Production Plaid credentials must remain server-only; existing Sandbox bank connections require reconnecting in Production. No Neon or retired Railway records were imported into Prisma Postgres.
 
 ## Database transfer reductions
 

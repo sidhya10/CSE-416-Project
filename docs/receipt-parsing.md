@@ -67,3 +67,7 @@ Receipt attachments now persist in PostgreSQL's `ExpenseReceipt` table when the 
 Run `npx prisma migrate deploy` and restart the backend after installing this update. Test uploading and saving without scanning, refreshing and viewing, then editing to replace/remove the receipt. Test another group member's access and an outsider's rejection. Scanning alone still does not create an expense or payment.
 
 References: [Azure REST API](https://learn.microsoft.com/en-us/rest/api/aiservices/document-models/analyze-document?view=rest-aiservices-v4.0%20(2024-11-30)), [receipt schema](https://github.com/Azure-Samples/document-intelligence-code-samples/blob/main/schema/2024-11-30-ga/receipt.md), [pricing](https://azure.microsoft.com/en-us/pricing/details/document-intelligence/).
+
+## Vercel transport
+
+Files above 2 MB use 1 MB chunks stored temporarily in Prisma Postgres, including guest scans. An upload requires its secret token and matching owner or guest scope. Uploads expire after one hour; parse attempts delete their temporary input after processing, while large PDF attachment references remain available until expiry so expense saves can be retried. Daily maintenance and new upload allocation remove expired records. Original file limits remain 12 MB for HEIC/HEIF and 4 MB for other supported files. See [Vercel deployment](vercel-deployment.md).

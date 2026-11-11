@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { uploadReference } from '../receipts/receipt.upload.js';
 
 const cents = z.number().int().min(0).max(100_000_000);
 const id = z.string().min(1).max(100);
 const uniqueIds = z.array(id).min(1).max(100).refine(ids => new Set(ids).size === ids.length, 'Duplicate participants');
 export const expenseInput = z.object({
-  receipt: z.object({ name: z.string().trim().min(1).max(255), mimeType: z.enum(['image/jpeg', 'application/pdf']), base64: z.string().max(5_592_408) }).strict().nullable().optional(),
+  receipt: z.union([uploadReference, z.object({ name: z.string().trim().min(1).max(255), mimeType: z.enum(['image/jpeg', 'application/pdf']), base64: z.string().max(5_592_408) }).strict()]).nullable().optional(),
   title: z.string().trim().min(1).max(500),
   expenseDate: z.iso.date().optional(),
   budgetCategory: z.enum(['dining', 'groceries', 'transit', 'shopping', 'other']).optional(),
