@@ -57,3 +57,19 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  ios-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run mobile:sync
+      # OAuth client IDs are public metadata. CI validates them but never signs in.
+      - run: npm run mobile:google -- --check
+      - run: xcodebuild -version
+      - name: Compile iOS Google bridge without signing
+        run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/divvy-ios-build CODE_SIGNING_ALLOWED=NO build
