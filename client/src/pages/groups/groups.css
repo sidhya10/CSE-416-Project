@@ -95,6 +95,14 @@
 .deletion-dialog button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 
 /* Shared visual language for the group and personal workspaces. */
+.group-avatar.has-photo{background:transparent;border-radius:50%}
+.group-detail-header .group-avatar{border-radius:50%}
+.groups-workspace>.group-secondary{display:block;width:100%;min-height:var(--control-height);margin-top:12px;padding:12px 16px;border:1px solid var(--accent);border-radius:var(--radius-control);background:var(--surface);color:var(--accent);font-size:var(--text-control);font-weight:600;cursor:pointer}
+.groups-workspace>.group-secondary:hover:not(:disabled){background:var(--surface-hover)}
+.groups-workspace>.group-secondary.group-danger{background:var(--danger-strong);border-color:var(--danger-strong);color:#fff}
+.groups-workspace>.group-secondary.group-danger:hover:not(:disabled){background:var(--danger-strong);filter:brightness(.92)}
+.groups-workspace>.group-secondary:disabled{opacity:.5;cursor:default}
+.groups-workspace>.group-secondary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .groups-workspace{font-family:var(--font-ui);font-size:var(--text-body);line-height:1.45}
 .group-header h1,.group-centered-header h1,.group-detail-header h1{font-size:var(--text-page-title);line-height:1.25}
 .group-section-title,.group-section-line .group-section-title{font-size:var(--text-section);line-height:1.3}

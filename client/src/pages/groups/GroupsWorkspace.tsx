@@ -9,7 +9,7 @@ import { paymentFor, updatePayment, type PaymentAction } from '../expenses/payme
 import ExpenseDetails from '../expenses/ExpenseDetails';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import './groups.css';
-import Avatar from '../../components/common/Avatar';
+import Avatar, { GroupAvatar } from '../../components/common/Avatar';
 import { ApiError } from '../../api/client';
 import { friendsApi } from '../../api/friends.api';
 import { groupsApi } from '../../api/groups.api';
@@ -638,7 +638,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
             if (suppressCardClick.current === group.id) { suppressCardClick.current = null; return; }
             if (openActionsId === group.id) { setOpenActionsId(null); return; }
             enterGroup(group.id);
-          }}><Avatar name={group.name} color={group.color} photo={group.photo}
+          }}><GroupAvatar name={group.name} color={group.color} photo={group.photo}
               balanceDirection={group.balance > 0 ? 'owed' : group.balance < 0 ? 'owing' : undefined} />
               <span><strong>{group.name}</strong><small>{group.members.length + 1} members · {group.type}</small>
                 {group.archived && <small className="archive-tag">{group.archiveReason === 'INACTIVE' ? 'Archived · Inactive' : 'Archived'}</small>}
@@ -703,7 +703,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     {screen === 'customize' && <>
       <Header title="Customize group" subtitle="You can change these settings later." back={() => { setEditingMembers(false); go('select'); }} />
       <div className="group-photo-editor"><button type="button" onClick={() => photoInput.current?.click()} aria-label="Add group photo">
-        <Avatar name={draft.name || 'B'} color={draft.color} photo={draft.photo} size="large" /><span>+</span></button>
+        <GroupAvatar name={draft.name || 'B'} color={draft.color} photo={draft.photo} size="large" /><span>+</span></button>
         <button type="button" onClick={() => photoInput.current?.click()}>Add group photo</button></div>
       <input ref={photoInput} hidden type="file" accept="image/*" onChange={choosePhoto} aria-label="Upload group photo" />
       <form className="group-form" id="create-group" onSubmit={createGroup}>
@@ -726,7 +726,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     </>}
     {screen === 'detail' && active && <>
       <div className="group-detail-header"><button type="button" className="group-back" onClick={() => go(active.archived ? 'archive' : 'list')} aria-label="Back to Groups">‹</button>
-        <Avatar name={active.name} color={active.color} photo={active.photo} /><span><h1>{active.name}</h1><small>{active.type}{active.type === 'Trip' && active.startDate ? ` · ${dateLabel(active.startDate)}–${dateLabel(active.endDate)}` : ''} · {active.members.length + 1} members</small></span>
+        <GroupAvatar name={active.name} color={active.color} photo={active.photo} /><span><h1>{active.name}</h1><small>{active.type}{active.type === 'Trip' && active.startDate ? ` · ${dateLabel(active.startDate)}–${dateLabel(active.endDate)}` : ''} · {active.members.length + 1} members</small></span>
         <button type="button" className="group-more" onClick={() => { setEditing(true); go('settings'); }} aria-label="Group settings">•••</button></div>
       {!initialGroupsData && historyCursors[active.id] && <button type="button" disabled={historyBusy} onClick={() => {
         setHistoryBusy(true); void refreshExpenses(String(active.id), true, historyCursors[active.id]!).finally(() => setHistoryBusy(false));
@@ -815,7 +815,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     {screen === 'settings' && active && <>
       <Header title="Group settings" back={() => { setEditing(false); go('detail'); }} />
       <div className="group-photo-editor"><button type="button" disabled={!canManageActive} onClick={() => photoInput.current?.click()} aria-label="Change group photo">
-        <Avatar name={active.name} color={active.color} photo={active.photo} size="large" /><span>+</span></button>
+        <GroupAvatar name={active.name} color={active.color} photo={active.photo} size="large" /><span>+</span></button>
         {canManageActive && <button type="button" onClick={() => photoInput.current?.click()}>Change group photo</button>}</div>
       <input ref={photoInput} hidden type="file" accept="image/*" onChange={choosePhoto} aria-label="Upload group photo" />
       <h2 className="group-overline">GROUP DETAILS</h2>
