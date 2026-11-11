@@ -1,3 +1,4 @@
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from '../../components/common/Avatar';
 import { bankingApi, type ApiBankTransaction } from '../../api/banking.api';
@@ -79,6 +80,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
       if (id === latest.current.transactions) setTransactionsLoading(false);
     }
   }, [activeMonth]);
+  usePullRefresh(() => Promise.all([loadPersonal(), loadGroups(), loadMonthTransactions()]), active);
   const refresh = useCallback(() => { void loadPersonal(); void loadGroups(); void loadMonthTransactions(); }, [loadPersonal, loadGroups, loadMonthTransactions]);
 
   useEffect(() => {

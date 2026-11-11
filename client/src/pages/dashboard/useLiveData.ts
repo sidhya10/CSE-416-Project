@@ -1,3 +1,4 @@
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 
@@ -15,6 +16,7 @@ export function useLiveData<T>(load: () => Promise<T>, active: boolean) {
     try { const value = await load(); if (id === latest.current) { setData(value); setError(''); } }
     catch (failure) { if (id === latest.current) setError(failure instanceof ApiError ? failure.message : 'Unable to reach the server. Try again.'); }
   }, [load]);
+  usePullRefresh(refresh, active);
   useEffect(() => {
     if (!active) return;
     if (!document.hidden) void refresh();

@@ -1,3 +1,4 @@
+import { usePullRefresh } from './hooks/usePullRefresh';
 import GuestSplit from './pages/expenses/GuestSplit';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import NotificationsNavButton from './pages/notifications/NotificationsNavButton';
@@ -65,6 +66,7 @@ export default function App({ initialUser, groupFixtures, friendFixtures }: {
     if (initialUser) return;
     authApi.me().then(result => setUser(result.user)).catch(() => undefined).finally(() => setLoading(false));
   }, [initialUser]);
+  usePullRefresh(async () => { setUser((await authApi.me()).user); }, !!user && tab === 'Profile');
   const changeView = (next: AuthView) => { setNotice(''); setView(next); };
   const handleError = (error: unknown) => setNotice(error instanceof ApiError ? error.message : 'Unable to reach the server. Try again.');
   const authenticate = async (work: () => Promise<{ user: AppUser }>) => {

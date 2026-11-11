@@ -1,3 +1,4 @@
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { bankingApi, openPlaidLink } from '../../api/banking.api';
@@ -54,6 +55,10 @@ export default function ConnectedAccounts({ onBack }: { onBack?: () => void }) {
     return () => { active = false; };
   }, []);
 
+  usePullRefresh(async () => {
+    const result = await bankingApi.accounts();
+    setAccounts(result.accounts);
+  });
   // Runs an API action with a shared busy flag; failures surface as a notice.
   const run = async (action: () => Promise<void>) => {
     if (busy) return;

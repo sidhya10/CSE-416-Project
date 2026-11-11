@@ -1,3 +1,4 @@
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { bankingApi, type ApiBankTransaction, type BankBudgetCategory, type BankReviewCategory, type TransactionReview } from '../../api/banking.api';
 import { ApiError } from '../../api/client';
@@ -127,6 +128,10 @@ export default function TransactionReviewCenter({ onBack, onUnreviewedDelta, ini
     return () => { active = false; window.clearTimeout(timeout); };
   }, [requestKey]);
 
+  usePullRefresh(async () => {
+    const result = await bankingApi.transactions(filter, query, month);
+    setTransactions(result.transactions);
+  });
   const saved = (transaction: ApiBankTransaction) => {
     const wasUnreviewed = !!selected && !selected.reviewed && !selected.excluded;
     const isUnreviewed = !transaction.reviewed && !transaction.excluded;

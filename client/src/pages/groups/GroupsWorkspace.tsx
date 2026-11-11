@@ -1,3 +1,4 @@
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { photoDataUrl } from '../../utils/photoUpload';
 import SettlementInbox from '../settlements/SettlementInbox';
 import SettlementReview from '../settlements/SettlementReview';
@@ -228,6 +229,9 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
     } catch (error) { if (sequence === refreshSequence.current) setMessage(error instanceof Error ? error.message : 'Could not load groups.'); }
     finally { if (sequence === refreshSequence.current) setExpensesLoading(false); }
   };
+  usePullRefresh(async () => {
+    await Promise.all([initialGroupsData ? Promise.resolve() : refreshGroups(), initialFriendsData ? Promise.resolve() : refreshFriends()]);
+  }, visible);
   const refreshLatest = useRef(refreshGroups); refreshLatest.current = refreshGroups;
   useEffect(() => {
     if (initialGroupsData || !visible || activeId === null || ['list', 'archive', 'friends'].includes(screen)) return;

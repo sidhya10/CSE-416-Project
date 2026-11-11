@@ -1,6 +1,7 @@
 import Capacitor
 import GoogleSignIn
 import UIKit
+import WebKit
 
 @objc(DivvyGoogleSignInPlugin)
 public class DivvyGoogleSignInPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -35,7 +36,7 @@ public class DivvyGoogleSignInPlugin: CAPPlugin, CAPBridgedPlugin {
             GIDSignIn.sharedInstance.signIn(withPresenting: presenter, hint: nil, additionalScopes: nil, nonce: nonce) { result, error in
                 self.inProgress = false
                 if let error = error as NSError? {
-                    let cancelled = error.domain == kGIDSignInErrorDomain && error.code == GIDSignInErrorCode.canceled.rawValue
+                    let cancelled = error.domain == kGIDSignInErrorDomain && error.code == GIDSignInError.Code.canceled.rawValue
                     call.reject(cancelled ? "Google sign-in was cancelled." : "Google sign-in could not finish. Please try again.", cancelled ? "GOOGLE_CANCELLED" : "GOOGLE_FAILED")
                     return
                 }

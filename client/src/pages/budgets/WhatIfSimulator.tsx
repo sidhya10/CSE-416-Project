@@ -1,3 +1,4 @@
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { budgetsApi, type ApiPersonalBudget } from '../../api/budgets.api';
 import { ApiError } from '../../api/client';
@@ -44,6 +45,7 @@ export default function WhatIfSimulator({ onBack, onRootChange, active = true }:
     try { const { scenarios: saved } = await budgetsApi.scenarios(); if (id === latestScenarios.current) setScenarios(saved); }
     catch (error) { if (id === latestScenarios.current) setNotice(`Couldn't load your saved scenarios: ${errorMessage(error)}`); }
   }, []);
+  usePullRefresh(() => Promise.all([load(), loadScenarios()]), active);
   useEffect(() => { if (active) { void load(); void loadScenarios(); } }, [active, load, loadScenarios]);
 
   const model = useMemo(() => data ? toSimModel(data) : null, [data]);
