@@ -9,3 +9,8 @@ coverage/
 .vscode/*.log
 .DS_Store
 .vercel
+
+# Local presentation artifacts (unrelated to the app)
+/.cloudflare-build/
+/.chart-data-*/
+/output/*.pptx

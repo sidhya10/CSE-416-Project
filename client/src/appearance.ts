@@ -1,4 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 export type Appearance = 'Light' | 'Dark';
 export const appearanceKey = 'cse416.appearance.v1';
@@ -15,6 +17,12 @@ export function readAppearance(): Appearance {
 export function applyAppearance(preference: Appearance) {
   const dark = preference === 'Dark';
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  if (Capacitor.isNativePlatform()) {
+    document.documentElement.classList.add('native-app');
+    // Capacitor names these for the background: Light uses dark status icons.
+    void StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {});
+    void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+  }
 }
 
 export function setAppearance(preference: Appearance) {

@@ -8,24 +8,26 @@ const config: CapacitorConfig = {
   appName: 'CSE 416 Budget',
   webDir: 'client/dist',
   loggingBehavior: 'none',
+  backgroundColor: '#f6f4ed',
   server: {
     url: 'https://cse-416-project-tau.vercel.app',
     cleartext: false,
   },
   ios: {
-    contentInset: 'always',
+    contentInset: 'never',
+    preferredContentMode: 'mobile',
     scheme: 'CSE416Budget',
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 1200,
-      backgroundColor: '#f4f7f5',
+      backgroundColor: '#f6f4ed',
       showSpinner: false,
     },
     StatusBar: {
-      overlaysWebView: false,
-      style: 'DARK',
-      backgroundColor: '#f4f7f5',
+      overlaysWebView: true,
+      style: 'LIGHT',
+      backgroundColor: '#f6f4ed',
     },
   },
 };
