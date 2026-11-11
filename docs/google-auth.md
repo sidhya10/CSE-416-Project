@@ -48,12 +48,37 @@ The client handles SDK failure/timeouts and mismatched client IDs with visible e
 
 ## Native mobile release
 
-The web popup supports the current mobile web UI. A future native iOS/Android or Expo build must use a platform Google sign-in SDK or the system-browser authorization session, with platform-specific OAuth clients and app return URLs. Do not embed Google's login page in an app WebView. This repository does not currently contain an Expo/native client, so this change does not claim to implement native SDK integration.
+The browser uses the web popup. The Capacitor iOS app now uses Google's native SDK through `DivvyGoogleSignInPlugin`, registered by `DivvyBridgeViewController`. It never loads the GIS web popup on iOS. Older binaries without this plugin show an update/password-login message. Android native Google authentication is not implemented.
+
+### Configure the iOS build
+
+1. In Google Cloud's Google Auth Platform / Clients (or APIs & Services / Credentials), create an OAuth client of type **iOS** in the same Google project as the existing Web client. Set its bundle ID to the **exact identifier of the app already uploaded to App Store Connect**. The repository defaults to `com.cse416.personalgroupbudget`; your previously uploaded app may use `com.cse416.divvy`. Check Xcode's app target and App Store Connect rather than creating a new app identifier or changing the existing listing.
+2. Copy the public iOS client ID, ending in `.apps.googleusercontent.com`. This is different from the Web client ID already configured on Vercel. No client secret belongs in the iOS app.
+3. On your Mac, after pulling this change, run:
+
+   ```sh
+   npm ci
+   npm run mobile:sync
+   npm run mobile:google -- --client-id YOUR_IOS_CLIENT_ID.apps.googleusercontent.com
+   npm run mobile:google -- --check
+   npm run mobile:open
+   ```
+
+   The configuration command requires Python 3. It adds `GIDClientID` and its reversed callback URL scheme to `ios/App/App/Info.plist`, preserving other URL handlers and signing/bundle settings. Run it with the actual ID, not the example placeholder. The resulting configuration is public OAuth metadata; it may be committed to keep future builds consistent. It is intentionally absent until the real iOS client is supplied.
+4. Xcode resolves the pinned GoogleSignIn 9.2.0 Swift package directly from the app project. It is separate from Capacitor's generated `CapApp-SPM/Package.swift`, so `cap sync` does not remove it. Version 9.2 includes custom nonce support while retaining this app's iOS 15 target.
+5. Preserve your Apple signing team and existing bundle ID, increase the build number above the latest uploaded build, run on an iPhone, then archive and upload through App Store Connect. A Vercel deployment cannot install the native SDK into an existing TestFlight binary.
+
+The native SDK's backend/server client ID comes from `/api/auth/google/start`, using the existing Web OAuth client. It receives a fresh nonce for each attempt. The ID token and state return to the same WebView's API client, preserving the HttpOnly attempt cookie. The server still checks Google's signature, Web client audience, verified email, nonce, state, intent, and linked session. No verifier checks are removed and no alternative token/session storage is introduced. The bridge accepts calls only from the production app origin or packaged `capacitor://localhost` content, and releases the Google SDK session after getting an ID token; Divvy continues to own its ordinary app session.
+
+Callbacks are handled through SceneDelegate (including cold-start URL contexts) and the legacy AppDelegate path. A custom bridge controller registers the plugin for both the scene-created window and storyboard. Only basic identity is requested; this flow does not request Gmail, Drive, bank, or offline API access.
 
 ## Validation
 
-Frontend tests cover sign-in/sign-up popup configuration, profile linking, stale callbacks, SDK failure/retry and usable password login during configuration errors. Database integration tests mock Google's verifier while exercising real account creation, password compatibility, subject lookup, conflicting links and browser-bound nonce/state/session checks.
+Frontend tests cover native iOS dispatch, nonce/state transport, sign-in/sign-up/link/recovery routing, cancellation, missing plugin/configuration, and stale native completions, plus browser sign-in/sign-up popup configuration, profile linking, stale callbacks, SDK failure/retry and usable password login during configuration errors. Database integration tests mock Google's verifier while exercising real account creation, password compatibility, subject lookup, conflicting links and browser-bound nonce/state/session checks.
 
 Playwright tests open a real browser popup using a stub Google provider and stub auth responses to exercise the full client callback and cancellation flow. They never use real Google credentials. Existing Playwright flows still exercise ordinary email registration/login against the API/database. A live Google account chooser and token exchange require the project's real client configuration and a manual check in an authorized browser origin.
 
 References: [Google JavaScript API](https://developers.google.com/identity/gsi/web/reference/js-reference), [Google web setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid), [server token verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token), [native application OAuth](https://developers.google.com/identity/protocols/oauth2/native-app).
+
+
+The `ios-build` CI job runs `mobile:sync`, exercises public dummy iOS client metadata configuration, and compiles the iOS simulator target without code signing. It does not authenticate to Google. A real-device sign-in/sign-up, cancellation/retry, account switching, linking, recovery, app relaunch/session persistence, and callback return must still be checked with the real OAuth client before uploading the new TestFlight build.

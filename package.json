@@ -25,7 +25,8 @@
     "mobile:sync": "npm run build --workspace client && cap sync ios",
     "mobile:open": "cap open ios",
     "mobile:run": "npm run mobile:sync && cap run ios",
-    "mobile:doctor": "cap doctor"
+    "mobile:doctor": "cap doctor",
+    "mobile:google": "python3 scripts/configure-ios-google.py"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.6.0",

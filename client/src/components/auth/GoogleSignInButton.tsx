@@ -1,12 +1,18 @@
+import NativeGoogleSignInButton from './NativeGoogleSignInButton';
+import { isNativeGooglePlatform } from '../../native/googleSignIn';
 import { useEffect, useRef, useState } from 'react';
 import { authApi } from '../../api/auth.api';
 import { ApiError } from '../../api/client';
 import type { AppUser } from '../../api/types';
 import { loadGoogleIdentity, prepareGoogle, renderGoogleButton } from './googleIdentity';
 
-export default function GoogleSignInButton({ intent = 'signin', signup = false, phone, onSuccess, onRecovery, onBusyChange, disabled = false }: {
+export type GoogleSignInProps = {
   intent?: 'signin' | 'link' | 'recover'; signup?: boolean; phone?: string; onSuccess?: (user: AppUser) => void; onRecovery?: (resetToken: string) => void; onBusyChange?: (busy: boolean) => void; disabled?: boolean;
-}) {
+};
+export default function GoogleSignInButton(props: GoogleSignInProps) {
+  return isNativeGooglePlatform() ? <NativeGoogleSignInButton {...props} /> : <WebGoogleSignInButton {...props} />;
+}
+function WebGoogleSignInButton({ intent = 'signin', signup = false, phone, onSuccess, onRecovery, onBusyChange, disabled = false }: GoogleSignInProps) {
   const target = useRef<HTMLDivElement>(null);
   const onBusyChangeRef = useRef(onBusyChange);
   onBusyChangeRef.current = onBusyChange;
