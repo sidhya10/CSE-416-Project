@@ -1,3 +1,4 @@
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import { formatCents } from './split';
@@ -11,6 +12,10 @@ export default function ExpenseBudgetLink({ expenseId, onSaved }: { expenseId: s
   const [search, setSearch] = useState('');
   const [choosingTransaction, setChoosingTransaction] = useState(false);
   useEffect(() => { let active = true; void apiRequest<Link>(`/expenses/${expenseId}/budget-link`).then(value => { if (active) setData(value); }).catch(() => { if (active) setError('Could not load budget linking. Reopen this expense to retry.'); }); return () => { active = false; }; }, [expenseId]);
+  usePullRefresh(async () => {
+    setData(await apiRequest<Link>(`/expenses/${expenseId}/budget-link`));
+    setError('');
+  });
   const matches = (data?.candidates ?? []).filter(t => `${t.merchant ?? ''} ${t.name} ${t.date.slice(0, 10)} ${formatCents(t.amountCents)} ${(t.amountCents / 100).toFixed(2)}`.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => Number(b.amountCents === data?.expenseTotalCents) - Number(a.amountCents === data?.expenseTotalCents));
   const viewBudget = () => window.dispatchEvent(new CustomEvent('cse416:open-budget-expense', { detail: { category: data?.category, expenseId } }));
   const hasZeroShare = data?.ownShareCents === 0;

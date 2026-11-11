@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import MobileGestureShell from './MobileGestureShell';
@@ -58,4 +60,38 @@ it('keeps the spinner visible while refreshing and dismisses it on completion', 
 it('does not add an idle status alongside the current screen notification', () => {
   render(<MobileGestureShell><p role="status">Expense saved.</p></MobileGestureShell>);
   expect(screen.getByRole('status')).toHaveTextContent('Expense saved.');
+});
+
+
+it('refreshes data in place without resetting the selected page or draft', async () => {
+  let complete!: (value: string) => void;
+  const load = vi.fn(() => new Promise<string>(resolve => { complete = resolve; }));
+  const hiddenLoad = vi.fn();
+  function Page() {
+    const [page, setPage] = useState('Home');
+    const [data, setData] = useState('Old balance');
+    const [draft, setDraft] = useState('');
+    usePullRefresh(async () => setData(await load()), page === 'Group details');
+    usePullRefresh(hiddenLoad, page === 'Home');
+    return <MobileGestureShell><main>
+      <button onClick={() => setPage('Group details')}>Open group</button>
+      <h1>{page}</h1><p>{data}</p>
+      <input aria-label="Draft" value={draft} onChange={event => setDraft(event.target.value)} />
+    </main></MobileGestureShell>;
+  }
+  render(<Page />);
+  fireEvent.click(screen.getByText('Open group'));
+  fireEvent.change(screen.getByLabelText('Draft'), { target: { value: 'Keep this' } });
+  const root = screen.getByRole('heading').closest('.device')!;
+  fireEvent.touchStart(root, { touches: [touch(100, 20)] });
+  fireEvent.touchMove(root, { touches: [touch(100, 160)] });
+  fireEvent.touchEnd(root, { changedTouches: [touch(100, 160)] });
+  await waitFor(() => expect(load).toHaveBeenCalledOnce());
+  expect(screen.getByRole('status')).toHaveTextContent('Refreshing');
+  await act(async () => complete('Updated balance'));
+  expect(screen.getByRole('heading')).toHaveTextContent('Group details');
+  expect(screen.getByText('Updated balance')).toBeInTheDocument();
+  expect(screen.getByLabelText('Draft')).toHaveValue('Keep this');
+  expect(hiddenLoad).not.toHaveBeenCalled();
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });

@@ -1,12 +1,10 @@
+import { refreshCurrentPage } from '../../hooks/usePullRefresh';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 const EDGE_START_PX = 36;
 const BACK_DISTANCE_PX = 72;
 const REFRESH_DISTANCE_PX = 84;
-const reloadPage = () => new Promise<void>(() => {
-  // Paint the loading state before navigation; keep it visible until the page unloads.
-  requestAnimationFrame(() => requestAnimationFrame(() => window.location.reload()));
-});
+
 
 const hiddenByAncestor = (element: Element) => !!element.closest('[hidden]');
 
@@ -28,7 +26,7 @@ function isAtTop(target: EventTarget | null, root: HTMLElement) {
   return root.scrollTop <= 0;
 }
 
-export default function MobileGestureShell({ children, onRefresh = reloadPage }: {
+export default function MobileGestureShell({ children, onRefresh = refreshCurrentPage }: {
   children: ReactNode;
   onRefresh?: () => void | Promise<void>;
 }) {
