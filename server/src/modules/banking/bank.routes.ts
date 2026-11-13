@@ -17,11 +17,11 @@ const transactionQuery = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
 });
 const expenseMatchQuery = z.object({
-  amountCents: z.coerce.number().int().positive().max(2_000_000_000),
+  amountCents: z.coerce.number().int().positive().max(2_000_000_000).optional(),
   date: z.iso.date().optional(),
   query: z.string().trim().max(200).optional(),
   merchant: z.string().trim().max(500).optional(),
-});
+}).refine(input => input.amountCents !== undefined || input.date !== undefined, 'Enter an amount or date.');
 const reviewBody = z.object({
   category: reviewCategory.nullable().default(null),
   excluded: z.boolean().default(false),

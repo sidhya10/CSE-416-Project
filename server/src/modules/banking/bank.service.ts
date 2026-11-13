@@ -212,7 +212,7 @@ export async function syncAll(userId: string) {
   return added;
 }
 
-export type ExpenseMatchInput = { amountCents: number; date?: string; merchant?: string; query?: string };
+export type ExpenseMatchInput = { amountCents?: number; date?: string; merchant?: string; query?: string };
 
 // Suggestions remain available as the manual fallback when an exact automatic match is ambiguous.
 export async function suggestExpenseMatches(userId: string, input: ExpenseMatchInput) {
@@ -220,14 +220,14 @@ export async function suggestExpenseMatches(userId: string, input: ExpenseMatchI
   const day = 86_400_000;
   const start = new Date((expenseDate?.getTime() ?? 0) - 14 * day);
   const end = new Date((expenseDate?.getTime() ?? 0) + 14 * day);
-  const tolerance = Math.max(100, Math.min(1_000, Math.round(input.amountCents * 0.1)));
+  const tolerance = Math.max(100, Math.min(1_000, Math.round((input.amountCents ?? 0) * 0.1)));
   const rows = await prisma.bankTransaction.findMany({
     where: {
       pending: false,
       excluded: false,
       autoExcludedReason: null,
-      amountCents: { gt: 0, gte: Math.max(1, input.amountCents - tolerance), lte: input.amountCents + tolerance },
-      ...(expenseDate ? { date: { gte: start, lte: end } } : {}),
+      amountCents: input.amountCents === undefined ? { gt: 0 } : { gt: 0, gte: Math.max(1, input.amountCents - tolerance), lte: input.amountCents + tolerance },
+      ...(expenseDate ? { date: input.amountCents === undefined ? expenseDate : { gte: start, lte: end } } : {}),
       ...(input.query ? { OR: [{ merchant: { contains: input.query, mode: 'insensitive' as const } }, { name: { contains: input.query, mode: 'insensitive' as const } }] } : {}),
       linkedExpense: null,
       settlementTransaction: null,
@@ -237,13 +237,13 @@ export async function suggestExpenseMatches(userId: string, input: ExpenseMatchI
     orderBy: [{ date: 'desc' }, { id: 'asc' }],
   });
   return rows.map(row => {
-    const amountDifferenceCents = Math.abs(row.amountCents - input.amountCents);
+    const amountDifferenceCents = Math.abs(row.amountCents - (input.amountCents ?? row.amountCents));
     const dateDifferenceDays = expenseDate ? Math.round(Math.abs(row.date.getTime() - expenseDate.getTime()) / day) : null;
     const similarity = input.merchant?.trim() ? merchantSimilarity(input.merchant, `${row.merchant ?? ''} ${row.name}`) : 0;
-    const amountScore = amountDifferenceCents === 0 ? 70 : Math.max(0, 45 * (1 - amountDifferenceCents / tolerance));
+    const amountScore = input.amountCents === undefined ? 0 : amountDifferenceCents === 0 ? 70 : Math.max(0, 45 * (1 - amountDifferenceCents / tolerance));
     const score = amountScore + (dateDifferenceDays === null ? 0 : Math.max(0, 20 - dateDifferenceDays * 2)) + similarity * 10;
     const reasons = [
-      amountDifferenceCents === 0 ? 'Exact amount' : `Amount differs by $${(amountDifferenceCents / 100).toFixed(2)}`,
+      ...(input.amountCents === undefined ? [] : [amountDifferenceCents === 0 ? 'Exact amount' : `Amount differs by $${(amountDifferenceCents / 100).toFixed(2)}`]),
       ...(dateDifferenceDays === null ? [] : [dateDifferenceDays === 0 ? 'Same date' : `${dateDifferenceDays} day${dateDifferenceDays === 1 ? '' : 's'} apart`]),
       ...(similarity >= 0.5 ? ['Similar merchant'] : []),
     ];

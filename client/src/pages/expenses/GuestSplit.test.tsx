@@ -15,7 +15,7 @@ it('splits temporarily with named participants and clears on exit without API ca
   fireEvent.change(screen.getByLabelText('Item 1 name'), { target: { value: 'Pizza' } });
   fireEvent.change(screen.getByLabelText('Item 1 amount'), { target: { value: '77.50' } });
   expect(screen.getByText(/Paid by Eva/)).toBeVisible();
-  expect(screen.queryByText('Scan receipt with Azure')).not.toBeInTheDocument();
+  expect(screen.queryByText('Scan receipt')).not.toBeInTheDocument();
   fireEvent.click(screen.getByText('Continue to split'));
   fireEvent.click(screen.getByRole('button', { name: 'Confirm and split $77.50' }));
   expect(await screen.findByRole('heading', { name: 'Your split' })).toBeVisible();

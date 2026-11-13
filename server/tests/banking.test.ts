@@ -184,6 +184,10 @@ describe('bank connections', () => {
       accountId: account.id, plaidTransactionId: `match-old-${run}`, amountCents: 2301,
       date: new Date('2025-01-01T00:00:00.000Z'), name: 'Historic Bakery', merchant: 'Old Bakery', pending: false,
     } });
+    const dateOnly = await owner.get('/api/banking/expense-matches').query({ date: '2025-01-01' }).expect(200);
+    expect(dateOnly.body.suggestions.map((row: { id: string }) => row.id)).toEqual([older.id]);
+    expect(dateOnly.body.suggestions[0].reasons).toEqual(['Same date']);
+    await owner.get('/api/banking/expense-matches').expect(400);
     const amountOnly = await owner.get('/api/banking/expense-matches').query({ amountCents: 2301 }).expect(200);
     expect(amountOnly.body.suggestions.map((row: { id: string }) => row.id)).toContain(older.id);
     expect(amountOnly.body.suggestions.find((row: { id: string }) => row.id === older.id).reasons).toEqual(['Exact amount']);

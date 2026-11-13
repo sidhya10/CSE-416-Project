@@ -33,7 +33,8 @@ export const bankingApi = {
   disconnect: (connectionId: string) => apiRequest<void>(`/banking/connections/${connectionId}`, { method: 'DELETE' }),
   sync: () => apiRequest<Accounts & { added: number }>('/banking/sync', { method: 'POST' }),
   expenseMatches: (amountCents: number, date: string, merchant: string, signal?: AbortSignal, query = '') => {
-    const params = new URLSearchParams({ amountCents: String(amountCents) });
+    const params = new URLSearchParams();
+    if (amountCents > 0) params.set('amountCents', String(amountCents));
     if (date) params.set('date', date);
     if (query.trim()) params.set('query', query.trim());
     if (merchant.trim()) params.set('merchant', merchant.trim());

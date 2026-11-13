@@ -25,7 +25,7 @@ import { ContactSelectionUnavailableError, selectContactIdentifiers, supportsCon
 
 type GroupType = 'General' | 'Trip' | 'Recurring';
 type Friend = FriendUser & { handle: string; color: string };
-type Member = { id: string; name: string; handle: string; color: string };
+type Member = { id: string; name: string; handle: string; color: string; photoUrl?: string | null };
 type PlannedExpense = { id: number; title: string; amount: number };
 type Frequency = 'Weekly' | 'Monthly' | 'Quarterly' | 'Semi-yearly' | 'Yearly' | 'Custom';
 type IntervalUnit = 'days' | 'weeks' | 'months' | 'years';
@@ -150,7 +150,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
   const swipeStart = useRef<{ id: number | string; x: number; y: number } | null>(null);
   const suppressCardClick = useRef<number | string | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
-  const groupMembers = (group: Group): Member[] => [{ id: 'you', name: 'You', handle: `@${currentUser.username}`, color: 'green' }, ...group.members.map(id =>
+  const groupMembers = (group: Group): Member[] => [{ id: 'you', name: 'You', handle: `@${currentUser.username}`, color: 'green', photoUrl: currentUser.photoUrl }, ...group.members.map(id =>
     group.memberProfiles?.find(member => member.id === id) ?? friends.find(friend => friend.id === id)
   ).filter((friend): friend is Friend => Boolean(friend))];
   const active = groups.find(group => group.id === activeId);
@@ -721,7 +721,7 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
           <div><label>Start<input type="date" required value={draft.startDate} onChange={event => updateGroup({ startDate: event.target.value })} /></label>
             <label>End<input type="date" required min={draft.startDate} value={draft.endDate} onChange={event => updateGroup({ endDate: event.target.value })} /></label></div></div>}
         <div className="member-preview"><span className="group-field-label">MEMBERS · {selected.length + 1}</span><div className="member-preview-card">
-          {groupMembers({ ...draft, members: selected }).map(member => <div key={member.id}><Avatar name={member.name} color={member.color} /><small>{member.name}</small></div>)}
+          {groupMembers({ ...draft, members: selected }).map(member => <div key={member.id}><Avatar name={member.name} color={member.color} photo={member.photoUrl} /><small>{member.name}</small></div>)}
           <button type="button" onClick={() => { setMemberSelectionSnapshot([...selected]); setEditingMembers(true); go('select'); }}>Edit members</button></div></div>
       </form>
       {message && <p className="group-notice" role="status">{message}</p>}
@@ -796,13 +796,12 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         {!currentSplits.length && <p className="group-caption">No new unresolved transactions in this period.</p>}
         </section>
         {waitingSplits.length > 0 && <section aria-label="Transactions awaiting settlement"><h2 className="group-section-title">Awaiting settlement</h2>
-          <p className="group-caption">Already split. Use Your payments above to send or confirm repayments.</p>
+          <p className="group-caption">Use <strong>Your payments</strong> above to report money sent or confirm money received.</p>
           {[...waitingSplits].reverse().map(split => <button type="button" className="group-transaction expense-list-row" key={split.expenseId} onClick={() => { setViewedExpense({ title: split.name, subtitle: 'Awaiting settlement', amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>Split initialized · View payments</small></span><b>{formatCents(split.totalCents)}</b></button>)}
         </section>}
         <section aria-label="Resolved transactions"><h2 className="group-section-title">Resolved transactions</h2>
           {[...resolvedSplits].reverse().map((split, index) => <button type="button" className="group-transaction expense-list-row" key={split.expenseId ?? index} onClick={() => { setViewedExpense({ title: split.name, subtitle: 'Resolved · retained in history', amount: formatCents(split.totalCents), split }); go('expense-details'); }}><span><strong>{split.name}</strong><small>Resolved · Not included in new splits</small></span><b>{formatCents(split.totalCents)}</b></button>)}
           {!resolvedSplits.length && <p className="group-caption">Settled transactions will stay here for reference.</p>}
-        <p className="group-caption">{initialGroupsData ? 'Expenses are saved for this preview session.' : 'Expenses and confirmed payments are saved for your group.'}</p>
         </section>
       </>}
     </>}
@@ -832,10 +831,9 @@ export default function GroupsWorkspace({ onRootChange, currentUser, initialGrou
         {canManageActive && <button className="group-primary" type="button" onClick={() => void saveGroupSettings()}>Save group details</button>}
       </div>
       <div className="group-section-line"><h2 className="group-overline">MEMBERS · {active.members.length + 1}</h2>{canManageActive && <button type="button" onClick={() => { setSelected([]); go('add-members'); }}>+ Add people</button>}</div>
-      {groupMembers(active).map(member => <div className="member-row" key={member.id}><Avatar name={member.name} color={member.color} /><span><strong>{member.id === 'you' ? 'You' : member.name}</strong><small>{member.id === 'you'
+      {groupMembers(active).map(member => <div className="member-row" key={member.id}><Avatar name={member.name} color={member.color} photo={member.photoUrl} /><span><strong>{member.id === 'you' ? 'You' : member.name}</strong><small>{member.id === 'you'
         ? `${active.currentUserRole ?? 'OWNER'} · You` : active.memberRoles?.[member.id] ?? 'MEMBER'}</small></span></div>)}
       {active.createdBy && <p className="group-info"><strong>Created by {active.createdBy.id === currentUser.id ? 'you' : active.createdBy.name}</strong><small>@{active.createdBy.username}</small></p>}
-      <p className="group-info"><strong>New members start from $0</strong><small>Previous expenses and balances are not assigned to them.</small></p>
       <div className="group-form"><label>Archive after inactive days<input type="number" min="1" max="3650" disabled={!canManageActive} value={active.inactivityDays ?? 60} onChange={event => setGroups(previous => previous.map(group => group.id === active.id ? { ...group, inactivityDays: Number(event.target.value) } : group))} /></label></div>
       <p className="group-caption">Default: 60 days. Opening a group does not count as activity. Archiving is shared by all members.</p>
       <button className="group-secondary" type="button" disabled={!active.archived && !canArchive(active)} onClick={() => active.archived ? restoreGroup(active) : archiveGroup(active)}>{active.archived ? 'Restore group' : 'Archive group'}</button>
