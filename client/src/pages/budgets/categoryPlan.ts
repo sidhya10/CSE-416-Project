@@ -27,6 +27,8 @@ export const categoryPct = (item: CategoryBudget) =>
 // A limit of $0 means no limit is set, so such a category is never over budget.
 export const isOverLimit = (item: CategoryBudget) => item.plannedCents > 0 && item.spentCents > item.plannedCents;
 
+export const daysLeftLabel = (days: number) => `${days} ${days === 1 ? 'day' : 'days'} left`;
+
 export type BudgetPeriod = { monthLabel: string; daysLeft: number; daysInMonth: number };
 
 export const budgetPeriod = (data: Pick<ApiPersonalBudget, 'month' | 'daysLeft' | 'daysInMonth'>): BudgetPeriod => ({
