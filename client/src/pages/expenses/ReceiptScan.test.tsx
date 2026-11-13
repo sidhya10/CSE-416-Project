@@ -17,7 +17,7 @@ describe('receipt scan review in add and edit expenses', () => {
     fireEvent.change(screen.getByLabelText('Item 1 name'), { target: { value: 'Manual item' } });
     choose();
     expect(scanReceipt).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Scan receipt with Azure' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Scan receipt' }));
     expect(await screen.findByRole('region', { name: 'Receipt scan review' })).toHaveTextContent('Tea');
     expect(screen.getByLabelText('Item 1 name')).toHaveValue('Manual item');
     expect(screen.getByRole('status')).toHaveTextContent('no new Azure scan');
@@ -35,7 +35,7 @@ describe('receipt scan review in add and edit expenses', () => {
     render(<ExpenseEntry {...props} />);
     fireEvent.change(screen.getByLabelText('Item 1 name'), { target: { value: 'Manual' } });
     choose();
-    fireEvent.click(screen.getByRole('button', { name: 'Scan receipt with Azure' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Scan receipt' }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Monthly scan limit reached'));
     expect(screen.getByLabelText('Item 1 name')).toHaveValue('Manual');
   });
@@ -44,7 +44,7 @@ describe('receipt scan review in add and edit expenses', () => {
     vi.mocked(scanReceipt).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
     render(<ExpenseEntry {...props} />);
     choose();
-    fireEvent.click(screen.getByRole('button', { name: 'Scan receipt with Azure' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Scan receipt' }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove receipt' }));
     finish({ receipt, cached: false });
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Receipt scan review' })).not.toBeInTheDocument());
@@ -59,7 +59,7 @@ it('accepts an iPhone HEIC with missing MIME type and keeps oversized files out'
   const file = new File(['heic'], 'IMG_1234.HEIC');
   fireEvent.change(input, { target: { files: [file] } });
   expect(screen.getByText('IMG_1234.HEIC')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Scan receipt with Azure' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Scan receipt' }));
   await screen.findByRole('region', { name: 'Receipt scan review' });
   expect(scanReceipt).toHaveBeenCalledWith(file, expect.any(AbortSignal));
   fireEvent.change(input, { target: { files: [new File([new Uint8Array(12 * 1024 * 1024 + 1)], 'large.heic', { type: 'image/heic' })] } });
@@ -73,7 +73,7 @@ it('scans as a guest and applies items without preparing a saved attachment', as
   const confirm = vi.fn();
   const { unmount } = render(<ExpenseEntry {...props} guest members={[{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]} onConfirm={confirm} />);
   choose();
-  fireEvent.click(screen.getByRole('button', { name: 'Scan receipt with Azure' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Scan receipt' }));
   await screen.findByRole('region', { name: 'Receipt scan review' });
   expect(scanReceipt).toHaveBeenCalledWith(expect.any(File), expect.any(AbortSignal), true, undefined);
   fireEvent.click(screen.getByRole('button', { name: 'Replace entries with scanned items' }));

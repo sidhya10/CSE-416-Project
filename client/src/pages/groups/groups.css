@@ -123,3 +123,7 @@
 .group-form textarea{border-radius:var(--radius-control);font-size:var(--text-control)}
 .group-card-menu{width:var(--icon-button-size);color:var(--muted);font-size:var(--icon-size)}
 .group-filter-dialog header>button{width:var(--icon-button-size);height:var(--icon-button-size);border-radius:var(--radius-control);color:var(--muted);font-size:var(--icon-size)}
+
+.groups-workspace .archive-tab{min-height:var(--control-height);padding:10px 16px;border:1px solid var(--accent);border-radius:var(--radius-control);font-size:var(--text-control);font-weight:600;line-height:1.3}
+.groups-workspace .archive-tab:hover{background:var(--surface-hover)}
+.groups-workspace .archive-tab:focus-visible{outline:2px solid var(--accent);outline-offset:3px}

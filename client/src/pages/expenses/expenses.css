@@ -113,7 +113,9 @@
 .expense-bank-suggestion span { min-width:0; display:grid; gap:2px; }
 .expense-bank-suggestion small { color:var(--muted); overflow-wrap:anywhere; }
 .expense-bank-suggestion > strong { white-space:nowrap; }
-.expense-bank-clear { margin-top:9px; padding:0; border:0; background:transparent; color:var(--accent); font:inherit; font-weight:700; }
+.expense-bank-clear { display:flex; align-items:center; justify-content:center; align-self:stretch; width:100%; min-height:36px; margin-top:12px; padding:8px 12px; border:1px solid var(--accent); border-radius:var(--radius-control); background:var(--surface); color:var(--accent); font:inherit; font-size:13px; font-weight:600; line-height:1.3; }
+.expense-bank-clear:hover { background:var(--surface-hover); }
+.expense-bank-clear:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 
 .bank-link-choices { display:flex; gap:8px; }
 .bank-link-choices .expense-outline { flex:1; min-width:0; }
@@ -155,3 +157,26 @@
 .expense-body input:not([type=radio]):not([type=file]),.expense-money{height:var(--control-height);border-radius:var(--radius-control);font-size:var(--text-control)}
 .expense-item-entry,.expense-bank-match,.expense-budget-link,.receipt-review{border-radius:var(--radius-card)}
 .expense-outline,.expense-add{min-height:var(--control-height);border-radius:var(--radius-control);font-size:var(--text-control)}
+
+.expense-receipt .expense-receipt-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0;color:var(--muted);font-size:13px;font-weight:500;line-height:1.45}
+.expense-receipt-heading span{font-size:12px;font-weight:400}
+
+.expense-body [aria-invalid="true"]{outline:2px solid var(--danger-strong);outline-offset:-2px}
+.expense-item-entry.has-validation-error{border-color:var(--danger-strong);padding:12px;gap:12px}
+.expense-entry-screen .expense-items:has(.has-validation-error){gap:12px}
+.expense-item-entry.has-validation-error .expense-item{grid-template-columns:minmax(0,1fr) 104px auto;gap:10px}
+.expense-item-entry.has-validation-error .expense-item-heading{grid-template-columns:minmax(0,1fr) auto;gap:12px}
+.expense-body .expense-validation-error{color:var(--danger-strong);font-size:13px;line-height:1.5;margin:0 0 8px;overflow-wrap:anywhere}
+.expense-item-entry .expense-validation-error{margin:0}
+.expense-items:has(>.expense-validation-error){border:1px solid var(--danger-strong);padding:12px;border-radius:var(--radius-card)}
+
+.expense-bank-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.expense-bank-heading span{flex:none;color:var(--muted);font-size:12px;font-weight:400}
+
+/* Keep bank details readable without competing with merchant and amount. */
+.expense-bank-suggestion .expense-bank-copy{flex:1;gap:5px}
+.expense-bank-suggestion .expense-bank-copy>strong{font-size:14px;font-weight:600;line-height:1.4}
+.expense-bank-suggestion .expense-bank-copy>small{font-size:12px;line-height:1.45}
+.expense-bank-suggestion .expense-bank-copy>.expense-bank-date{font-size:11px}
+.expense-bank-suggestion .expense-bank-copy>.expense-bank-reasons{margin-top:3px;font-size:11px;color:var(--accent)}
+.expense-bank-suggestion>strong{font-size:14px;align-self:center}

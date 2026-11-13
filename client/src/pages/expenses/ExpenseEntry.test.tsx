@@ -55,8 +55,16 @@ describe('Expense entry flow', () => {
     expect(screen.getByText('Tax, tip & fees').compareDocumentPosition(suggestions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
     expect(screen.getByText('No matching transactions found')).toBeVisible();
-    expect(screen.getByText('Add an item amount to find bank transactions based on your expense total.')).toBeVisible();
+    expect(screen.getByText('Add an item amount or choose a date to find bank transactions.')).toBeVisible();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('requests suggestions with a date before any amount is entered', async () => {
+    vi.mocked(bankingApi.expenseMatches).mockResolvedValue({ suggestions: [] });
+    render(<ExpenseEntry groupName="Dinner group" members={[{ id: 'you', name: 'You' }]} onBack={vi.fn()} onConfirm={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/Expense date/), { target: { value: '2026-10-29' } });
+    await waitFor(() => expect(bankingApi.expenseMatches).toHaveBeenCalledWith(0, '2026-10-29', '', expect.any(AbortSignal), ''));
+    expect(screen.getByRole('searchbox')).toBeVisible();
   });
 
   it.each(['', '2026-10-29'])('carries a selected bank match into the split with date %s', async date => {
@@ -117,13 +125,15 @@ describe('Expense entry flow', () => {
   it('validates empty entries, precision and negative fees, and restricts payers to group members', () => {
     openExpense('Shared Apartment');
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
-    expect(screen.getByRole('status')).toHaveTextContent('Enter an expense name');
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter an expense name');
+    expect(screen.getByLabelText('EXPENSE NAME')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('EXPENSE NAME')).toHaveFocus();
     fill('EXPENSE NAME', 'Groceries'); fill('Item 1 name', 'Bread'); fill('Item 1 amount', '1.001');
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
-    expect(screen.getByRole('status')).toHaveTextContent('up to two decimal places');
+    expect(screen.getByRole('alert')).toHaveTextContent('up to two decimal places');
     fill('Item 1 amount', '0.10'); fill('Tax', '-2');
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
-    expect(screen.getByRole('status')).toHaveTextContent('non-negative');
+    expect(screen.getByRole('alert')).toHaveTextContent('non-negative');
     fill('Tax', '0.20');
     expect(screen.getByText('$0.30')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Paid by you · Change' }));
@@ -136,7 +146,7 @@ describe('Expense entry flow', () => {
     const input = document.querySelector('input[accept="image/*,application/pdf,.heic,.heif"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['receipt'], 'dinner.png', { type: 'image/png' })] } });
     expect(screen.getByText('dinner.png')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Scan with Azure');
+    expect(screen.getByRole('button', { name: 'Scan receipt' })).toBeEnabled();
     fireEvent.change(input, { target: { files: [new File(['bad'], 'bad.txt', { type: 'text/plain' })] } });
     expect(screen.getByRole('status')).toHaveTextContent('Choose an image or PDF');
     expect(screen.getByText('dinner.png')).toBeInTheDocument();
@@ -386,14 +396,14 @@ it('validates editable quantities and allows removing the final item and adding 
   for (const quantity of ['', '0', '-1', '1.5', '1000', 'abc']) {
     fill('Item 1 quantity', quantity);
     fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
-    expect(screen.getByRole('status')).toHaveTextContent('Enter a whole-number quantity from 1 to 999');
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a whole-number quantity from 1 to 999');
     expect(screen.getByText('$0.00 subtotal')).toBeInTheDocument();
   }
   fill('Item 1 quantity', '4');
   expect(screen.getByText('$10.00 subtotal')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Remove item 1' }));
   fireEvent.click(screen.getByRole('button', { name: 'Continue to split' }));
-  expect(screen.getByRole('status')).toHaveTextContent('Add at least one item.');
+  expect(screen.getByRole('alert')).toHaveTextContent('Add at least one item.');
   fireEvent.click(screen.getByRole('button', { name: '+ Add item' }));
   expect(screen.getByRole('textbox', { name: 'Item 1 quantity' })).toHaveValue('1');
   fill('Item 1 name', 'Pears'); fill('Item 1 amount', '3.00');

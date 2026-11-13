@@ -65,6 +65,21 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
   const [choice, setChoice] = useState(payer);
   const [choosing, setChoosing] = useState(false);
   const [message, setMessage] = useState('');
+  const entryBody = useRef<HTMLDivElement>(null);
+  const [validation, setValidation] = useState<{ section: string; field?: string; message: string } | null>(null);
+  useEffect(() => {
+    if (!validation) return;
+    const section = entryBody.current?.querySelector<HTMLElement>('[data-validation="' + validation.section + '"]');
+    const field = [...(section?.querySelectorAll<HTMLElement>('input, textarea') ?? [])].find(input => input.getAttribute('aria-label') === validation.field);
+    field?.setAttribute('aria-invalid', 'true');
+    field?.setAttribute('aria-describedby', 'expense-validation-error');
+    section?.scrollIntoView?.({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+    field?.focus({ preventScroll: true });
+    return () => { field?.removeAttribute('aria-invalid'); field?.removeAttribute('aria-describedby'); };
+  }, [validation]);
+  const validationMessage = (section: string) => validation?.section === section
+    ? <p id="expense-validation-error" className="expense-validation-error" role="alert">{validation.message}</p> : null;
+
   const [uploadWarning, setUploadWarning] = useState('');
   const [receiptName, setReceiptName] = useState(initialSplit?.receiptName);
   const [receiptFile, setReceiptFile] = useState<File>();
@@ -91,7 +106,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     if (!initialSplit) setSelectedBankTransactionId(null);
   }, [date, total, payer, initialSplit]);
   useEffect(() => {
-    if (guest || initialSplit || payer !== 'you' || total <= 0) {
+    if (guest || initialSplit || payer !== 'you' || (total <= 0 && !date)) {
       setBankSuggestions([]);
       if (payer !== 'you') setSelectedBankTransactionId(null);
       setMatchingBank(false);
@@ -141,7 +156,7 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     setParsedReceipt(undefined);
     setReceiptFile(file);
     setReceiptName(file.name);
-    setMessage(guest ? 'Receipt selected. Scan with Azure to extract items, or enter them manually. Guest scans are not saved in Divvy. Only the first page is scanned.' : 'Receipt selected. Scan with Azure to extract items, or enter them manually. Only the first page is scanned.');
+    setMessage('');
   };
   const readReceipt = async () => {
     if (!receiptFile || scanning) return;
@@ -171,18 +186,19 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
     setMessage('Receipt items applied. Check names, quantities, prices, tax, tip, and other fees before continuing.');
   };
   const continueToSplit = () => {
-    if (!name.trim()) { setMessage('Enter an expense name.'); return; }
-    if (!items.length) { setMessage('Add at least one item.'); return; }
-    if (items.some(item => quantityValue(item.quantity) === null)) {
-      setMessage('Enter a whole-number quantity from 1 to 999 for each item.'); return;
+    const fail = (section: string, message: string, field?: string) => { setMessage(''); setValidation({ section, field, message }); };
+    if (!name.trim()) { fail('name', 'Enter an expense name.', 'EXPENSE NAME'); return; }
+    if (!items.length) { fail('items', 'Add at least one item.'); return; }
+    for (const [index, item] of items.entries()) {
+      if (quantityValue(item.quantity) === null) { fail(`item-${item.id}`, 'Enter a whole-number quantity from 1 to 999 for each item.', `Item ${index + 1} quantity`); return; }
+      if (!item.name.trim() || cents(item.amount) === null || cents(item.amount) === 0) {
+        fail(`item-${item.id}`, 'Give each item a name and a positive amount with up to two decimal places.', `Item ${index + 1} ${!item.name.trim() ? 'name' : 'amount'}`); return;
+      }
     }
-    if (items.some(item => !item.name.trim() || cents(item.amount) === null || cents(item.amount) === 0)) {
-      setMessage('Give each item a name and a positive amount with up to two decimal places.'); return;
-    }
-    if (Object.values(fees).some(value => cents(value) === null)) {
-      setMessage('Enter non-negative tax, tip, and fees with up to two decimal places.'); return;
-    }
-    if (!Number.isSafeInteger(total)) { setMessage('The expense total is too large.'); return; }
+    const invalidFee = Object.keys(fees).find(key => cents(fees[key as keyof typeof fees]) === null);
+    if (invalidFee) { fail('fees', 'Enter non-negative tax, tip, and fees with up to two decimal places.', invalidFee); return; }
+    if (!Number.isSafeInteger(total)) { fail('items', 'The expense total is too large.'); return; }
+    setValidation(null);
     setAssignments(previous => Object.fromEntries(items.map(item => [item.id, previous[item.id] ?? []])));
     setMessage('');
     setSplitting(true);
@@ -214,29 +230,30 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
       </div>
       <footer className="expense-footer"><button className="primary-button" type="button" onClick={() => { setPayer(choice); setChoosing(false); }}>Use {displayName(choice)} as payer</button></footer>
     </> : <>
-      <div className="expense-body">
-        <section className="expense-details">
-          {!guest && <><ExpandingNameInput label="EXPENSE NAME" placeholder="e.g. Dinner at Myers + Chang" value={name} onChange={setName} />
+      <div className="expense-body" ref={entryBody} onChange={() => setValidation(null)}>
+        <section className="expense-details" data-validation="name">{validationMessage('name')}
+          {!guest && <><ExpandingNameInput label="EXPENSE NAME" placeholder="Enter expense name (e.g., Chipotle)" value={name} onChange={setName} />
           <p>{groupName} · Created by {initialSplit?.creatorId && initialSplit.creatorId !== 'you' ? initialSplit.creatorName : 'you'}</p></>}
           <button className="expense-outline" type="button" onClick={() => { setChoice(payer); setChoosing(true); }}>Paid by {displayName(payer)} · Change</button>
           <label className="expense-date">Expense date <span>(optional)</span><input type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
-          <small className="expense-date-help">Leave blank to match by amount across all dates. Add a date to narrow suggestions to nearby charges. Saved expenses use today when no date is entered.</small>
+          <small className="expense-date-help">Saved expenses use today when no date is entered.</small>
         </section>
         {!guest && <section className="expense-category">
           <label htmlFor="expense-category">Budget category <span>(optional)</span></label>
           <select id="expense-category" value={budgetCategory} onChange={event => setBudgetCategory(event.target.value)}>
             {['dining', 'groceries', 'transit', 'shopping', 'other'].map(category => <option key={category} value={category}>{category[0]!.toUpperCase() + category.slice(1)}</option>)}
           </select>
-          <small>{initialSplit ? 'Applies only to your share.' : 'Sets the default for everyone’s share. Each person can change their own category later.'}</small>
+          {initialSplit && <small>Applies only to your share.</small>}
         </section>}
-        <section className="expense-receipt" aria-label="Receipt"><div>
+        <section className="expense-receipt" aria-label="Receipt">
+          <h2 className="expense-receipt-heading">Scan receipt <span>(optional)</span></h2><div>
           <button className="expense-outline" type="button" onClick={() => camera.current?.click()}>Take photo</button>
           <button className="expense-outline" type="button" onClick={() => upload.current?.click()}>Upload receipt</button>
         </div><input ref={camera} hidden type="file" accept="image/*" capture="environment" onChange={selectReceipt} /><input ref={upload} hidden type="file" accept="image/*,application/pdf,.heic,.heif" onChange={selectReceipt} />
           {localReceiptUrl && <a className="receipt-preview" href={localReceiptUrl} target="_blank" rel="noreferrer"><span className="receipt-preview-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 7h6M9 11h6M9 15h3" /></svg></span><span className="receipt-preview-copy"><strong>View receipt</strong><small>Open original in a new tab</small></span><span aria-hidden="true">↗</span></a>}
           {uploadWarning && <p className="receipt-upload-warning" role="status">{uploadWarning}</p>}
           {receiptName && <p className="expense-receipt-name">{receiptName}<button type="button" onClick={() => { scanController.current?.abort(); setScanning(false); setReceiptName(undefined); setReceiptFile(undefined); setParsedReceipt(undefined); setUploadWarning(''); setMessage(''); }}>Remove receipt</button></p>}
-          {receiptFile && <button className="expense-outline" type="button" disabled={scanning} onClick={() => void readReceipt()}>{scanning ? 'Scanning…' : 'Scan receipt with Azure'}</button>}
+          {receiptFile && <button className="expense-outline" type="button" disabled={scanning} onClick={() => void readReceipt()}>{scanning ? 'Scanning…' : 'Scan receipt'}</button>}
           {parsedReceipt && <div className="receipt-review" role="region" aria-label="Receipt scan review">
             <h2>Review scanned items</h2>
             {parsedReceipt.merchant && <p>{parsedReceipt.merchant}</p>}
@@ -249,10 +266,11 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
             <button className="expense-outline" type="button" onClick={() => setParsedReceipt(undefined)}>Keep current entries</button>
           </div>}
         </section>
-        <section className="expense-items"><div className="expense-section-title"><h2>Items</h2><p aria-live="polite">{dollars(subtotal)} subtotal</p></div>
-          {items.map((item, index) => <div className="expense-item-entry" key={item.id}>
+        <section className="expense-items" data-validation="items">{validationMessage('items')}<div className="expense-section-title"><h2>Items</h2><p aria-live="polite">{dollars(subtotal)} subtotal</p></div>
+          {items.map((item, index) => <div className={`expense-item-entry${validation?.section === `item-${item.id}` ? ' has-validation-error' : ''}`} data-validation={`item-${item.id}`} key={item.id}>
+            {validationMessage(`item-${item.id}`)}
             <div className="expense-item-heading">
-              <ExpandingNameInput label={`Item ${index + 1} name`} placeholder="Item name" value={item.name} onChange={name => updateItem(item.id, { name })} />
+              <ExpandingNameInput label={`Item ${index + 1} name`} placeholder="Enter item name" value={item.name} onChange={name => updateItem(item.id, { name })} />
               <strong aria-label={`Item ${index + 1} total`}>{dollars((cents(item.amount) ?? 0) * (quantityValue(item.quantity) ?? 0))}</strong>
             </div>
             <div className="expense-item">
@@ -268,19 +286,19 @@ export default function ExpenseEntry({ groupName, members, onBack, onConfirm, in
           {!items.length && <p>Add an item to start your receipt.</p>}
           <button className="expense-add" type="button" onClick={() => { const id = nextId.current++; setItems(previous => [...previous, { id, name: '', amount: '', quantity: '1' }]); }}>+ Add item</button>
         </section>
-        <section className="expense-fees"><h2>Tax, tip &amp; fees</h2><div>{(Object.keys(fees) as (keyof typeof fees)[]).map(key => <label key={key}>{key}<AmountInput label={key} value={fees[key]} clearZeroOnFocus onChange={value => setFees(previous => ({ ...previous, [key]: value }))} /></label>)}</div></section>
+        <section className="expense-fees" data-validation="fees">{validationMessage('fees')}<h2>Tax, tip &amp; fees</h2><div>{(Object.keys(fees) as (keyof typeof fees)[]).map(key => <label key={key}>{key}<AmountInput label={key} value={fees[key]} clearZeroOnFocus onChange={value => setFees(previous => ({ ...previous, [key]: value }))} /></label>)}</div></section>
         {!guest && !initialSplit && payer === 'you' && <section className="expense-bank-match" aria-label="Suggested bank transactions">
-          <h2>Match your bank charge</h2>
+          <h2 className="expense-bank-heading">Match your bank charge <span>(optional)</span></h2>
           {matchingBank && <p>Checking…</p>}
-          {total > 0 && <><p>Optional. Confirming a match replaces the full bank charge with only your share in your personal budget.</p>
+          {(total > 0 || date) && <><p>Confirming a match replaces the full bank charge with only your share in your personal budget.</p>
           <input className="expense-bank-search" type="search" maxLength={200} aria-label="Search suggested transactions" placeholder="Search merchant or transaction name" value={bankSearch} onChange={event => setBankSearch(event.target.value)} /></>}
-          {!matchingBank && bankSuggestions.length === 0 && <div className="expense-bank-empty"><strong>No matching transactions found</strong><p>{total <= 0 ? 'Add an item amount to find bank transactions based on your expense total.' : 'No transactions match the information entered. Try changing your search or date, or sync your bank.'}</p></div>}
+          {!matchingBank && bankSuggestions.length === 0 && <div className="expense-bank-empty"><strong>No matching transactions found</strong><p>{total <= 0 && !date ? 'Add an item amount or choose a date to find bank transactions.' : 'No transactions match the information entered. Try changing your search or date, or sync your bank.'}</p></div>}
           {bankSuggestions.length > 0 && <div className="expense-bank-results" role="region" aria-label="Matching bank charges" tabIndex={0}>
           {bankSuggestions.map(suggestion => <button type="button" key={suggestion.id}
             className={`expense-bank-suggestion ${selectedBankTransactionId === suggestion.id ? 'selected' : ''}`}
             aria-pressed={selectedBankTransactionId === suggestion.id}
             onClick={() => setSelectedBankTransactionId(previous => previous === suggestion.id ? null : suggestion.id)}>
-            <span><strong>{suggestion.merchant}</strong><small>{suggestion.institution} · {suggestion.accountName} · {suggestion.date}</small><small>{suggestion.reasons.join(' · ')}</small></span>
+            <span className="expense-bank-copy"><strong>{suggestion.merchant}</strong><small>{suggestion.institution} · {suggestion.accountName}</small><small className="expense-bank-date">{suggestion.date}</small><small className="expense-bank-reasons">{suggestion.reasons.join(' · ')}</small></span>
             <strong>{dollars(suggestion.amountCents)}{selectedBankTransactionId === suggestion.id ? ' ✓' : ''}</strong>
           </button>)}
           </div>}
