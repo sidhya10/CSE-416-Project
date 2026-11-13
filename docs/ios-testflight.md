@@ -91,3 +91,16 @@ The shell depends on the deployed Vercel client/API and Prisma Postgres database
 - Pull the latest reviewed `main` before syncing and archiving.
 - Do not place Apple signing material in Vercel, Render, GitHub, or source control.
 - A later merge of the native project may cause an automatic Vercel build if repository hooks are enabled, but it does not change the web application output. The `ios/` directory and Capacitor files are not part of Vite's production bundle.
+
+## Budget CSV export
+
+Budget export uses the Capacitor Filesystem and Share plugins on iOS. Sync the
+native project (`npm run mobile:sync`) and upload a new TestFlight binary after
+adding these plugins. The app writes a temporary CSV in its cache, opens the
+system share sheet (including Save to Files), and removes its temporary copy
+when sharing finishes or is cancelled. Older installed builds show an update
+message rather than attempting an unsupported WebView download.
+
+Verify on a physical iPhone: export the selected month, save to Files, reopen the
+CSV, cancel an export, and export again. Verify Safari still downloads the CSV.
+The app privacy manifest declares the Filesystem plugin's file timestamp usage.

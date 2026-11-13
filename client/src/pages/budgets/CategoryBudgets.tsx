@@ -1,3 +1,4 @@
+import { checkCsvExportSupport, saveCsv } from '../../native/exportCsv';
 import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from '../../components/common/Avatar';
@@ -107,12 +108,9 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
   const exportCsv = async () => {
     setExporting(true); setExportError('');
     try {
+      checkCsvExportSupport();
       const { blob, filename } = await budgetsApi.exportCsv(selectedMonth || undefined);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url; link.download = filename;
-      document.body.appendChild(link); link.click(); link.remove();
-      URL.revokeObjectURL(url);
+      await saveCsv(blob, filename);
     } catch (error) { setExportError(errorMessage(error)); }
     finally { setExporting(false); }
   };

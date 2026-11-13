@@ -145,7 +145,7 @@ describe('personal budget from the API', () => {
     await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
     expect(calls.some(call => call.url.endsWith('/budgets/personal/export.csv'))).toBe(true);
     expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:csv');
+    expect(revokeObjectURL).not.toHaveBeenCalled();
     fail = true;
     fireEvent.click(screen.getByRole('button', { name: 'Export selected month (CSV)' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Export broke');
