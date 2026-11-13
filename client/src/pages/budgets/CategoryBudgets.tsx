@@ -6,7 +6,7 @@ import { budgetsApi, type ApiGroupBudget, type ApiPersonalBudget } from '../../a
 import { ApiError } from '../../api/client';
 import { relativeTime } from '../../utils/dates';
 import { formatCents } from '../expenses/split';
-import { type CategoryKey, budgetPeriod, categoryPct, isOverLimit, toCategoryBudgets, toCategoryTransactions, totalPlannedCents, totalSpentCents } from './categoryPlan';
+import { type CategoryKey, budgetPeriod, categoryPct, daysLeftLabel, isOverLimit, toCategoryBudgets, toCategoryTransactions, totalPlannedCents, totalSpentCents } from './categoryPlan';
 import { groupBudgetPct, settleUpBody, toGroupBudget, totalOwedCents } from './groupBudgetPlan';
 import { CategoryTransactions, EditGroupPlan, EditLimits, SpendingInsights, WhoOwesWhat } from './CategoryBudgetDetails';
 import { useLiveData } from '../dashboard/useLiveData';
@@ -39,7 +39,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
   useEffect(() => {
     if (!expenseTarget) return;
     const key = (['dining', 'groceries', 'transit', 'shopping', 'other'].includes(expenseTarget.category) ? expenseTarget.category : 'other') as CategoryKey;
-    setScope('personal'); setDetail({ kind: 'category', key, from: 'budget' });
+    setScope('personal'); setSelectedMonth(''); setDetail({ kind: 'category', key, from: 'budget' });
   }, [expenseTarget]);
   const [personal, setPersonal] = useState<ApiPersonalBudget | null>(null);
   const [groups, setGroups] = useState<ApiGroupBudget[] | null>(null);
@@ -180,7 +180,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
 
       <section className="cb-hero" aria-label="Group budget summary">
         <strong className="cb-hero-amount">{formatCents(activeGroup.spentCents)} spent</strong>
-        <p className="cb-hero-sub">{activeGroup.plannedCents ? `of ${formatCents(activeGroup.plannedCents)} shared plan` : 'No shared plan set'} · {activeGroup.daysLeft} days left</p>
+        <p className="cb-hero-sub">{activeGroup.plannedCents ? `of ${formatCents(activeGroup.plannedCents)} shared plan` : 'No shared plan set'} · {daysLeftLabel(activeGroup.daysLeft)}</p>
         <div className="cb-hero-bar" role="presentation"><div style={{ width: `${groupPct}%` }} /></div>
         <div className="cb-hero-meta">
           <button type="button" onClick={() => setDetail({ kind: 'owes' })}>View who owes what ›</button>
@@ -208,7 +208,7 @@ export default function CategoryBudgets({ onOpenSimulator, onOpenTransactions = 
     </>) : (!personal || !period ? (personalError ? retry(personalError) : <p className="cb-notice" role="status">Loading your budget…</p>) : <>
       <section className="cb-hero" aria-label="Budget summary">
         <strong className="cb-hero-amount">{formatCents(spent)} spent</strong>
-        <p className="cb-hero-sub">{planned ? `of ${formatCents(planned)} planned` : 'No category limits set'} · {historical ? 'Month ended' : `${period.daysLeft} days left`}</p>
+        <p className="cb-hero-sub">{planned ? `of ${formatCents(planned)} planned` : 'No category limits set'} · {historical ? 'Month ended' : daysLeftLabel(period.daysLeft)}</p>
         <div className="cb-hero-bar" role="presentation"><div style={{ width: `${pct}%` }} /></div>
         <div className="cb-hero-meta">
           <span>{personal.lastSyncedAt ? `↻ Bank synced ${relativeTime(personal.lastSyncedAt)}` : '↻ No bank synced yet'}</span>

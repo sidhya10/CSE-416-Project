@@ -2,7 +2,7 @@ import Avatar from '../../components/common/Avatar';
 import { ApiError } from '../../api/client';
 import { formatCents } from '../expenses/split';
 import { useState } from 'react';
-import { MAX_LIMIT_CENTS, categoryInsights, categoryPct, totalSpentCents, totalPlannedCents, type BudgetPeriod, type CategoryBudget, type CategoryKey, type CategoryTransaction } from './categoryPlan';
+import { MAX_LIMIT_CENTS, categoryInsights, daysLeftLabel, categoryPct, totalSpentCents, totalPlannedCents, type BudgetPeriod, type CategoryBudget, type CategoryKey, type CategoryTransaction } from './categoryPlan';
 import { settlementsFor, totalOwedCents, type GroupBudget } from './groupBudgetPlan';
 
 const Back = ({ label, onBack }: { label: string; onBack: () => void }) =>
@@ -47,7 +47,7 @@ export function SpendingInsights({ budgets, period, onBack, onSelectCategory, hi
   const overPace = insights.filter(i => i.overPace);
   return <>
     <Back label="Budget" onBack={onBack} />
-    <header className="cb-header"><h1>Spending insights</h1><p>{period.monthLabel} · {historical ? 'Month ended' : `${period.daysLeft} days left`}</p></header>
+    <header className="cb-header"><h1>Spending insights</h1><p>{period.monthLabel} · {historical ? 'Month ended' : daysLeftLabel(period.daysLeft)}</p></header>
     <section className="cb-hero" aria-label={historical ? 'Total spent' : 'Projection'}>
       <strong className="cb-hero-amount">{formatCents(projected)} {historical ? 'total spent' : 'projected'}</strong>
       <p className="cb-hero-sub">{planned === 0 ? 'Set category limits to compare against a plan' : `${projected <= planned ? `${formatCents(planned - projected)} under` : `${formatCents(projected - planned)} over`} your ${formatCents(planned)} plan${historical ? '' : ' at this pace'}`}</p>
@@ -98,9 +98,10 @@ export function WhoOwesWhat({ group, onBack }: { group: GroupBudget; onBack: () 
 
 // Parses a dollar amount into cents; null when blank, negative, not a number, or above the maximum.
 const toCents = (text: string) => {
-  const n = Number(text.replace(/[$,\s]/g, ''));
+  const cleaned = text.replace(/[$,\s]/g, '');
+  const n = Number(cleaned);
   const cents = Math.round(n * 100);
-  return text.trim() !== '' && Number.isFinite(n) && n >= 0 && cents <= MAX_LIMIT_CENTS ? cents : null;
+  return cleaned !== '' && Number.isFinite(n) && n >= 0 && cents <= MAX_LIMIT_CENTS ? cents : null;
 };
 const AMOUNT_ERROR = 'Enter an amount between $0 and $1,000,000.';
 
